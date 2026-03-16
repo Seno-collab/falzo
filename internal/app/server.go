@@ -22,7 +22,10 @@ func Run() {
 		w.Write([]byte("Hello world!"))
 	})
 	sm := lib.NewShutdownManager(60 * time.Second)
-	srv := &http.Server{Addr: ":3000"}
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
+	}
 	sm.Register("http-stop-acceting", 5*time.Second, func(ctx context.Context) error {
 		// Stop accepting new requests immediately
 		return srv.Shutdown(ctx)
@@ -30,11 +33,12 @@ func Run() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Println("server failed", "error", err)
 			os.Exit(1)
 		}
 	}()
-	fmt.Println("server started", "addr", ":8080")
+	fmt.Println("server started", "addr", srv.Addr)
 	sig := <-quit
 	fmt.Println("shutdown initiated", "signal", sig)
 
