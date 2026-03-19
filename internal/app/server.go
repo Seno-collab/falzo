@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"falzo/pkg/lib"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,26 +9,47 @@ import (
 	"syscall"
 	"time"
 
+	"falzo/internal/auth"
+	"falzo/internal/cache"
+	"falzo/internal/config"
+	"falzo/internal/dto"
+	httpmiddleware "falzo/internal/http/middleware"
+	httpresponse "falzo/internal/http/response"
+	"falzo/internal/shutdown"
+
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog/log"
 )
 
 func Run() {
+	cfg := config.Load()
+	redisClient, err := cache.NewRedis(cfg.Redis)
+	if err != nil {
+		log.Warn().Err(err).Str("addr", cfg.Redis.Addr).Msg("redis unavailable at startup")
+	}
+
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
+	r.Use(chimiddleware.RealIP)
+	r.Use(chimiddleware.RequestID)
+	r.Use(httpmiddleware.Recover)
 	r.Use(requestLogger)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello world!"))
+		httpresponse.JSON(w, http.StatusOK, dto.MessageResponse{Message: "Hello world!"})
 	})
-	sm := lib.NewShutdownManager(60 * time.Second)
-	srv := &http.Server{Addr: ":8080", Handler: r}
-	sm.Register("http-stop-acceting", 5*time.Second, func(ctx context.Context) error {
+	r.Mount("/auth", auth.NewHandler(auth.NoopService{}).Routes())
+
+	sm := shutdown.NewManager()
+	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}
+	sm.Register("http-stop-accepting", 5*time.Second, func(ctx context.Context) error {
 		// Stop accepting new requests immediately
 		return srv.Shutdown(ctx)
 	})
+	if redisClient != nil {
+		sm.Register("redis-close", 5*time.Second, func(ctx context.Context) error {
+			return redisClient.Close()
+		})
+	}
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
@@ -91,7 +111,7 @@ func requestLogger(next http.Handler) http.Handler {
 			Int("bytes", rec.bytes).
 			Str("remote_ip", r.RemoteAddr)
 
-		if requestID := middleware.GetReqID(r.Context()); requestID != "" {
+		if requestID := chimiddleware.GetReqID(r.Context()); requestID != "" {
 			event = event.Str("request_id", sanitizeRequestID(requestID))
 		}
 
