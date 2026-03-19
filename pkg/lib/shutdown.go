@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ShutdownManager struct {
@@ -37,12 +39,12 @@ func (s *ShutdownManager) Shutdown() error {
 	var errs []error
 	for _, phase := range phases {
 		ctx, cancel := context.WithTimeout(context.Background(), phase.timeout)
-		fmt.Printf("shutdown phase starting, phase. %s", phase.name)
+		log.Info().Str("phase", phase.name).Dur("timeout", phase.timeout).Msg("shutdown phase starting")
 		if err := phase.fn(ctx); err != nil {
-			fmt.Printf("shutdown phase failed, phase %s, error %v", phase.name, err)
+			log.Error().Err(err).Str("phase", phase.name).Msg("shutdown phase failed")
 			errs = append(errs, fmt.Errorf("phase %s: %w", phase.name, err))
 		} else {
-			fmt.Printf("shutdown phase complete, phase %s", phase.name)
+			log.Info().Str("phase", phase.name).Msg("shutdown phase complete")
 		}
 		cancel()
 	}
