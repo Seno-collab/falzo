@@ -1,4 +1,4 @@
-module falzo
+module falzo-be
 
 go 1.25.7
 

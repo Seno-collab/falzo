@@ -1,7 +1,7 @@
 package main
 
 import (
-	"falzo/internal/app"
+	"falzo-be/internal/app"
 )
 
 func main() {

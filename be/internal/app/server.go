@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"falzo/pkg/lib"
+	"falzo-be/pkg/lib"
 	"net/http"
 	"os"
 	"os/signal"
