@@ -9,6 +9,7 @@ import (
 type Config struct {
 	App   AppConfig
 	HTTP  HTTPConfig
+	Auth  AuthConfig
 	MySQL MySQLConfig
 	Redis RedisConfig
 }
@@ -21,6 +22,13 @@ type AppConfig struct {
 type HTTPConfig struct {
 	Addr            string
 	ShutdownTimeout time.Duration
+}
+
+type AuthConfig struct {
+	JWTSecret     string
+	TokenTTL      time.Duration
+	AdminUsername string
+	AdminPassword string
 }
 
 type MySQLConfig struct {
@@ -49,6 +57,12 @@ func Load() Config {
 		HTTP: HTTPConfig{
 			Addr:            getEnv("HTTP_ADDR", ":8080"),
 			ShutdownTimeout: getDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
+		},
+		Auth: AuthConfig{
+			JWTSecret:     getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
+			TokenTTL:      getDuration("AUTH_TOKEN_TTL", 24*time.Hour),
+			AdminUsername: getEnv("AUTH_ADMIN_USERNAME", "admin"),
+			AdminPassword: getEnv("AUTH_ADMIN_PASSWORD", "admin123"),
 		},
 		MySQL: MySQLConfig{
 			Host:            getEnv("MYSQL_HOST", "127.0.0.1"),

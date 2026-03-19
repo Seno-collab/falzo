@@ -2,10 +2,8 @@ package logger
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	// "runtime"
 	"strings"
 	"time"
 
@@ -51,8 +49,8 @@ func SetupLogger() {
 		return fmt.Sprintf("%s:%d", relative, line)
 	}
 
-	// Writer 1: colored console output for local debugging.
-	consoleWriter := newConsoleWriter(os.Stdout, true)
+	// Writer 1: stdout JSON for containers and centralized logging.
+	stdoutWriter := os.Stdout
 
 	// Writer 2: daily file log with 7-day retention.
 	fileWriter := &lumberjack.Logger{
@@ -61,11 +59,8 @@ func SetupLogger() {
 		LocalTime: true,
 	}
 
-	// Keep file logs readable too, but without ANSI colors.
-	fileConsoleWriter := newConsoleWriter(fileWriter, false)
-
-	// Write to both console and file using the same readable layout.
-	multi := zerolog.MultiLevelWriter(consoleWriter, fileConsoleWriter)
+	// Write JSON to both stdout and file.
+	multi := zerolog.MultiLevelWriter(stdoutWriter, fileWriter)
 
 	log.Logger = zerolog.New(multi).
 		With().
@@ -74,59 +69,6 @@ func SetupLogger() {
 		Timestamp().
 		Caller(). // includes caller file, function, and line
 		Logger()
-}
-
-func newConsoleWriter(out io.Writer, color bool) zerolog.ConsoleWriter {
-	writer := zerolog.ConsoleWriter{
-		Out:        out,
-		TimeFormat: "2006-01-02 15:04:05",
-		NoColor:    !color,
-		PartsOrder: []string{
-			zerolog.TimestampFieldName,
-			zerolog.LevelFieldName,
-			"service",
-			"env",
-			zerolog.CallerFieldName,
-			zerolog.MessageFieldName,
-		},
-		FieldsOrder: []string{
-			"addr",
-			"method",
-			"path",
-			"status",
-			"duration_ms",
-			"bytes",
-			"remote_ip",
-			"request_id",
-			"content_length",
-			"signal",
-			"phase",
-			"timeout",
-			"error",
-		},
-		FieldsExclude: []string{
-			"service",
-			"env",
-		},
-	}
-
-	writer.FormatLevel = func(i interface{}) string {
-		return strings.ToUpper(fmt.Sprintf("%-5s", i))
-	}
-
-	writer.FormatMessage = func(i interface{}) string {
-		return fmt.Sprintf("%s", i)
-	}
-
-	writer.FormatFieldName = func(i interface{}) string {
-		return fmt.Sprintf("%s=", i)
-	}
-
-	writer.FormatFieldValue = func(i interface{}) string {
-		return fmt.Sprintf("%v", i)
-	}
-
-	return writer
 }
 
 func getEnv(key, fallback string) string {

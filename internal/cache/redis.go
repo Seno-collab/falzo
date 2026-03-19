@@ -9,11 +9,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type Redis struct {
+// Chi defines the cache client contract used by the application.
+type Chi interface {
+	Client() *redis.Client
+	Close() error
+}
+
+// em implements Chi using a Redis client.
+type em struct {
 	client *redis.Client
 }
 
-func NewRedis(cfg config.RedisConfig) (*Redis, error) {
+func New(cfg config.RedisConfig) (Chi, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,
 		Password: cfg.Password,
@@ -28,10 +35,10 @@ func NewRedis(cfg config.RedisConfig) (*Redis, error) {
 		return nil, err
 	}
 
-	return &Redis{client: client}, nil
+	return &em{client: client}, nil
 }
 
-func (r *Redis) Client() *redis.Client {
+func (r *em) Client() *redis.Client {
 	if r == nil {
 		return nil
 	}
@@ -39,7 +46,7 @@ func (r *Redis) Client() *redis.Client {
 	return r.client
 }
 
-func (r *Redis) Close() error {
+func (r *em) Close() error {
 	if r == nil || r.client == nil {
 		return nil
 	}

@@ -12,6 +12,7 @@ import (
 	"falzo/internal/auth"
 	"falzo/internal/cache"
 	"falzo/internal/config"
+	"falzo/internal/database"
 	"falzo/internal/dto"
 	httpmiddleware "falzo/internal/http/middleware"
 	httpresponse "falzo/internal/http/response"
@@ -24,7 +25,13 @@ import (
 
 func Run() {
 	cfg := config.Load()
-	redisClient, err := cache.NewRedis(cfg.Redis)
+	dbClient, err := database.New(cfg.MySQL)
+	if err != nil {
+		log.Error().Err(err).Msg("mysql unavailable at startup")
+		os.Exit(1)
+	}
+
+	redisClient, err := cache.New(cfg.Redis)
 	if err != nil {
 		log.Warn().Err(err).Str("addr", cfg.Redis.Addr).Msg("redis unavailable at startup")
 	}
@@ -34,10 +41,24 @@ func Run() {
 	r.Use(chimiddleware.RequestID)
 	r.Use(httpmiddleware.Recover)
 	r.Use(requestLogger)
+
+	authService := auth.New(cfg.Auth, dbClient)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		httpresponse.JSON(w, http.StatusOK, dto.MessageResponse{Message: "Hello world!"})
 	})
-	r.Mount("/auth", auth.NewHandler(auth.NoopService{}).Routes())
+	r.Mount("/auth", auth.NewHandler(authService).Routes())
+	r.With(auth.RequireAuth(authService)).Get("/profile", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := auth.ClaimsFromContext(r.Context())
+		if !ok {
+			httpresponse.Error(w, http.StatusUnauthorized, "unauthorized", "missing auth context")
+			return
+		}
+
+		httpresponse.JSON(w, http.StatusOK, map[string]string{
+			"message":  "authenticated",
+			"username": claims.Username,
+		})
+	})
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}
@@ -48,6 +69,11 @@ func Run() {
 	if redisClient != nil {
 		sm.Register("redis-close", 5*time.Second, func(ctx context.Context) error {
 			return redisClient.Close()
+		})
+	}
+	if dbClient != nil {
+		sm.Register("mysql-close", 5*time.Second, func(ctx context.Context) error {
+			return dbClient.Close()
 		})
 	}
 	quit := make(chan os.Signal, 1)
