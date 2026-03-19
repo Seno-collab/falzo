@@ -1,18 +1,14 @@
-package auth
+package middleware
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
-	httpresponse "falzo/internal/http/response"
+	"falzo/internal/auth"
+	httpresponse "falzo/pkg/http/response"
 )
 
-type contextKey string
-
-const claimsContextKey contextKey = "auth_claims"
-
-func RequireAuth(service Chi) func(next http.Handler) http.Handler {
+func RequireAuth(service auth.Service) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -33,13 +29,7 @@ func RequireAuth(service Chi) func(next http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), claimsContextKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(auth.WithClaims(r.Context(), claims)))
 		})
 	}
-}
-
-func ClaimsFromContext(ctx context.Context) (*Claims, bool) {
-	claims, ok := ctx.Value(claimsContextKey).(*Claims)
-	return claims, ok
 }

@@ -29,7 +29,6 @@ func SetupLogger() {
 	rootDir := getRootDir()
 	logDir := filepath.Join(rootDir, "logs")
 
-	// Create the logs directory if it does not exist yet.
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		panic(fmt.Sprintf("failed to create log directory: %v", err))
 	}
@@ -49,17 +48,13 @@ func SetupLogger() {
 		return fmt.Sprintf("%s:%d", relative, line)
 	}
 
-	// Writer 1: stdout JSON for containers and centralized logging.
 	stdoutWriter := os.Stdout
-
-	// Writer 2: daily file log with 7-day retention.
 	fileWriter := &lumberjack.Logger{
 		Filename:  logFilePath,
-		MaxAge:    7, // keep logs for 7 days
+		MaxAge:    7,
 		LocalTime: true,
 	}
 
-	// Write JSON to both stdout and file.
 	multi := zerolog.MultiLevelWriter(stdoutWriter, fileWriter)
 
 	log.Logger = zerolog.New(multi).
@@ -67,7 +62,7 @@ func SetupLogger() {
 		Str("service", serviceName).
 		Str("env", environment).
 		Timestamp().
-		Caller(). // includes caller file, function, and line
+		Caller().
 		Logger()
 }
 

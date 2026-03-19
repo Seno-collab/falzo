@@ -10,13 +10,16 @@ import (
 	"time"
 
 	"falzo/internal/auth"
+	authhandler "falzo/internal/auth/handler"
+	authmiddleware "falzo/internal/auth/middleware"
+	authservice "falzo/internal/auth/service"
 	"falzo/internal/cache"
 	"falzo/internal/config"
 	"falzo/internal/database"
 	"falzo/internal/dto"
-	httpmiddleware "falzo/internal/http/middleware"
-	httpresponse "falzo/internal/http/response"
-	"falzo/internal/shutdown"
+	httpmiddleware "falzo/pkg/http/middleware"
+	httpresponse "falzo/pkg/http/response"
+	"falzo/pkg/shutdown"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -42,12 +45,12 @@ func Run() {
 	r.Use(httpmiddleware.Recover)
 	r.Use(requestLogger)
 
-	authService := auth.New(cfg.Auth, dbClient)
+	authService := authservice.New(cfg.Auth, dbClient)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		httpresponse.JSON(w, http.StatusOK, dto.MessageResponse{Message: "Hello world!"})
 	})
-	r.Mount("/auth", auth.NewHandler(authService).Routes())
-	r.With(auth.RequireAuth(authService)).Get("/profile", func(w http.ResponseWriter, r *http.Request) {
+	r.Mount("/auth", authhandler.New(authService).Routes())
+	r.With(authmiddleware.RequireAuth(authService)).Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := auth.ClaimsFromContext(r.Context())
 		if !ok {
 			httpresponse.Error(w, http.StatusUnauthorized, "unauthorized", "missing auth context")

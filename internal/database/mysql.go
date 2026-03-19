@@ -11,18 +11,18 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// Chi defines the database client contract exposed to the application.
-type Chi interface {
+// Client defines the database client contract exposed to the application.
+type Client interface {
 	DB() *sql.DB
 	Close() error
 }
 
-// em implements Chi using a MySQL-backed sql.DB connection.
-type em struct {
+// mysqlClient implements Client using a MySQL-backed sql.DB connection.
+type mysqlClient struct {
 	db *sql.DB
 }
 
-func New(cfg config.MySQLConfig) (Chi, error) {
+func New(cfg config.MySQLConfig) (Client, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 		cfg.User,
 		cfg.Password,
@@ -48,10 +48,10 @@ func New(cfg config.MySQLConfig) (Chi, error) {
 		return nil, err
 	}
 
-	return &em{db: db}, nil
+	return &mysqlClient{db: db}, nil
 }
 
-func (e *em) DB() *sql.DB {
+func (e *mysqlClient) DB() *sql.DB {
 	if e == nil {
 		return nil
 	}
@@ -59,7 +59,7 @@ func (e *em) DB() *sql.DB {
 	return e.db
 }
 
-func (e *em) Close() error {
+func (e *mysqlClient) Close() error {
 	if e == nil || e.db == nil {
 		return nil
 	}

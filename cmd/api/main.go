@@ -2,7 +2,7 @@ package main
 
 import (
 	"falzo/internal/app"
-	"falzo/internal/logger"
+	"falzo/pkg/logger"
 )
 
 func main() {

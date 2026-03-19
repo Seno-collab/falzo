@@ -1,14 +1,15 @@
-package auth
+package service
 
 import (
 	"testing"
 	"time"
 
+	"falzo/internal/auth"
 	"falzo/internal/config"
 )
 
 func TestSignTokenAndParseToken(t *testing.T) {
-	service := &em{
+	service := &authService{
 		cfg: config.AuthConfig{
 			JWTSecret: "test-secret",
 			TokenTTL:  time.Hour,
@@ -40,7 +41,7 @@ func TestLoginUnavailableWithoutDatabase(t *testing.T) {
 		TokenTTL:  time.Hour,
 	}, nil)
 
-	if _, err := service.Login(t.Context(), "admin", "admin123"); err != ErrAuthUnavailable {
+	if _, err := service.Login(t.Context(), "admin", "admin123"); err != auth.ErrAuthUnavailable {
 		t.Fatalf("expected auth unavailable, got %v", err)
 	}
 }

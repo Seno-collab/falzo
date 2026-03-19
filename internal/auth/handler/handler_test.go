@@ -1,4 +1,4 @@
-package auth
+package handler
 
 import (
 	"bytes"
@@ -7,32 +7,34 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"falzo/internal/auth"
 )
 
-type fakeChi struct {
+type fakeService struct {
 	registerErr error
 	loginToken  string
 	loginErr    error
 }
 
-func (f fakeChi) Register(ctx context.Context, username string, email string, password string) error {
+func (f fakeService) Register(ctx context.Context, username string, email string, password string) error {
 	return f.registerErr
 }
 
-func (f fakeChi) Login(ctx context.Context, username string, password string) (string, error) {
+func (f fakeService) Login(ctx context.Context, username string, password string) (string, error) {
 	return f.loginToken, f.loginErr
 }
 
-func (f fakeChi) Logout(ctx context.Context, token string) error {
+func (f fakeService) Logout(ctx context.Context, token string) error {
 	return nil
 }
 
-func (f fakeChi) ParseToken(token string) (*Claims, error) {
+func (f fakeService) ParseToken(token string) (*auth.Claims, error) {
 	return nil, errors.New("not implemented")
 }
 
 func TestRegisterHandler(t *testing.T) {
-	handler := NewHandler(fakeChi{})
+	handler := New(fakeService{})
 
 	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"username":"admin","email":"admin@example.com","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -46,7 +48,7 @@ func TestRegisterHandler(t *testing.T) {
 }
 
 func TestLoginHandler(t *testing.T) {
-	handler := NewHandler(fakeChi{loginToken: "signed-token"})
+	handler := New(fakeService{loginToken: "signed-token"})
 
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBufferString(`{"username":"admin","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")
