@@ -1,4 +1,4 @@
-package mysql
+package postgres
 
 import (
 	"context"
@@ -33,10 +33,12 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 	}
 	defer tx.Rollback()
 
-	result, err := tx.ExecContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		INSERT INTO users (username, email, password_hash)
-		VALUES (?, ?, ?)
-	`, account.User.Username.String(), account.User.Email.String(), account.User.PasswordHash.String())
+		VALUES ($1, $2, $3)
+		RETURNING id
+	`, account.User.Username.String(), account.User.Email.String(), account.User.PasswordHash.String()).
+		Scan(&account.User.ID)
 	if err != nil {
 		if isDuplicateError(err) {
 			return domain.ErrUserExists
@@ -44,15 +46,9 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 		return err
 	}
 
-	userID, err := result.LastInsertId()
-	if err != nil {
-		return err
-	}
-	account.User.ID = uint64(userID)
-
 	for _, role := range account.Roles {
 		var roleID uint64
-		err := tx.QueryRowContext(ctx, `SELECT id FROM roles WHERE name = ? LIMIT 1`, role).Scan(&roleID)
+		err := tx.QueryRowContext(ctx, `SELECT id FROM roles WHERE name = $1 LIMIT 1`, role).Scan(&roleID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
@@ -62,8 +58,8 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO user_roles (user_id, role_id)
-			VALUES (?, ?)
-			ON DUPLICATE KEY UPDATE role_id = VALUES(role_id)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id, role_id) DO NOTHING
 		`, account.User.ID, roleID); err != nil {
 			return err
 		}
@@ -87,7 +83,7 @@ func (r *AccountRepository) FindActiveByUsername(ctx context.Context, username v
 	err := r.db.DB().QueryRowContext(ctx, `
 		SELECT id, username, email, password_hash, is_active, created_at, updated_at
 		FROM users
-		WHERE username = ? AND is_active = TRUE
+		WHERE username = $1 AND is_active = TRUE
 		LIMIT 1
 	`, username.String()).Scan(
 		&user.ID,
@@ -131,7 +127,7 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 		SELECT roles.name
 		FROM user_roles
 		JOIN roles ON roles.id = user_roles.role_id
-		WHERE user_roles.user_id = ?
+		WHERE user_roles.user_id = $1
 	`, userID)
 	if err != nil {
 		return nil, err
@@ -151,5 +147,5 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 }
 
 func isDuplicateError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "Duplicate entry")
+	return err != nil && strings.Contains(err.Error(), "duplicate key value violates unique constraint")
 }

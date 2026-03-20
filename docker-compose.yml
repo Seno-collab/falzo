@@ -5,7 +5,7 @@ services:
   #     dockerfile: Dockerfile
   #   container_name: falzo-app
   #   depends_on:
-  #     mysql:
+  #     postgres:
   #       condition: service_healthy
   #     redis:
   #       condition: service_healthy
@@ -13,32 +13,31 @@ services:
   #     APP_ENV: docker
   #     APP_NAME: falzo-api
   #     HTTP_ADDR: :8080
-  #     MYSQL_HOST: mysql
-  #     MYSQL_PORT: "3306"
-  #     MYSQL_DATABASE: falzo
-  #     MYSQL_USER: falzo
-  #     MYSQL_PASSWORD: falzo
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_PORT: "5432"
+  #     POSTGRES_DATABASE: falzo
+  #     POSTGRES_USER: falzo
+  #     POSTGRES_PASSWORD: falzo
   #     REDIS_ADDR: redis:6379
   #     REDIS_DB: "0"
   #   ports:
   #     - "8080:8080"
   #   restart: unless-stopped
 
-  mysql:
-    image: mysql:8.4
-    container_name: falzo-mysql
+  postgres:
+    image: postgres:17-alpine
+    container_name: falzo-postgres
     environment:
-      MYSQL_DATABASE: falzo
-      MYSQL_USER: falzo
-      MYSQL_PASSWORD: falzo
-      MYSQL_ROOT_PASSWORD: root
+      POSTGRES_DB: falzo
+      POSTGRES_USER: falzo
+      POSTGRES_PASSWORD: falzo
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./db/schemas/main.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      test: ["CMD-SHELL", "pg_isready -U falzo -d falzo"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -58,5 +57,5 @@ services:
       retries: 10
 
 volumes:
-  mysql_data:
+  postgres_data:
   redis_data:

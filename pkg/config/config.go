@@ -7,11 +7,11 @@ import (
 )
 
 type Config struct {
-	App   AppConfig
-	HTTP  HTTPConfig
-	Auth  AuthConfig
-	MySQL MySQLConfig
-	Redis RedisConfig
+	App      AppConfig
+	HTTP     HTTPConfig
+	Auth     AuthConfig
+	Postgres PostgresConfig
+	Redis    RedisConfig
 }
 
 type AppConfig struct {
@@ -31,7 +31,7 @@ type AuthConfig struct {
 	AdminPassword string
 }
 
-type MySQLConfig struct {
+type PostgresConfig struct {
 	Host            string
 	Port            string
 	Database        string
@@ -64,15 +64,15 @@ func Load() Config {
 			AdminUsername: getEnv("AUTH_ADMIN_USERNAME", "admin"),
 			AdminPassword: getEnv("AUTH_ADMIN_PASSWORD", "admin123"),
 		},
-		MySQL: MySQLConfig{
-			Host:            getEnv("MYSQL_HOST", "127.0.0.1"),
-			Port:            getEnv("MYSQL_PORT", "3306"),
-			Database:        getEnv("MYSQL_DATABASE", ""),
-			User:            getEnv("MYSQL_USER", ""),
-			Password:        getEnv("MYSQL_PASSWORD", ""),
-			MaxOpenConns:    getInt("MYSQL_MAX_OPEN_CONNS", 25),
-			MaxIdleConns:    getInt("MYSQL_MAX_IDLE_CONNS", 25),
-			ConnMaxLifetime: getDuration("MYSQL_CONN_MAX_LIFETIME", 5*time.Minute),
+		Postgres: PostgresConfig{
+			Host:            getEnv("POSTGRES_HOST", "127.0.0.1"),
+			Port:            getEnv("POSTGRES_PORT", "5432"),
+			Database:        getEnv("POSTGRES_DATABASE", ""),
+			User:            getEnv("POSTGRES_USER", ""),
+			Password:        getEnv("POSTGRES_PASSWORD", ""),
+			MaxOpenConns:    getInt("POSTGRES_MAX_OPEN_CONNS", 25),
+			MaxIdleConns:    getInt("POSTGRES_MAX_IDLE_CONNS", 25),
+			ConnMaxLifetime: getDuration("POSTGRES_CONN_MAX_LIFETIME", 5*time.Minute),
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),

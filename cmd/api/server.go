@@ -11,7 +11,7 @@ import (
 
 	authservice "falzo/internal/auth/application"
 	authmiddleware "falzo/internal/auth/infrastructure/http"
-	authmysql "falzo/internal/auth/infrastructure/persistence/mysql"
+	authpostgres "falzo/internal/auth/infrastructure/persistence/postgres"
 	authbcrypt "falzo/internal/auth/infrastructure/security/bcrypt"
 	authtoken "falzo/internal/auth/infrastructure/token"
 	authhandler "falzo/internal/auth/interfaces/http"
@@ -30,9 +30,9 @@ import (
 
 func Run() {
 	cfg := config.Load()
-	dbClient, err := database.New(cfg.MySQL)
+	dbClient, err := database.New(cfg.Postgres)
 	if err != nil {
-		log.Error().Err(err).Msg("mysql unavailable at startup")
+		log.Error().Err(err).Msg("postgres unavailable at startup")
 		os.Exit(1)
 	}
 
@@ -49,7 +49,7 @@ func Run() {
 
 	jwtManager := authtoken.NewJWTManager(cfg.Auth)
 	authService := authservice.New(
-		authmysql.NewAccountRepository(dbClient),
+		authpostgres.NewAccountRepository(dbClient),
 		authbcrypt.NewPasswordHasher(),
 		jwtManager,
 		jwtManager,
@@ -83,7 +83,7 @@ func Run() {
 		})
 	}
 	if dbClient != nil {
-		sm.Register("mysql-close", 5*time.Second, func(ctx context.Context) error {
+		sm.Register("postgres-close", 5*time.Second, func(ctx context.Context) error {
 			return dbClient.Close()
 		})
 	}

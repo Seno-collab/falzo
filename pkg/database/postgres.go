@@ -8,7 +8,7 @@ import (
 
 	"falzo/pkg/config"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // Client defines the database client contract exposed to the application.
@@ -17,13 +17,13 @@ type Client interface {
 	Close() error
 }
 
-// mysqlClient implements Client using a MySQL-backed sql.DB connection.
-type mysqlClient struct {
+// postgresClient implements Client using a PostgreSQL-backed sql.DB connection.
+type postgresClient struct {
 	db *sql.DB
 }
 
-func New(cfg config.MySQLConfig) (Client, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
+func New(cfg config.PostgresConfig) (Client, error) {
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		cfg.User,
 		cfg.Password,
 		cfg.Host,
@@ -31,7 +31,7 @@ func New(cfg config.MySQLConfig) (Client, error) {
 		cfg.Database,
 	)
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +48,10 @@ func New(cfg config.MySQLConfig) (Client, error) {
 		return nil, err
 	}
 
-	return &mysqlClient{db: db}, nil
+	return &postgresClient{db: db}, nil
 }
 
-func (e *mysqlClient) DB() *sql.DB {
+func (e *postgresClient) DB() *sql.DB {
 	if e == nil {
 		return nil
 	}
@@ -59,7 +59,7 @@ func (e *mysqlClient) DB() *sql.DB {
 	return e.db
 }
 
-func (e *mysqlClient) Close() error {
+func (e *postgresClient) Close() error {
 	if e == nil || e.db == nil {
 		return nil
 	}
