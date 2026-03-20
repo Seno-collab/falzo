@@ -20,7 +20,7 @@ vendor/
 
 # Go build cache
 /bin/
-/pkg/
+# /pkg/
 
 # IDE (VS Code, JetBrains)
 .vscode/
