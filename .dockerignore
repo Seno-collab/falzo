@@ -1,0 +1,11 @@
+.git
+.gitignore
+.vscode
+.idea
+logs
+internal/logs
+bin
+pkg
+*.log
+*.test
+coverage.out
