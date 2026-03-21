@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"falzo/internal/auth/application/command"
-	"falzo/internal/auth/application/query"
+	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/application/query"
 )
 
 type fakeService struct {

@@ -2,19 +2,18 @@ package application_test
 
 import (
 	"context"
+	"falzo-be/internal/auth/application"
+	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/application/query"
+	"falzo-be/internal/auth/domain"
+	"falzo-be/internal/auth/domain/aggregate"
+	"falzo-be/internal/auth/domain/entity"
+	"falzo-be/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/infrastructure/security/bcrypt"
+	"falzo-be/internal/auth/infrastructure/token"
+	"falzo-be/pkg/config"
 	"testing"
 	"time"
-
-	"falzo/internal/auth/application"
-	"falzo/internal/auth/application/command"
-	"falzo/internal/auth/application/query"
-	"falzo/internal/auth/domain"
-	"falzo/internal/auth/domain/aggregate"
-	"falzo/internal/auth/domain/entity"
-	"falzo/internal/auth/domain/valueobject"
-	"falzo/internal/auth/infrastructure/security/bcrypt"
-	"falzo/internal/auth/infrastructure/token"
-	"falzo/pkg/config"
 )
 
 type fakeAccountRepository struct {

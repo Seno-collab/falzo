@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"falzo/internal/auth/application/command"
-	"falzo/internal/auth/domain"
-	httpresponse "falzo/pkg/response"
+	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/domain"
+	httpresponse "falzo-be/pkg/response"
 )
 
 type RegisterRequest struct {
@@ -45,7 +45,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.JSON(w, http.StatusCreated, map[string]string{
+	httpresponse.Success(w, map[string]string{
 		"message": "account created",
 	})
 }

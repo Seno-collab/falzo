@@ -2,9 +2,8 @@ package application
 
 import (
 	"context"
-
-	"falzo/internal/auth/application/query"
-	"falzo/internal/auth/domain"
+	"falzo-be/internal/auth/application/query"
+	"falzo-be/internal/auth/domain"
 )
 
 func (s *service) Authenticate(ctx context.Context, rawToken string) (*query.AuthenticatedUser, error) {

@@ -1,8 +1,8 @@
 package httpapi
 
 import (
-	"falzo/internal/auth/application"
-	authmiddleware "falzo/internal/auth/infrastructure/http"
+	"falzo-be/internal/auth/application"
+	authmiddleware "falzo-be/internal/auth/infrastructure/http"
 
 	"github.com/go-chi/chi/v5"
 )

@@ -1,6 +1,6 @@
 package service
 
-import "falzo/internal/auth/domain/valueobject"
+import "falzo-be/internal/auth/domain/valueobject"
 
 type PasswordHasher interface {
 	Hash(password valueobject.RawPassword) (valueobject.PasswordHash, error)

@@ -26,3 +26,7 @@ func Error(w http.ResponseWriter, status int, message string, err string) {
 		Error:   err,
 	})
 }
+
+func Success(w http.ResponseWriter, data any) {
+	JSON(w, http.StatusOK, data)
+}

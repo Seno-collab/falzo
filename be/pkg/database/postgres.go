@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"falzo/pkg/config"
+	"falzo-be/pkg/config"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"falzo/pkg/config"
+	"falzo-be/pkg/config"
 
 	goredis "github.com/redis/go-redis/v9"
 )

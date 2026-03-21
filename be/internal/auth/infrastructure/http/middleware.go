@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"falzo/internal/auth/application"
-	httpresponse "falzo/pkg/response"
+	"falzo-be/internal/auth/application"
+	httpresponse "falzo-be/pkg/response"
 )
 
 func RequireAuth(service application.Service) func(next http.Handler) http.Handler {

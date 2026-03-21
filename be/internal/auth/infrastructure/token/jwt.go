@@ -1,13 +1,12 @@
 package token
 
 import (
+	"falzo-be/internal/auth/application"
+	"falzo-be/internal/auth/application/query"
+	"falzo-be/internal/auth/domain"
+	"falzo-be/pkg/config"
 	"strconv"
 	"time"
-
-	"falzo/internal/auth/application"
-	"falzo/internal/auth/application/query"
-	"falzo/internal/auth/domain"
-	"falzo/pkg/config"
 
 	"github.com/golang-jwt/jwt/v5"
 )

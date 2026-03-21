@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	httpresponse "falzo/pkg/response"
+	httpresponse "falzo-be/pkg/response"
 
 	"github.com/rs/zerolog/log"
 )

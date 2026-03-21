@@ -3,10 +3,10 @@ package application
 import (
 	"context"
 
-	"falzo/internal/auth/application/command"
-	"falzo/internal/auth/application/query"
-	"falzo/internal/auth/domain/repository"
-	domainservice "falzo/internal/auth/domain/service"
+	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/application/query"
+	"falzo-be/internal/auth/domain/repository"
+	domainservice "falzo-be/internal/auth/domain/service"
 )
 
 type TokenIssuer interface {

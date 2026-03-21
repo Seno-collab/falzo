@@ -3,8 +3,8 @@ package httpapi
 import (
 	"net/http"
 
-	authhttp "falzo/internal/auth/infrastructure/http"
-	httpresponse "falzo/pkg/response"
+	authhttp "falzo-be/internal/auth/infrastructure/http"
+	httpresponse "falzo-be/pkg/response"
 )
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
@@ -14,7 +14,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.JSON(w, http.StatusOK, map[string]any{
+	httpresponse.Success(w, map[string]any{
 		"username": claims.Username,
 		"subject":  claims.Subject,
 		"expires":  claims.ExpiresAt,

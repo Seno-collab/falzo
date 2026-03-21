@@ -2,8 +2,7 @@ package httpauth
 
 import (
 	"context"
-
-	"falzo/internal/auth/application/query"
+	"falzo-be/internal/auth/application/query"
 )
 
 type contextKey string

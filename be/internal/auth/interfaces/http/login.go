@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"falzo/internal/auth/application/command"
-	"falzo/internal/auth/domain"
-	httpresponse "falzo/pkg/response"
+	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/domain"
+	httpresponse "falzo-be/pkg/response"
 )
 
 type LoginRequest struct {
@@ -48,7 +48,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.JSON(w, http.StatusOK, LoginResponse{
+	httpresponse.Success(w, LoginResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
 	})

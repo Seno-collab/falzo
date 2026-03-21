@@ -3,7 +3,7 @@ package entity
 import (
 	"time"
 
-	"falzo/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/valueobject"
 )
 
 type User struct {

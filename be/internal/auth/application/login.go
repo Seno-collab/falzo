@@ -2,12 +2,11 @@ package application
 
 import (
 	"context"
-
-	"falzo/internal/auth/application/command"
-	"falzo/internal/auth/application/query"
-	"falzo/internal/auth/domain"
-	"falzo/internal/auth/domain/aggregate"
-	"falzo/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/application/query"
+	"falzo-be/internal/auth/domain"
+	"falzo-be/internal/auth/domain/aggregate"
+	"falzo-be/internal/auth/domain/valueobject"
 )
 
 func (s *service) Login(ctx context.Context, cmd command.Login) (string, error) {

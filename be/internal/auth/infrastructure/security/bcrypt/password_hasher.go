@@ -1,8 +1,8 @@
 package bcrypt
 
 import (
-	domainservice "falzo/internal/auth/domain/service"
-	"falzo/internal/auth/domain/valueobject"
+	domainservice "falzo-be/internal/auth/domain/service"
+	"falzo-be/internal/auth/domain/valueobject"
 
 	"golang.org/x/crypto/bcrypt"
 )

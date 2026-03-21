@@ -3,9 +3,9 @@ package aggregate
 import (
 	"time"
 
-	"falzo/internal/auth/domain/entity"
-	"falzo/internal/auth/domain/event"
-	"falzo/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/entity"
+	"falzo-be/internal/auth/domain/event"
+	"falzo-be/internal/auth/domain/valueobject"
 )
 
 type Account struct {

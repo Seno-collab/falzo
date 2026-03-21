@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 
-	"falzo/internal/auth/domain/aggregate"
-	"falzo/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/aggregate"
+	"falzo-be/internal/auth/domain/valueobject"
 )
 
 type AccountRepository interface {
