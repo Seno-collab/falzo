@@ -1,10 +1,10 @@
 package query
 
 type Session struct {
-	SessionID        string
-	UserID           uint64
-	Username         string
-	Subject          string
-	RefreshTokenHash string
-	ExpiresAtUnix    int64
+	SessionID            string
+	UserID               uint64
+	Username             string
+	Subject              string
+	RefreshTokenHash     string
+	RefreshExpiresAtUnix int64
 }

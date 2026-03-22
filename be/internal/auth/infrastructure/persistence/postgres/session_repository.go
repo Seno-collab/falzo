@@ -23,11 +23,31 @@ func (r *SessionRepository) Create(ctx context.Context, session query.Session) e
 		return domain.ErrAuthDependencyUnavailable
 	}
 
-	_, err := r.db.DB().ExecContext(ctx, `
-		INSERT INTO refresh_tokens (session_id, user_id, username, subject, token_hash, expires_at)
-		VALUES ($1, $2, $3, $4, $5, to_timestamp($6))
-	`, session.SessionID, session.UserID, session.Username, session.Subject, session.RefreshTokenHash, session.ExpiresAtUnix)
-	return mapDBError(ctx, "sessions.create", err)
+	tx, err := r.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return mapDBError(ctx, "sessions.begin_tx", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO auth_sessions (session_id, user_id, username, subject)
+		VALUES ($1, $2, $3, $4)
+	`, session.SessionID, session.UserID, session.Username, session.Subject); err != nil {
+		return mapDBError(ctx, "sessions.insert_auth_session", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO refresh_tokens (session_id, token_hash, expires_at)
+		VALUES ($1, $2, to_timestamp($3))
+	`, session.SessionID, session.RefreshTokenHash, session.RefreshExpiresAtUnix); err != nil {
+		return mapDBError(ctx, "sessions.insert_refresh_token", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return mapDBError(ctx, "sessions.commit_tx", err)
+	}
+
+	return nil
 }
 
 func (r *SessionRepository) IsSessionActive(ctx context.Context, sessionID string) (bool, error) {
@@ -39,10 +59,9 @@ func (r *SessionRepository) IsSessionActive(ctx context.Context, sessionID strin
 	err := r.db.DB().QueryRowContext(ctx, `
 		SELECT EXISTS (
 			SELECT 1
-			FROM refresh_tokens
+			FROM auth_sessions
 			WHERE session_id = $1
 			  AND is_revoked = FALSE
-			  AND expires_at > NOW()
 		)
 	`, sessionID).Scan(&active)
 	if err != nil {
@@ -59,18 +78,20 @@ func (r *SessionRepository) FindActiveByRefreshTokenHash(ctx context.Context, re
 
 	var session query.Session
 	err := r.db.DB().QueryRowContext(ctx, `
-		SELECT session_id, user_id, username, subject, EXTRACT(EPOCH FROM expires_at)::BIGINT
-		FROM refresh_tokens
-		WHERE token_hash = $1
-		  AND is_revoked = FALSE
-		  AND expires_at > NOW()
+		SELECT s.session_id, s.user_id, s.username, s.subject, EXTRACT(EPOCH FROM rt.expires_at)::BIGINT
+		FROM refresh_tokens rt
+		JOIN auth_sessions s ON s.session_id = rt.session_id
+		WHERE rt.token_hash = $1
+		  AND rt.is_revoked = FALSE
+		  AND rt.expires_at > NOW()
+		  AND s.is_revoked = FALSE
 		LIMIT 1
 	`, refreshTokenHash).Scan(
 		&session.SessionID,
 		&session.UserID,
 		&session.Username,
 		&session.Subject,
-		&session.ExpiresAtUnix,
+		&session.RefreshExpiresAtUnix,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -90,12 +111,13 @@ func (r *SessionRepository) RotateRefreshToken(ctx context.Context, sessionID st
 	result, err := r.db.DB().ExecContext(ctx, `
 		UPDATE refresh_tokens
 		SET token_hash = $2,
-		    expires_at = to_timestamp($3)
+		    expires_at = to_timestamp($3),
+		    updated_at = CURRENT_TIMESTAMP
 		WHERE session_id = $1
 		  AND is_revoked = FALSE
 	`, sessionID, refreshTokenHash, expiresAtUnix)
 	if err != nil {
-		return err
+		return mapDBError(ctx, "sessions.rotate_refresh_token", err)
 	}
 
 	affected, err := result.RowsAffected()
@@ -115,20 +137,32 @@ func (r *SessionRepository) RevokeBySessionID(ctx context.Context, sessionID str
 	}
 
 	result, err := r.db.DB().ExecContext(ctx, `
-		UPDATE refresh_tokens
-		SET is_revoked = TRUE
+		UPDATE auth_sessions
+		SET is_revoked = TRUE,
+		    updated_at = CURRENT_TIMESTAMP
 		WHERE session_id = $1
+		  AND is_revoked = FALSE
 	`, sessionID)
 	if err != nil {
-		return mapDBError(ctx, "sessions.revoke_by_session_id", err)
+		return mapDBError(ctx, "sessions.revoke_auth_session", err)
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return mapDBError(ctx, "sessions.revoke_by_session_id.rows_affected", err)
+		return mapDBError(ctx, "sessions.revoke_auth_session.rows_affected", err)
 	}
 	if affected == 0 {
 		return domain.ErrInvalidToken
+	}
+
+	if _, err := r.db.DB().ExecContext(ctx, `
+		UPDATE refresh_tokens
+		SET is_revoked = TRUE,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE session_id = $1
+		  AND is_revoked = FALSE
+	`, sessionID); err != nil {
+		return mapDBError(ctx, "sessions.revoke_refresh_tokens", err)
 	}
 
 	return nil

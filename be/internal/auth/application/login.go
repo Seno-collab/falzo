@@ -61,12 +61,12 @@ func (s *service) Login(ctx context.Context, cmd command.Login) (query.TokenPair
 	}
 
 	if err := s.sessions.Create(ctx, query.Session{
-		SessionID:        principal.SessionID,
-		UserID:           principal.UserID,
-		Username:         principal.Username,
-		Subject:          authenticatedPrincipal.Subject,
-		RefreshTokenHash: tokenHash(refreshToken),
-		ExpiresAtUnix:    time.Now().Add(s.refreshTTL).Unix(),
+		SessionID:           principal.SessionID,
+		UserID:              principal.UserID,
+		Username:            principal.Username,
+		Subject:             authenticatedPrincipal.Subject,
+		RefreshTokenHash:    tokenHash(refreshToken),
+		RefreshExpiresAtUnix: time.Now().Add(s.refreshTTL).Unix(),
 	}); err != nil {
 		return query.TokenPair{}, err
 	}

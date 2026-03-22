@@ -11,7 +11,7 @@ services:
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - falzo-postgres-data:/var/lib/postgresql/data
-      - ./be/db/schemas/main.sql:/docker-entrypoint-initdb.d/001-main.sql:ro
+      - ./be/db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U falzo -d falzo"]
       interval: 5s

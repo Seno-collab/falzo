@@ -13,9 +13,10 @@ import (
 )
 
 type fakeService struct {
-	registerErr error
-	loginTokens query.TokenPair
-	loginErr    error
+	registerErr   error
+	loginTokens   query.TokenPair
+	refreshTokens query.TokenPair
+	loginErr      error
 }
 
 func (f fakeService) Register(ctx context.Context, cmd command.Register) error {
@@ -27,7 +28,7 @@ func (f fakeService) Login(ctx context.Context, cmd command.Login) (query.TokenP
 }
 
 func (f fakeService) Refresh(ctx context.Context, cmd command.Refresh) (query.TokenPair, error) {
-	return query.TokenPair{}, nil
+	return f.refreshTokens, nil
 }
 
 func (f fakeService) Logout(ctx context.Context, cmd command.Logout) error {
@@ -56,6 +57,20 @@ func TestLoginHandler(t *testing.T) {
 	handler := New(fakeService{loginTokens: query.TokenPair{AccessToken: "signed-token", RefreshToken: "refresh-token", TokenType: "Bearer"}})
 
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBufferString(`{"username":"admin","password":"admin123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestRefreshHandler(t *testing.T) {
+	handler := New(fakeService{refreshTokens: query.TokenPair{AccessToken: "new-access", RefreshToken: "new-refresh", TokenType: "Bearer"}})
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBufferString(`{"refresh_token":"refresh-token"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 

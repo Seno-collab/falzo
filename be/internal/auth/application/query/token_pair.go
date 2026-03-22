@@ -1,7 +1,7 @@
 package query
 
 type TokenPair struct {
-	AccessToken  string
-	RefreshToken string
-	TokenType    string
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
 }

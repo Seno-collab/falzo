@@ -89,7 +89,7 @@ func (f *fakeSessionRepository) RotateRefreshToken(ctx context.Context, sessionI
 		if session.SessionID == sessionID {
 			delete(f.refreshSessions, key)
 			session.RefreshTokenHash = refreshTokenHash
-			session.ExpiresAtUnix = expiresAtUnix
+			session.RefreshExpiresAtUnix = expiresAtUnix
 			f.refreshSessions[refreshTokenHash] = session
 			return nil
 		}

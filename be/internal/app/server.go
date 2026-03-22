@@ -9,6 +9,7 @@ import (
 	authhttp "falzo-be/internal/auth/interfaces/http"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
+	httpmw "falzo-be/pkg/http/middleware"
 	"falzo-be/pkg/logger"
 	"falzo-be/pkg/shutdown"
 	"net/http"
@@ -40,7 +41,7 @@ func Run() {
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
+	r.Use(httpmw.Recover)
 	r.Use(logger.RequestLogger)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello world!"))
