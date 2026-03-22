@@ -14,7 +14,7 @@ import (
 
 type fakeService struct {
 	registerErr error
-	loginToken  string
+	loginTokens query.TokenPair
 	loginErr    error
 }
 
@@ -22,8 +22,12 @@ func (f fakeService) Register(ctx context.Context, cmd command.Register) error {
 	return f.registerErr
 }
 
-func (f fakeService) Login(ctx context.Context, cmd command.Login) (string, error) {
-	return f.loginToken, f.loginErr
+func (f fakeService) Login(ctx context.Context, cmd command.Login) (query.TokenPair, error) {
+	return f.loginTokens, f.loginErr
+}
+
+func (f fakeService) Refresh(ctx context.Context, cmd command.Refresh) (query.TokenPair, error) {
+	return query.TokenPair{}, nil
 }
 
 func (f fakeService) Logout(ctx context.Context, cmd command.Logout) error {
@@ -49,7 +53,7 @@ func TestRegisterHandler(t *testing.T) {
 }
 
 func TestLoginHandler(t *testing.T) {
-	handler := New(fakeService{loginToken: "signed-token"})
+	handler := New(fakeService{loginTokens: query.TokenPair{AccessToken: "signed-token", RefreshToken: "refresh-token", TokenType: "Bearer"}})
 
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBufferString(`{"username":"admin","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")

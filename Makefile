@@ -7,3 +7,6 @@ up-db:
 
 down-db:
 	docker compose down
+
+test-api-auth:
+	./scripts/test-auth-api.sh

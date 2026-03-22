@@ -22,6 +22,18 @@ type fakeAccountRepository struct {
 	findErr error
 }
 
+type fakeSessionRepository struct {
+	createdSessions []query.Session
+	active          map[string]bool
+	refreshSessions map[string]query.Session
+	revokedIDs      []string
+	createErr       error
+	activeErr       error
+	revokeErr       error
+	findErr         error
+	rotateErr       error
+}
+
 func (f *fakeAccountRepository) Save(ctx context.Context, account *aggregate.Account) error {
 	f.account = account
 	return f.saveErr
@@ -35,21 +47,86 @@ func (f *fakeAccountRepository) FindActiveByUsername(ctx context.Context, userna
 	return f.account, nil
 }
 
+func (f *fakeSessionRepository) Create(ctx context.Context, session query.Session) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	f.createdSessions = append(f.createdSessions, session)
+	if f.active == nil {
+		f.active = map[string]bool{}
+	}
+	f.active[session.SessionID] = true
+	if f.refreshSessions == nil {
+		f.refreshSessions = map[string]query.Session{}
+	}
+	f.refreshSessions[session.RefreshTokenHash] = session
+	return nil
+}
+
+func (f *fakeSessionRepository) IsSessionActive(ctx context.Context, sessionID string) (bool, error) {
+	if f.activeErr != nil {
+		return false, f.activeErr
+	}
+	return f.active[sessionID], nil
+}
+
+func (f *fakeSessionRepository) FindActiveByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*query.Session, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	session, ok := f.refreshSessions[refreshTokenHash]
+	if !ok {
+		return nil, domain.ErrInvalidToken
+	}
+	return &session, nil
+}
+
+func (f *fakeSessionRepository) RotateRefreshToken(ctx context.Context, sessionID string, refreshTokenHash string, expiresAtUnix int64) error {
+	if f.rotateErr != nil {
+		return f.rotateErr
+	}
+	for key, session := range f.refreshSessions {
+		if session.SessionID == sessionID {
+			delete(f.refreshSessions, key)
+			session.RefreshTokenHash = refreshTokenHash
+			session.ExpiresAtUnix = expiresAtUnix
+			f.refreshSessions[refreshTokenHash] = session
+			return nil
+		}
+	}
+	return domain.ErrInvalidToken
+}
+
+func (f *fakeSessionRepository) RevokeBySessionID(ctx context.Context, sessionID string) error {
+	if f.revokeErr != nil {
+		return f.revokeErr
+	}
+	f.revokedIDs = append(f.revokedIDs, sessionID)
+	if f.active != nil {
+		f.active[sessionID] = false
+	}
+	return nil
+}
+
 func TestAuthenticateToken(t *testing.T) {
 	jwtManager := token.NewJWTManager(config.AuthConfig{
 		JWTSecret: "test-secret",
 		TokenTTL:  time.Hour,
 	})
 
-	service := application.New(nil, bcrypt.NewPasswordHasher(), jwtManager, jwtManager)
+	service := application.New(nil, &fakeSessionRepository{active: map[string]bool{}}, bcrypt.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
 
 	rawToken, err := jwtManager.Issue(query.AuthenticatedUser{
-		UserID:   42,
-		Username: "admin",
+		UserID:    42,
+		Username:  "admin",
+		SessionID: "session-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected sign error: %v", err)
 	}
+
+	sessions := &fakeSessionRepository{active: map[string]bool{"session-1": true}}
+	service = application.New(nil, sessions, bcrypt.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
 
 	principal, err := service.Authenticate(t.Context(), rawToken)
 	if err != nil {
@@ -71,10 +148,10 @@ func TestLoginUnavailableWithoutRepository(t *testing.T) {
 		TokenTTL:  time.Hour,
 	})
 
-	service := application.New(nil, bcrypt.NewPasswordHasher(), jwtManager, jwtManager)
+	service := application.New(nil, &fakeSessionRepository{active: map[string]bool{}}, bcrypt.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
 
-	if _, err := service.Login(t.Context(), command.Login{Username: "admin", Password: "admin123"}); err != domain.ErrAuthUnavailable {
-		t.Fatalf("expected auth unavailable, got %v", err)
+	if _, err := service.Login(t.Context(), command.Login{Username: "admin", Password: "admin123"}); err != domain.ErrAuthDependencyUnavailable {
+		t.Fatalf("expected auth dependency unavailable, got %v", err)
 	}
 }
 
@@ -96,14 +173,15 @@ func TestLoginSuccess(t *testing.T) {
 	}, []string{"user"})
 
 	repo := &fakeAccountRepository{account: account}
+	sessions := &fakeSessionRepository{active: map[string]bool{}}
 	jwtManager := token.NewJWTManager(config.AuthConfig{
 		JWTSecret: "test-secret",
 		TokenTTL:  time.Hour,
 	})
 
-	service := application.New(repo, hasher, jwtManager, jwtManager)
+	service := application.New(repo, sessions, hasher, jwtManager, jwtManager, 24*time.Hour)
 
-	rawToken, err := service.Login(t.Context(), command.Login{
+	tokens, err := service.Login(t.Context(), command.Login{
 		Username: "admin",
 		Password: "admin123",
 	})
@@ -111,12 +189,38 @@ func TestLoginSuccess(t *testing.T) {
 		t.Fatalf("unexpected login error: %v", err)
 	}
 
-	principal, err := service.Authenticate(t.Context(), rawToken)
+	principal, err := service.Authenticate(t.Context(), tokens.AccessToken)
 	if err != nil {
 		t.Fatalf("unexpected auth error: %v", err)
 	}
 
 	if principal.UserID != 7 {
 		t.Fatalf("expected user id 7, got %d", principal.UserID)
+	}
+
+	if len(sessions.createdSessions) != 1 {
+		t.Fatalf("expected one session to be created, got %d", len(sessions.createdSessions))
+	}
+}
+
+func TestAuthenticateFailsForRevokedSession(t *testing.T) {
+	jwtManager := token.NewJWTManager(config.AuthConfig{
+		JWTSecret: "test-secret",
+		TokenTTL:  time.Hour,
+	})
+
+	rawToken, err := jwtManager.Issue(query.AuthenticatedUser{
+		UserID:    42,
+		Username:  "admin",
+		SessionID: "session-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected sign error: %v", err)
+	}
+
+	service := application.New(nil, &fakeSessionRepository{active: map[string]bool{"session-1": false}}, bcrypt.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
+
+	if _, err := service.Authenticate(t.Context(), rawToken); err != domain.ErrSessionRevoked {
+		t.Fatalf("expected session revoked, got %v", err)
 	}
 }

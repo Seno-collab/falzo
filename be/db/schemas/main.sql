@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS user_roles (
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id           BIGSERIAL PRIMARY KEY,
+    session_id   VARCHAR(64)  UNIQUE,
     user_id      BIGINT NOT NULL,
+    username     VARCHAR(50)  NULL,
+    subject      VARCHAR(255) NULL,
     token_hash   VARCHAR(255) NOT NULL UNIQUE,
     device_info  VARCHAR(255) NULL,
     ip_address   VARCHAR(45)  NULL,
@@ -39,11 +42,23 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+ALTER TABLE refresh_tokens
+    ADD COLUMN IF NOT EXISTS session_id VARCHAR(64);
+
+ALTER TABLE refresh_tokens
+    ADD COLUMN IF NOT EXISTS username VARCHAR(50);
+
+ALTER TABLE refresh_tokens
+    ADD COLUMN IF NOT EXISTS subject VARCHAR(255);
+
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id
     ON refresh_tokens (user_id);
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at
     ON refresh_tokens (expires_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_refresh_tokens_session_id
+    ON refresh_tokens (session_id);
 
 -- Seed data mac dinh
 INSERT INTO roles (name, description) VALUES

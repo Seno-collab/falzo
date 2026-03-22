@@ -2,11 +2,9 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"falzo-be/internal/auth/application/command"
-	"falzo-be/internal/auth/domain"
 	httpresponse "falzo-be/pkg/response"
 )
 
@@ -40,23 +38,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		Password: req.Password,
 	})
 	if err != nil {
-		status := http.StatusInternalServerError
-		message := "Register failed"
-		errorCode := "INTERNAL_ERROR"
-		if errors.Is(err, domain.ErrUserExists) {
-			status = http.StatusConflict
-			message = "Account already exists"
-			errorCode = "ALREADY_EXISTS"
-		}
-		if errors.Is(err, domain.ErrAuthUnavailable) {
-			status = http.StatusServiceUnavailable
-			message = "Authentication service unavailable"
-			errorCode = "SERVICE_UNAVAILABLE"
-		}
-		httpresponse.Error(w, status, message, r, httpresponse.ErrorDetail{
-			Code:    errorCode,
-			Message: err.Error(),
-		})
+		writeAuthError(w, r, err, "register")
 		return
 	}
 

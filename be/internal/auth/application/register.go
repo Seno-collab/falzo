@@ -11,7 +11,7 @@ import (
 
 func (s *service) Register(ctx context.Context, cmd command.Register) error {
 	if s.accounts == nil || s.passwords == nil {
-		return domain.ErrAuthUnavailable
+		return domain.ErrAuthDependencyUnavailable
 	}
 
 	username, err := valueobject.NewUsername(cmd.Username)

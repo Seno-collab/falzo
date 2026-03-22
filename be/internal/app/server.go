@@ -31,9 +31,10 @@ func Run() {
 	}
 
 	accounts := authpostgres.NewAccountRepository(db)
+	sessions := authpostgres.NewSessionRepository(db)
 	passwords := bcrypt.NewPasswordHasher()
 	jwtManager := token.NewJWTManager(cfg.Auth)
-	authService := application.New(accounts, passwords, jwtManager, jwtManager)
+	authService := application.New(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
 	authHandler := authhttp.New(authService)
 
 	r := chi.NewRouter()

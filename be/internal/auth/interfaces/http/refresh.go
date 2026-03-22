@@ -8,13 +8,12 @@ import (
 	httpresponse "falzo-be/pkg/response"
 )
 
-type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
 }
 
-func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
@@ -23,22 +22,20 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" || req.Password == "" {
+	if req.RefreshToken == "" {
 		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
-			Message: "Username and password are required",
+			Field:   "refresh_token",
+			Message: "Refresh token is required",
 		})
 		return
 	}
 
-	tokens, err := h.service.Login(r.Context(), command.Login{
-		Username: req.Username,
-		Password: req.Password,
-	})
+	tokens, err := h.service.Refresh(r.Context(), command.Refresh{RefreshToken: req.RefreshToken})
 	if err != nil {
-		writeAuthError(w, r, err, "login")
+		writeAuthError(w, r, err, "refresh")
 		return
 	}
 
-	httpresponse.Success(w, http.StatusOK, "Login successful", tokens, r)
+	httpresponse.Success(w, http.StatusOK, "Token refreshed successfully", tokens, r)
 }

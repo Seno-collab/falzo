@@ -16,8 +16,9 @@ type JWTManager struct {
 }
 
 type claims struct {
-	UserID   uint64 `json:"user_id"`
-	Username string `json:"username"`
+	UserID    uint64 `json:"user_id"`
+	Username  string `json:"username"`
+	SessionID string `json:"session_id"`
 	jwt.RegisteredClaims
 }
 
@@ -28,9 +29,11 @@ func NewJWTManager(cfg config.AuthConfig) *JWTManager {
 func (m *JWTManager) Issue(principal query.AuthenticatedUser) (string, error) {
 	now := time.Now()
 	tokenClaims := claims{
-		UserID:   principal.UserID,
-		Username: principal.Username,
+		UserID:    principal.UserID,
+		Username:  principal.Username,
+		SessionID: principal.SessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        principal.SessionID,
 			Subject:   strconv.FormatUint(principal.UserID, 10),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.cfg.TokenTTL)),
@@ -64,6 +67,7 @@ func (m *JWTManager) Authenticate(rawToken string) (*query.AuthenticatedUser, er
 		UserID:    tokenClaims.UserID,
 		Username:  tokenClaims.Username,
 		Subject:   tokenClaims.Subject,
+		SessionID: tokenClaims.SessionID,
 		ExpiresAt: expiresAt,
 	}, nil
 }

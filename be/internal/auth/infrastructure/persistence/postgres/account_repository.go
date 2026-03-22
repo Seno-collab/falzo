@@ -23,12 +23,12 @@ func NewAccountRepository(db database.Client) repository.AccountRepository {
 
 func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account) error {
 	if r.db == nil || r.db.DB() == nil {
-		return domain.ErrAuthUnavailable
+		return domain.ErrAuthDependencyUnavailable
 	}
 
 	tx, err := r.db.DB().BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return mapDBError(ctx, "accounts.begin_tx", err)
 	}
 	defer tx.Rollback()
 
@@ -42,7 +42,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 		if isDuplicateError(err) {
 			return domain.ErrUserExists
 		}
-		return err
+		return mapDBError(ctx, "accounts.insert_user", err)
 	}
 
 	for _, role := range account.Roles {
@@ -52,7 +52,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
-			return err
+			return mapDBError(ctx, "accounts.select_role", err)
 		}
 
 		if _, err := tx.ExecContext(ctx, `
@@ -60,16 +60,20 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 			VALUES ($1, $2)
 			ON CONFLICT (user_id, role_id) DO NOTHING
 		`, account.User.ID, roleID); err != nil {
-			return err
+			return mapDBError(ctx, "accounts.insert_user_role", err)
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return mapDBError(ctx, "accounts.commit_tx", err)
+	}
+
+	return nil
 }
 
 func (r *AccountRepository) FindActiveByUsername(ctx context.Context, username valueobject.Username) (*aggregate.Account, error) {
 	if r.db == nil || r.db.DB() == nil {
-		return nil, domain.ErrAuthUnavailable
+		return nil, domain.ErrAuthDependencyUnavailable
 	}
 
 	var (
@@ -97,7 +101,7 @@ func (r *AccountRepository) FindActiveByUsername(ctx context.Context, username v
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrInvalidCredentials
 		}
-		return nil, err
+		return nil, mapDBError(ctx, "accounts.find_active_by_username", err)
 	}
 
 	user.Username, err = valueobject.NewUsername(rawUsername)
@@ -129,7 +133,7 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 		WHERE user_roles.user_id = $1
 	`, userID)
 	if err != nil {
-		return nil, err
+		return nil, mapDBError(ctx, "accounts.load_roles", err)
 	}
 	defer rows.Close()
 
@@ -137,12 +141,16 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 	for rows.Next() {
 		var role string
 		if err := rows.Scan(&role); err != nil {
-			return nil, err
+			return nil, mapDBError(ctx, "accounts.scan_role", err)
 		}
 		roles = append(roles, role)
 	}
 
-	return roles, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, mapDBError(ctx, "accounts.iterate_roles", err)
+	}
+
+	return roles, nil
 }
 
 func isDuplicateError(err error) bool {

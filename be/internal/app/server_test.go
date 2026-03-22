@@ -21,8 +21,12 @@ func (fakeAuthService) Register(ctx context.Context, cmd command.Register) error
 	return nil
 }
 
-func (fakeAuthService) Login(ctx context.Context, cmd command.Login) (string, error) {
-	return "", nil
+func (fakeAuthService) Login(ctx context.Context, cmd command.Login) (query.TokenPair, error) {
+	return query.TokenPair{}, nil
+}
+
+func (fakeAuthService) Refresh(ctx context.Context, cmd command.Refresh) (query.TokenPair, error) {
+	return query.TokenPair{}, nil
 }
 
 func (fakeAuthService) Logout(ctx context.Context, cmd command.Logout) error {

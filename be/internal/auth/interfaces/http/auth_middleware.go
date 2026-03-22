@@ -31,10 +31,7 @@ func requireAuth(service application.Service) func(next http.Handler) http.Handl
 
 			principal, err := service.Authenticate(r.Context(), token)
 			if err != nil {
-				httpresponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpresponse.ErrorDetail{
-					Code:    "UNAUTHORIZED",
-					Message: err.Error(),
-				})
+				writeAuthError(w, r, err, "authenticate")
 				return
 			}
 

@@ -25,10 +25,9 @@ type HTTPConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret     string
-	TokenTTL      time.Duration
-	AdminUsername string
-	AdminPassword string
+	JWTSecret       string
+	TokenTTL        time.Duration
+	RefreshTokenTTL time.Duration
 }
 
 type PostgresConfig struct {
@@ -59,10 +58,9 @@ func Load() Config {
 			ShutdownTimeout: getDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
 		},
 		Auth: AuthConfig{
-			JWTSecret:     getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
-			TokenTTL:      getDuration("AUTH_TOKEN_TTL", 24*time.Hour),
-			AdminUsername: getEnv("AUTH_ADMIN_USERNAME", "admin"),
-			AdminPassword: getEnv("AUTH_ADMIN_PASSWORD", "admin123"),
+			JWTSecret:       getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
+			TokenTTL:        getDuration("AUTH_TOKEN_TTL", 15*time.Minute),
+			RefreshTokenTTL: getDuration("AUTH_REFRESH_TOKEN_TTL", 168*time.Hour),
 		},
 		Postgres: PostgresConfig{
 			Host:            getEnv("POSTGRES_HOST", "127.0.0.1"),

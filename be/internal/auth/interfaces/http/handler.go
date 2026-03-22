@@ -18,6 +18,7 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/register", h.Register)
 	r.Post("/login", h.Login)
+	r.Post("/refresh", h.Refresh)
 	r.Group(func(protected chi.Router) {
 		protected.Use(requireAuth(h.service))
 		protected.Get("/me", h.Me)
