@@ -1,4 +1,4 @@
-package httpauth
+package httpapi
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	httpresponse "falzo-be/pkg/response"
 )
 
-func RequireAuth(service application.Service) func(next http.Handler) http.Handler {
+func requireAuth(service application.Service) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -29,7 +29,7 @@ func RequireAuth(service application.Service) func(next http.Handler) http.Handl
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(WithAuthenticatedUser(r.Context(), principal)))
+			next.ServeHTTP(w, r.WithContext(withAuthenticatedUser(r.Context(), principal)))
 		})
 	}
 }

@@ -45,7 +45,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.Success(w, map[string]string{
+	httpresponse.JSON(w, http.StatusCreated, map[string]string{
 		"message": "account created",
 	})
 }

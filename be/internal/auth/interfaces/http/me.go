@@ -3,12 +3,11 @@ package httpapi
 import (
 	"net/http"
 
-	authhttp "falzo-be/internal/auth/infrastructure/http"
 	httpresponse "falzo-be/pkg/response"
 )
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	claims, ok := authhttp.AuthenticatedUserFromContext(r.Context())
+	claims, ok := authenticatedUserFromContext(r.Context())
 	if !ok {
 		httpresponse.Error(w, http.StatusUnauthorized, "unauthorized", "missing auth context")
 		return

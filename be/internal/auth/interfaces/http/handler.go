@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"falzo-be/internal/auth/application"
-	authmiddleware "falzo-be/internal/auth/infrastructure/http"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -20,7 +19,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/register", h.Register)
 	r.Post("/login", h.Login)
 	r.Group(func(protected chi.Router) {
-		protected.Use(authmiddleware.RequireAuth(h.service))
+		protected.Use(requireAuth(h.service))
 		protected.Get("/me", h.Me)
 		protected.Post("/logout", h.Logout)
 	})
