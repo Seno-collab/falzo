@@ -9,15 +9,15 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE roles (
+CREATE TABLE IF NOT EXISTS roles (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(50)  NOT NULL UNIQUE,
     description VARCHAR(255) NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE user_roles (
+CREATE TABLE IF NOT EXISTS user_roles (
     id          BIGSERIAL PRIMARY KEY,
     user_id     BIGINT NOT NULL,
     role_id     BIGINT NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE user_roles (
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 );
 
-CREATE TABLE refresh_tokens (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
     id           BIGSERIAL PRIMARY KEY,
     user_id      BIGINT NOT NULL,
     token_hash   VARCHAR(255) NOT NULL UNIQUE,
@@ -36,12 +36,16 @@ CREATE TABLE refresh_tokens (
     is_revoked   BOOLEAN      NOT NULL DEFAULT FALSE,
     expires_at   TIMESTAMPTZ  NOT NULL,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_refresh_tokens_user_id (user_id),
-    INDEX idx_refresh_tokens_expires_at (expires_at)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Seed data mặc định
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id
+    ON refresh_tokens (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at
+    ON refresh_tokens (expires_at);
+
+-- Seed data mac dinh
 INSERT INTO roles (name, description) VALUES
   ('admin',     'Full system access'),
   ('moderator', 'Content moderation'),

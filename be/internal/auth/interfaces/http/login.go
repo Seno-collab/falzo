@@ -23,12 +23,18 @@ type LoginResponse struct {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpresponse.Error(w, http.StatusBadRequest, "invalid request", "invalid json payload")
+		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+			Code:    "INVALID_FORMAT",
+			Message: "Invalid JSON payload",
+		})
 		return
 	}
 
 	if req.Username == "" || req.Password == "" {
-		httpresponse.Error(w, http.StatusBadRequest, "invalid request", "username and password are required")
+		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+			Code:    "REQUIRED_FIELD",
+			Message: "Username and password are required",
+		})
 		return
 	}
 
@@ -38,18 +44,27 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		status := http.StatusInternalServerError
+		message := "Login failed"
+		errorCode := "INTERNAL_ERROR"
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			status = http.StatusUnauthorized
+			message = "Invalid credentials"
+			errorCode = "UNAUTHORIZED"
 		}
 		if errors.Is(err, domain.ErrAuthUnavailable) {
 			status = http.StatusServiceUnavailable
+			message = "Authentication service unavailable"
+			errorCode = "SERVICE_UNAVAILABLE"
 		}
-		httpresponse.Error(w, status, "login failed", err.Error())
+		httpresponse.Error(w, status, message, r, httpresponse.ErrorDetail{
+			Code:    errorCode,
+			Message: err.Error(),
+		})
 		return
 	}
 
-	httpresponse.Success(w, LoginResponse{
+	httpresponse.Success(w, http.StatusOK, "Login successful", LoginResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
-	})
+	}, r)
 }

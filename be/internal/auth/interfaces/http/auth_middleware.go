@@ -13,19 +13,28 @@ func requireAuth(service application.Service) func(next http.Handler) http.Handl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				httpresponse.Error(w, http.StatusUnauthorized, "unauthorized", "missing bearer token")
+				httpresponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpresponse.ErrorDetail{
+					Code:    "UNAUTHORIZED",
+					Message: "Missing bearer token",
+				})
 				return
 			}
 
 			token, ok := strings.CutPrefix(authHeader, "Bearer ")
 			if !ok || token == "" {
-				httpresponse.Error(w, http.StatusUnauthorized, "unauthorized", "invalid authorization header")
+				httpresponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpresponse.ErrorDetail{
+					Code:    "UNAUTHORIZED",
+					Message: "Invalid authorization header",
+				})
 				return
 			}
 
 			principal, err := service.Authenticate(r.Context(), token)
 			if err != nil {
-				httpresponse.Error(w, http.StatusUnauthorized, "unauthorized", err.Error())
+				httpresponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpresponse.ErrorDetail{
+					Code:    "UNAUTHORIZED",
+					Message: err.Error(),
+				})
 				return
 			}
 

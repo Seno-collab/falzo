@@ -10,7 +10,14 @@ import (
 func TestJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
 
-	JSON(rec, http.StatusCreated, map[string]string{"message": "created"})
+	JSON(rec, http.StatusCreated, Envelope{
+		Success: true,
+		Message: "created",
+		Data:    map[string]string{"message": "created"},
+		Meta: Meta{
+			Timestamp: "2026-03-22T11:40:00Z",
+		},
+	})
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
@@ -23,23 +30,31 @@ func TestJSON(t *testing.T) {
 
 func TestError(t *testing.T) {
 	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 
-	Error(rec, http.StatusBadRequest, "invalid request", "bad payload")
+	Error(rec, http.StatusBadRequest, "Validation failed", req, ErrorDetail{
+		Code:    "INVALID_FORMAT",
+		Message: "Bad payload",
+	})
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 
-	var payload ErrorPayload
+	var payload Envelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unexpected json error: %v", err)
 	}
 
-	if payload.Message != "invalid request" {
+	if payload.Message != "Validation failed" {
 		t.Fatalf("expected message to be set, got %q", payload.Message)
 	}
 
-	if payload.Error != "bad payload" {
-		t.Fatalf("expected error to be set, got %q", payload.Error)
+	if len(payload.Errors) != 1 {
+		t.Fatalf("expected one error detail, got %d", len(payload.Errors))
+	}
+
+	if payload.Errors[0].Code != "INVALID_FORMAT" {
+		t.Fatalf("expected error code to be set, got %q", payload.Errors[0].Code)
 	}
 }

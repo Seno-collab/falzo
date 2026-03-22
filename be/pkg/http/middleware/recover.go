@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 
 	httpresponse "falzo-be/pkg/response"
@@ -18,7 +17,10 @@ func Recover(next http.Handler) http.Handler {
 					Str("method", r.Method).
 					Str("path", r.URL.Path).
 					Msg("request panicked")
-				httpresponse.Error(w, http.StatusInternalServerError, "internal server error", fmt.Sprintf("%v", recovered))
+				httpresponse.Error(w, http.StatusInternalServerError, "Internal server error", r, httpresponse.ErrorDetail{
+					Code:    "INTERNAL_ERROR",
+					Message: "An unexpected error occurred",
+				})
 			}
 		}()
 

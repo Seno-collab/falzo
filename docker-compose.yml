@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: falzo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: falzo
+      POSTGRES_USER: falzo
+      POSTGRES_PASSWORD: falzo
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - falzo-postgres-data:/var/lib/postgresql/data
+      - ./be/db/schemas/main.sql:/docker-entrypoint-initdb.d/001-main.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U falzo -d falzo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  falzo-postgres-data:

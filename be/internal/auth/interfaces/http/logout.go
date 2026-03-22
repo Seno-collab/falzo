@@ -7,7 +7,7 @@ import (
 )
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	httpresponse.JSON(w, http.StatusOK, map[string]string{
+	httpresponse.Success(w, http.StatusOK, "Logout acknowledged", map[string]string{
 		"message": "logout acknowledged",
-	})
+	}, r)
 }
