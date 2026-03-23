@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,9 +27,12 @@ type HTTPConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret       string
-	TokenTTL        time.Duration
-	RefreshTokenTTL time.Duration
+	JWTSecret                  string
+	TokenTTL                   time.Duration
+	RefreshTokenTTL            time.Duration
+	RateLimitPerMin            int
+	DependencyFailureThreshold int
+	DependencyCooldown         time.Duration
 }
 
 type PostgresConfig struct {
@@ -58,9 +63,12 @@ func Load() Config {
 			ShutdownTimeout: getDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
 		},
 		Auth: AuthConfig{
-			JWTSecret:       getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
-			TokenTTL:        getDuration("AUTH_TOKEN_TTL", 15*time.Minute),
-			RefreshTokenTTL: getDuration("AUTH_REFRESH_TOKEN_TTL", 168*time.Hour),
+			JWTSecret:                  getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
+			TokenTTL:                   getDuration("AUTH_TOKEN_TTL", 15*time.Minute),
+			RefreshTokenTTL:            getDuration("AUTH_REFRESH_TOKEN_TTL", 168*time.Hour),
+			RateLimitPerMin:            getInt("AUTH_RATE_LIMIT_PER_MIN", 60),
+			DependencyFailureThreshold: getInt("AUTH_DEPENDENCY_FAILURE_THRESHOLD", 5),
+			DependencyCooldown:         getDuration("AUTH_DEPENDENCY_COOLDOWN", 15*time.Second),
 		},
 		Postgres: PostgresConfig{
 			Host:            getEnv("POSTGRES_HOST", "127.0.0.1"),
@@ -78,6 +86,19 @@ func Load() Config {
 			DB:       getInt("REDIS_DB", 0),
 		},
 	}
+}
+
+func Validate(cfg Config) error {
+	if strings.EqualFold(cfg.App.Env, "development") {
+		return nil
+	}
+
+	secret := strings.TrimSpace(cfg.Auth.JWTSecret)
+	if secret == "" || secret == "change-me-in-production" || len(secret) < 32 {
+		return errors.New("AUTH_JWT_SECRET must be set to a strong value outside development")
+	}
+
+	return nil
 }
 
 func getEnv(key, fallback string) string {

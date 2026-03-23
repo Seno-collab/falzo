@@ -3,8 +3,10 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/auth/domain"
 	httpresponse "falzo-be/pkg/response"
 )
 
@@ -15,6 +17,12 @@ type RegisterRequest struct {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	if !h.protector.allowOperation(now) {
+		writeAuthError(w, r, domain.ErrAuthTemporarilyUnavailable, "register")
+		return
+	}
+
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
@@ -32,11 +40,20 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.protector.registerLimiter.allow(authClientIP(r), now) {
+		httpresponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpresponse.ErrorDetail{
+			Code:    "RATE_LIMITED",
+			Message: "Too many registration attempts, please try again later",
+		})
+		return
+	}
+
 	err := h.service.Register(r.Context(), command.Register{
 		Username: req.Username,
 		Email:    req.Email,
 		Password: req.Password,
 	})
+	h.protector.observe(err, time.Now())
 	if err != nil {
 		writeAuthError(w, r, err, "register")
 		return

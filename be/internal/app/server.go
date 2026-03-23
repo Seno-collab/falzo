@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"falzo-be/internal/auth/application"
+	authcache "falzo-be/internal/auth/infrastructure/persistence/cache"
 	authpostgres "falzo-be/internal/auth/infrastructure/persistence/postgres"
 	"falzo-be/internal/auth/infrastructure/security/bcrypt"
 	"falzo-be/internal/auth/infrastructure/token"
 	authhttp "falzo-be/internal/auth/interfaces/http"
+	"falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
 	httpmw "falzo-be/pkg/http/middleware"
@@ -16,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -25,6 +28,9 @@ import (
 func Run() {
 	logger.SetupLogger()
 	cfg := config.Load()
+	if err := config.Validate(cfg); err != nil {
+		log.Fatal().Err(err).Msg("invalid configuration")
+	}
 
 	db, err := database.New(cfg.Postgres)
 	if err != nil {
@@ -33,10 +39,18 @@ func Run() {
 
 	accounts := authpostgres.NewAccountRepository(db)
 	sessions := authpostgres.NewSessionRepository(db)
+	redisClient, err := cache.New(cfg.Redis)
+	if err != nil {
+		log.Warn().Err(err).Msg("redis unavailable, continuing without session cache")
+	} else {
+		sessions = authcache.NewSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
+	}
 	passwords := bcrypt.NewPasswordHasher()
 	jwtManager := token.NewJWTManager(cfg.Auth)
 	authService := application.New(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
-	authHandler := authhttp.New(authService)
+	authRateLimit := httpmw.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
+	authProtector := authhttp.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCooldown)
+	authHandler := authhttp.New(authService, authProtector, authhttp.WithPublicMiddlewares(authRateLimit))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
@@ -57,6 +71,11 @@ func Run() {
 	sm.Register("postgres-close", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		return db.Close()
 	})
+	if redisClient != nil {
+		sm.Register("redis-close", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+			return redisClient.Close()
+		})
+	}
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
