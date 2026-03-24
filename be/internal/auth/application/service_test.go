@@ -2,6 +2,8 @@ package application_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"falzo-be/internal/auth/application"
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/application/query"
@@ -81,16 +83,16 @@ func (f *fakeSessionRepository) FindActiveByRefreshTokenHash(ctx context.Context
 	return &session, nil
 }
 
-func (f *fakeSessionRepository) RotateRefreshToken(ctx context.Context, sessionID string, refreshTokenHash string, expiresAtUnix int64) error {
+func (f *fakeSessionRepository) RotateRefreshToken(ctx context.Context, session query.Session, newRefreshTokenHash string, expiresAtUnix int64) error {
 	if f.rotateErr != nil {
 		return f.rotateErr
 	}
-	for key, session := range f.refreshSessions {
-		if session.SessionID == sessionID {
+	for key, currentSession := range f.refreshSessions {
+		if currentSession.SessionID == session.SessionID && currentSession.RefreshTokenHash == session.RefreshTokenHash {
 			delete(f.refreshSessions, key)
-			session.RefreshTokenHash = refreshTokenHash
-			session.RefreshExpiresAtUnix = expiresAtUnix
-			f.refreshSessions[refreshTokenHash] = session
+			currentSession.RefreshTokenHash = newRefreshTokenHash
+			currentSession.RefreshExpiresAtUnix = expiresAtUnix
+			f.refreshSessions[newRefreshTokenHash] = currentSession
 			return nil
 		}
 	}
@@ -223,4 +225,55 @@ func TestAuthenticateFailsForRevokedSession(t *testing.T) {
 	if _, err := service.Authenticate(t.Context(), rawToken); err != domain.ErrSessionRevoked {
 		t.Fatalf("expected session revoked, got %v", err)
 	}
+}
+
+func TestRefreshRotatesRefreshToken(t *testing.T) {
+	jwtManager := token.NewJWTManager(config.AuthConfig{
+		JWTSecret: "test-secret",
+		TokenTTL:  time.Hour,
+	})
+
+	expiresAt := time.Now().Add(time.Hour).Unix()
+	currentHash := tokenHash("current-refresh")
+	sessions := &fakeSessionRepository{
+		active: map[string]bool{"session-1": true},
+		refreshSessions: map[string]query.Session{
+			currentHash: {
+				SessionID:            "session-1",
+				UserID:               42,
+				Username:             "admin",
+				Subject:              "42",
+				RefreshTokenHash:     currentHash,
+				RefreshExpiresAtUnix: expiresAt,
+			},
+		},
+	}
+
+	service := application.New(nil, sessions, bcrypt.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
+
+	tokens, err := service.Refresh(t.Context(), command.Refresh{RefreshToken: "current-refresh"})
+	if err != nil {
+		t.Fatalf("unexpected refresh error: %v", err)
+	}
+
+	if tokens.AccessToken == "" {
+		t.Fatal("expected access token to be returned")
+	}
+
+	if tokens.RefreshToken == "" {
+		t.Fatal("expected refresh token to be returned")
+	}
+
+	if _, ok := sessions.refreshSessions[currentHash]; ok {
+		t.Fatal("expected old refresh token hash to be replaced")
+	}
+
+	if _, ok := sessions.refreshSessions[tokenHash(tokens.RefreshToken)]; !ok {
+		t.Fatal("expected new refresh token hash to be stored")
+	}
+}
+
+func tokenHash(rawToken string) string {
+	sum := sha256.Sum256([]byte(rawToken))
+	return hex.EncodeToString(sum[:])
 }

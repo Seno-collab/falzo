@@ -41,7 +41,7 @@ func (s *service) Refresh(ctx context.Context, cmd command.Refresh) (query.Token
 		return query.TokenPair{}, err
 	}
 
-	if err := s.sessions.RotateRefreshToken(ctx, session.SessionID, tokenHash(refreshToken), time.Now().Add(s.refreshTTL).Unix()); err != nil {
+	if err := s.sessions.RotateRefreshToken(ctx, *session, tokenHash(refreshToken), time.Now().Add(s.refreshTTL).Unix()); err != nil {
 		return query.TokenPair{}, err
 	}
 

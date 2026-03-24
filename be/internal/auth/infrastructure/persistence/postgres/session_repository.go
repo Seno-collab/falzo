@@ -78,7 +78,7 @@ func (r *SessionRepository) FindActiveByRefreshTokenHash(ctx context.Context, re
 
 	var session query.Session
 	err := r.db.DB().QueryRowContext(ctx, `
-		SELECT s.session_id, s.user_id, s.username, s.subject, EXTRACT(EPOCH FROM rt.expires_at)::BIGINT
+		SELECT s.session_id, s.user_id, s.username, s.subject, rt.token_hash, EXTRACT(EPOCH FROM rt.expires_at)::BIGINT
 		FROM refresh_tokens rt
 		JOIN auth_sessions s ON s.session_id = rt.session_id
 		WHERE rt.token_hash = $1
@@ -91,6 +91,7 @@ func (r *SessionRepository) FindActiveByRefreshTokenHash(ctx context.Context, re
 		&session.UserID,
 		&session.Username,
 		&session.Subject,
+		&session.RefreshTokenHash,
 		&session.RefreshExpiresAtUnix,
 	)
 	if err != nil {
@@ -103,7 +104,7 @@ func (r *SessionRepository) FindActiveByRefreshTokenHash(ctx context.Context, re
 	return &session, nil
 }
 
-func (r *SessionRepository) RotateRefreshToken(ctx context.Context, sessionID string, refreshTokenHash string, expiresAtUnix int64) error {
+func (r *SessionRepository) RotateRefreshToken(ctx context.Context, session query.Session, newRefreshTokenHash string, expiresAtUnix int64) error {
 	if r.db == nil || r.db.DB() == nil {
 		return domain.ErrAuthDependencyUnavailable
 	}
@@ -114,8 +115,9 @@ func (r *SessionRepository) RotateRefreshToken(ctx context.Context, sessionID st
 		    expires_at = to_timestamp($3),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE session_id = $1
+		  AND token_hash = $4
 		  AND is_revoked = FALSE
-	`, sessionID, refreshTokenHash, expiresAtUnix)
+	`, session.SessionID, newRefreshTokenHash, expiresAtUnix, session.RefreshTokenHash)
 	if err != nil {
 		return mapDBError(ctx, "sessions.rotate_refresh_token", err)
 	}
