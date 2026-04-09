@@ -38,8 +38,8 @@ func TestLoadUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default dependency failure threshold, got %d", cfg.Auth.DependencyFailureThreshold)
 	}
 
-	if cfg.Auth.DependencyCooldown != 15*time.Second {
-		t.Fatalf("expected default dependency cooldown, got %v", cfg.Auth.DependencyCooldown)
+	if cfg.Auth.DependencyCoolDown != 15*time.Second {
+		t.Fatalf("expected default dependency cooldown, got %v", cfg.Auth.DependencyCoolDown)
 	}
 }
 
@@ -78,8 +78,8 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 		t.Fatalf("expected env dependency failure threshold, got %d", cfg.Auth.DependencyFailureThreshold)
 	}
 
-	if cfg.Auth.DependencyCooldown != 20*time.Second {
-		t.Fatalf("expected env dependency cooldown, got %v", cfg.Auth.DependencyCooldown)
+	if cfg.Auth.DependencyCoolDown != 20*time.Second {
+		t.Fatalf("expected env dependency cooldown, got %v", cfg.Auth.DependencyCoolDown)
 	}
 }
 
