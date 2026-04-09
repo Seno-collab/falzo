@@ -83,13 +83,6 @@ func mapAuthError(err error) apiError {
 			detail:  "Authentication service is temporarily unavailable",
 		}
 	case errors.Is(err, domain.ErrAuthInternal):
-		return apiError{
-			status:  http.StatusInternalServerError,
-			message: "Internal server error",
-			code:    "INTERNAL_ERROR",
-			detail:  "An unexpected error occurred",
-			logErr:  true,
-		}
 	default:
 		return apiError{
 			status:  http.StatusInternalServerError,
