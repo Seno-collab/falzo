@@ -7,7 +7,7 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/domain"
-	httpresponse "falzo-be/pkg/response"
+	httpResponse "falzo-be/pkg/response"
 )
 
 type RegisterRequest struct {
@@ -25,7 +25,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
 			Message: "Invalid JSON payload",
 		})
@@ -33,7 +33,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Username == "" || req.Email == "" || req.Password == "" {
-		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
 			Message: "Username, email and password are required",
 		})
@@ -41,7 +41,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !h.protector.registerLimiter.allow(authClientIP(r), now) {
-		httpresponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
 			Code:    "RATE_LIMITED",
 			Message: "Too many registration attempts, please try again later",
 		})
@@ -59,7 +59,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.Success(w, http.StatusCreated, "Account created successfully", map[string]string{
+	httpResponse.Success(w, http.StatusCreated, "Account created successfully", map[string]string{
 		"message": "account created",
 	}, r)
 }

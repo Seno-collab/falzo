@@ -38,3 +38,6 @@ logs/
 
 docs/
 scripts/
+be/.gocache/
+be/.vscode/
+be/.gopath/

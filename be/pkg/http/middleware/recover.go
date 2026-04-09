@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	httpresponse "falzo-be/pkg/response"
+	httpResponse "falzo-be/pkg/response"
 
 	"github.com/rs/zerolog/log"
 )
@@ -17,7 +17,7 @@ func Recover(next http.Handler) http.Handler {
 					Str("method", r.Method).
 					Str("path", r.URL.Path).
 					Msg("request panicked")
-				httpresponse.Error(w, http.StatusInternalServerError, "Internal server error", r, httpresponse.ErrorDetail{
+				httpResponse.Error(w, http.StatusInternalServerError, "Internal server error", r, httpResponse.ErrorDetail{
 					Code:    "INTERNAL_ERROR",
 					Message: "An unexpected error occurred",
 				})

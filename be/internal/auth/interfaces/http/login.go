@@ -8,7 +8,7 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/domain"
-	httpresponse "falzo-be/pkg/response"
+	httpResponse "falzo-be/pkg/response"
 )
 
 type LoginRequest struct {
@@ -25,7 +25,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
 			Message: "Invalid JSON payload",
 		})
@@ -33,7 +33,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Username == "" || req.Password == "" {
-		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
 			Message: "Username and password are required",
 		})
@@ -42,7 +42,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	key := authClientIP(r) + ":" + strings.ToLower(req.Username)
 	if !h.protector.loginLimiter.allow(key, now) {
-		httpresponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
 			Code:    "RATE_LIMITED",
 			Message: "Too many login attempts, please try again later",
 		})
@@ -59,5 +59,5 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.Success(w, http.StatusOK, "Login successful", tokens, r)
+	httpResponse.Success(w, http.StatusOK, "Login successful", tokens, r)
 }

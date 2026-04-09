@@ -5,14 +5,14 @@ import (
 	"strings"
 
 	"falzo-be/internal/auth/application/command"
-	httpresponse "falzo-be/pkg/response"
+	httpResponse "falzo-be/pkg/response"
 )
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	token, ok := strings.CutPrefix(authHeader, "Bearer ")
 	if !ok || token == "" {
-		httpresponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpResponse.ErrorDetail{
 			Code:    "UNAUTHORIZED",
 			Message: "Invalid authorization header",
 		})
@@ -24,7 +24,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.Success(w, http.StatusOK, "Logout acknowledged", map[string]string{
+	httpResponse.Success(w, http.StatusOK, "Logout acknowledged", map[string]string{
 		"message": "logout acknowledged",
 	}, r)
 }

@@ -3,15 +3,15 @@ package app
 import (
 	"context"
 	"falzo-be/internal/auth/application"
-	authcache "falzo-be/internal/auth/infrastructure/persistence/cache"
-	authpostgres "falzo-be/internal/auth/infrastructure/persistence/postgres"
+	authCache "falzo-be/internal/auth/infrastructure/persistence/cache"
+	authPostgres "falzo-be/internal/auth/infrastructure/persistence/postgres"
 	"falzo-be/internal/auth/infrastructure/security/bcrypt"
 	"falzo-be/internal/auth/infrastructure/token"
-	authhttp "falzo-be/internal/auth/interfaces/http"
+	authHTTP "falzo-be/internal/auth/interfaces/http"
 	"falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
-	httpmw "falzo-be/pkg/http/middleware"
+	httpMiddleware "falzo-be/pkg/http/middleware"
 	"falzo-be/pkg/logger"
 	"falzo-be/pkg/shutdown"
 	"net/http"
@@ -37,25 +37,25 @@ func Run() {
 		log.Fatal().Err(err).Msg("failed to connect postgres")
 	}
 
-	accounts := authpostgres.NewAccountRepository(db)
-	sessions := authpostgres.NewSessionRepository(db)
+	accounts := authPostgres.NewAccountRepository(db)
+	sessions := authPostgres.NewSessionRepository(db)
 	redisClient, err := cache.New(cfg.Redis)
 	if err != nil {
 		log.Warn().Err(err).Msg("redis unavailable, continuing without session cache")
 	} else {
-		sessions = authcache.NewSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
+		sessions = authCache.NewSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
 	}
 	passwords := bcrypt.NewPasswordHasher()
 	jwtManager := token.NewJWTManager(cfg.Auth)
 	authService := application.New(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
-	authRateLimit := httpmw.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
-	authProtector := authhttp.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCooldown)
-	authHandler := authhttp.New(authService, authProtector, authhttp.WithPublicMiddlewares(authRateLimit))
+	authRateLimit := httpMiddleware.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
+	authProtector := authHTTP.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCoolDown)
+	authHandler := authHTTP.New(authService, authProtector, authHTTP.WithPublicMiddlewares(authRateLimit))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(middleware.RequestID)
-	r.Use(httpmw.Recover)
+	r.Use(httpMiddleware.Recover)
 	r.Use(logger.RequestLogger)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello world!"))

@@ -32,7 +32,7 @@ type AuthConfig struct {
 	RefreshTokenTTL            time.Duration
 	RateLimitPerMin            int
 	DependencyFailureThreshold int
-	DependencyCooldown         time.Duration
+	DependencyCoolDown         time.Duration
 }
 
 type PostgresConfig struct {
@@ -68,7 +68,7 @@ func Load() Config {
 			RefreshTokenTTL:            getDuration("AUTH_REFRESH_TOKEN_TTL", 168*time.Hour),
 			RateLimitPerMin:            getInt("AUTH_RATE_LIMIT_PER_MIN", 60),
 			DependencyFailureThreshold: getInt("AUTH_DEPENDENCY_FAILURE_THRESHOLD", 5),
-			DependencyCooldown:         getDuration("AUTH_DEPENDENCY_COOLDOWN", 15*time.Second),
+			DependencyCoolDown:         getDuration("AUTH_DEPENDENCY_COOLDOWN", 15*time.Second),
 		},
 		Postgres: PostgresConfig{
 			Host:            getEnv("POSTGRES_HOST", "127.0.0.1"),

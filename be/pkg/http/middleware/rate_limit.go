@@ -1,13 +1,12 @@
 package middleware
 
 import (
+	httpResponse "falzo-be/pkg/response"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
-
-	httpresponse "falzo-be/pkg/response"
 )
 
 type fixedWindowLimiter struct {
@@ -38,7 +37,7 @@ func NewIPRateLimiter(limit int, window time.Duration) func(http.Handler) http.H
 
 			key := clientIP(r)
 			if !limiter.allow(key, time.Now()) {
-				httpresponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpresponse.ErrorDetail{
+				httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
 					Code:    "RATE_LIMITED",
 					Message: "Too many requests, please try again later",
 				})

@@ -7,7 +7,7 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/domain"
-	httpresponse "falzo-be/pkg/response"
+	httpResponse "falzo-be/pkg/response"
 )
 
 type RefreshRequest struct {
@@ -23,7 +23,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
 			Message: "Invalid JSON payload",
 		})
@@ -31,7 +31,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.RefreshToken == "" {
-		httpresponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
 			Field:   "refresh_token",
 			Message: "Refresh token is required",
@@ -41,7 +41,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	key := authClientIP(r)
 	if !h.protector.refreshLimiter.allow(key, now) {
-		httpresponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpresponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
 			Code:    "RATE_LIMITED",
 			Message: "Too many refresh attempts, please try again later",
 		})
@@ -55,5 +55,5 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpresponse.Success(w, http.StatusOK, "Token refreshed successfully", tokens, r)
+	httpResponse.Success(w, http.StatusOK, "Token refreshed successfully", tokens, r)
 }

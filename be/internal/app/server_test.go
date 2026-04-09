@@ -10,7 +10,7 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/application/query"
-	authhttp "falzo-be/internal/auth/interfaces/http"
+	authHTTP "falzo-be/internal/auth/interfaces/http"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -39,7 +39,7 @@ func (fakeAuthService) Authenticate(ctx context.Context, token string) (*query.A
 
 func TestAuthRoutesMounted(t *testing.T) {
 	r := chi.NewRouter()
-	r.Mount("/auth", authhttp.New(fakeAuthService{}).Routes())
+	r.Mount("/auth", authHTTP.New(fakeAuthService{}).Routes())
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"username":"admin","email":"admin@example.com","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")

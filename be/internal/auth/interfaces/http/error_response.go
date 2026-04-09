@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"falzo-be/internal/auth/domain"
-	httpresponse "falzo-be/pkg/response"
+	httpResponse "falzo-be/pkg/response"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog/log"
@@ -31,7 +31,7 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error, operation
 			Msg("auth request failed")
 	}
 
-	httpresponse.Error(w, mapped.status, mapped.message, r, httpresponse.ErrorDetail{
+	httpResponse.Error(w, mapped.status, mapped.message, r, httpResponse.ErrorDetail{
 		Code:    mapped.code,
 		Message: mapped.detail,
 	})
