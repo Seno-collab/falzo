@@ -10,10 +10,13 @@ import (
 )
 
 type fixedWindowLimiter struct {
-	mu     sync.Mutex
-	limit  int
-	window time.Duration
-	items  map[string]windowCounter
+	mu              sync.Mutex
+	limit           int
+	window          time.Duration
+	items           map[string]windowCounter
+	maxEntries      int
+	cleanupInterval time.Duration
+	lastCleanup     time.Time
 }
 
 type windowCounter struct {
@@ -21,11 +24,18 @@ type windowCounter struct {
 	expiresAt time.Time
 }
 
+const (
+	defaultLimiterMaxEntries      = 10000
+	defaultLimiterCleanupInterval = time.Minute
+)
+
 func NewIPRateLimiter(limit int, window time.Duration) func(http.Handler) http.Handler {
 	limiter := &fixedWindowLimiter{
-		limit:  limit,
-		window: window,
-		items:  make(map[string]windowCounter),
+		limit:           limit,
+		window:          window,
+		items:           make(map[string]windowCounter),
+		maxEntries:      defaultLimiterMaxEntries,
+		cleanupInterval: defaultLimiterCleanupInterval,
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -53,8 +63,14 @@ func (l *fixedWindowLimiter) allow(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	l.cleanupExpiredLocked(now)
+
 	entry, ok := l.items[key]
 	if !ok || now.After(entry.expiresAt) {
+		if !ok && len(l.items) >= l.maxEntries {
+			return false
+		}
+
 		l.items[key] = windowCounter{
 			count:     1,
 			expiresAt: now.Add(l.window),
@@ -73,13 +89,21 @@ func (l *fixedWindowLimiter) allow(key string, now time.Time) bool {
 
 func clientIP(r *http.Request) string {
 	host := strings.TrimSpace(r.RemoteAddr)
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
-		host = strings.TrimSpace(strings.Split(forwarded, ",")[0])
-	}
 
 	if ip, _, err := net.SplitHostPort(host); err == nil {
 		return ip
 	}
 
 	return host
+}
+
+func (l *fixedWindowLimiter) cleanupExpiredLocked(now time.Time) {
+	if l.cleanupInterval <= 0 || (l.lastCleanup.IsZero() || now.Sub(l.lastCleanup) >= l.cleanupInterval) {
+		for key, item := range l.items {
+			if now.After(item.expiresAt) {
+				delete(l.items, key)
+			}
+		}
+		l.lastCleanup = now
+	}
 }

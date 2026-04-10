@@ -22,8 +22,9 @@ type AppConfig struct {
 }
 
 type HTTPConfig struct {
-	Addr            string
-	ShutdownTimeout time.Duration
+	Addr              string
+	ShutdownTimeout   time.Duration
+	TrustProxyHeaders bool
 }
 
 type AuthConfig struct {
@@ -41,6 +42,7 @@ type PostgresConfig struct {
 	Database        string
 	User            string
 	Password        string
+	SSLMode         string
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
@@ -53,14 +55,17 @@ type RedisConfig struct {
 }
 
 func Load() Config {
+	loadDotEnvFromWorkingDir()
+
 	return Config{
 		App: AppConfig{
 			Name: getEnv("APP_NAME", "falzo-api"),
 			Env:  getEnv("APP_ENV", "development"),
 		},
 		HTTP: HTTPConfig{
-			Addr:            getEnv("HTTP_ADDR", ":8080"),
-			ShutdownTimeout: getDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
+			Addr:              getEnv("HTTP_ADDR", ":8080"),
+			ShutdownTimeout:   getDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
+			TrustProxyHeaders: getBool("HTTP_TRUST_PROXY_HEADERS", false),
 		},
 		Auth: AuthConfig{
 			JWTSecret:                  getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
@@ -76,6 +81,7 @@ func Load() Config {
 			Database:        getEnv("POSTGRES_DATABASE", ""),
 			User:            getEnv("POSTGRES_USER", ""),
 			Password:        getEnv("POSTGRES_PASSWORD", ""),
+			SSLMode:         getEnv("POSTGRES_SSL_MODE", "disable"),
 			MaxOpenConns:    getInt("POSTGRES_MAX_OPEN_CONNS", 25),
 			MaxIdleConns:    getInt("POSTGRES_MAX_IDLE_CONNS", 25),
 			ConnMaxLifetime: getDuration("POSTGRES_CONN_MAX_LIFETIME", 5*time.Minute),
@@ -96,6 +102,9 @@ func Validate(cfg Config) error {
 	secret := strings.TrimSpace(cfg.Auth.JWTSecret)
 	if secret == "" || secret == "change-me-in-production" || len(secret) < 32 {
 		return errors.New("AUTH_JWT_SECRET must be set to a strong value outside development")
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Postgres.SSLMode), "disable") || strings.TrimSpace(cfg.Postgres.SSLMode) == "" {
+		return errors.New("POSTGRES_SSL_MODE must not be disable outside development")
 	}
 
 	return nil
@@ -130,6 +139,20 @@ func getDuration(key string, fallback time.Duration) time.Duration {
 	}
 
 	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getBool(key string, fallback bool) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return fallback
 	}

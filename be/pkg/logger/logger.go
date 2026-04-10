@@ -27,14 +27,15 @@ const (
 )
 
 type Config struct {
-	ServiceName string
-	Environment string
-	Level       string
-	Pretty      bool
-	LogDir      string
-	MaxSizeMB   int
-	MaxBackups  int
-	MaxAgeDays  int
+	ServiceName   string
+	Environment   string
+	Level         string
+	Pretty        bool
+	LogDir        string
+	SensitiveKeys []string
+	MaxSizeMB     int
+	MaxBackups    int
+	MaxAgeDays    int
 }
 
 func SetupLogger(cfgs ...Config) {
@@ -66,7 +67,7 @@ func SetupLogger(cfgs ...Config) {
 		Compress:   false,
 	}
 
-	log.Logger = zerolog.New(buildWriter(cfg, fileWriter)).
+	log.Logger = zerolog.New(newSensitiveDataWriter(buildWriter(cfg, fileWriter), cfg.SensitiveKeys)).
 		Level(level).
 		With().
 		Str("service", cfg.ServiceName).
@@ -78,14 +79,15 @@ func SetupLogger(cfgs ...Config) {
 
 func buildConfig(cfgs ...Config) Config {
 	cfg := Config{
-		ServiceName: getEnv("APP_NAME", defaultServiceName),
-		Environment: getEnv("APP_ENV", defaultEnvironment),
-		Level:       getEnv("LOG_LEVEL", defaultLogLevel),
-		Pretty:      getBool("LOG_PRETTY", strings.EqualFold(getEnv("APP_ENV", defaultEnvironment), "development")),
-		LogDir:      getEnv("LOG_DIR", defaultLogDir),
-		MaxSizeMB:   getInt("LOG_MAX_SIZE_MB", defaultLogMaxSizeMB),
-		MaxBackups:  getInt("LOG_MAX_BACKUPS", defaultLogMaxBackups),
-		MaxAgeDays:  getInt("LOG_MAX_AGE_DAYS", defaultLogMaxAgeDays),
+		ServiceName:   getEnv("APP_NAME", defaultServiceName),
+		Environment:   getEnv("APP_ENV", defaultEnvironment),
+		Level:         getEnv("LOG_LEVEL", defaultLogLevel),
+		Pretty:        getBool("LOG_PRETTY", strings.EqualFold(getEnv("APP_ENV", defaultEnvironment), "development")),
+		LogDir:        getEnv("LOG_DIR", defaultLogDir),
+		SensitiveKeys: loadSensitiveKeyMarkers(getEnv("LOG_SENSITIVE_KEYS", "")),
+		MaxSizeMB:     getInt("LOG_MAX_SIZE_MB", defaultLogMaxSizeMB),
+		MaxBackups:    getInt("LOG_MAX_BACKUPS", defaultLogMaxBackups),
+		MaxAgeDays:    getInt("LOG_MAX_AGE_DAYS", defaultLogMaxAgeDays),
 	}
 
 	if len(cfgs) == 0 {
@@ -107,6 +109,9 @@ func buildConfig(cfgs ...Config) Config {
 	}
 	if override.LogDir != "" {
 		cfg.LogDir = override.LogDir
+	}
+	if len(override.SensitiveKeys) > 0 {
+		cfg.SensitiveKeys = override.SensitiveKeys
 	}
 	if override.MaxSizeMB > 0 {
 		cfg.MaxSizeMB = override.MaxSizeMB

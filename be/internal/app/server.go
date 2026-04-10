@@ -26,6 +26,7 @@ import (
 )
 
 func Run() {
+	config.BootstrapEnv()
 	logger.SetupLogger()
 	cfg := config.Load()
 	if err := config.Validate(cfg); err != nil {
@@ -53,7 +54,9 @@ func Run() {
 	authHandler := authHTTP.New(authService, authProtector, authHTTP.WithPublicMiddlewares(authRateLimit))
 
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
+	if cfg.HTTP.TrustProxyHeaders {
+		r.Use(middleware.RealIP)
+	}
 	r.Use(middleware.RequestID)
 	r.Use(httpMiddleware.Recover)
 	r.Use(logger.RequestLogger)

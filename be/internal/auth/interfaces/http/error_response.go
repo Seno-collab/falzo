@@ -29,6 +29,14 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error, operation
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
 			Msg("auth request failed")
+	} else if mapped.status == http.StatusUnauthorized || mapped.status == http.StatusTooManyRequests {
+		log.Warn().
+			Str("operation", operation).
+			Str("request_id", chimiddleware.GetReqID(r.Context())).
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("code", mapped.code).
+			Msg("auth request rejected")
 	}
 
 	httpResponse.Error(w, mapped.status, mapped.message, r, httpResponse.ErrorDetail{
@@ -82,7 +90,6 @@ func mapAuthError(err error) apiError {
 			code:    "SERVICE_UNAVAILABLE",
 			detail:  "Authentication service is temporarily unavailable",
 		}
-	case errors.Is(err, domain.ErrAuthInternal):
 	default:
 		return apiError{
 			status:  http.StatusInternalServerError,

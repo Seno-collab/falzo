@@ -60,10 +60,13 @@ func (p *authProtector) observe(err error, now time.Time) {
 }
 
 type keyLimiter struct {
-	mu     sync.Mutex
-	limit  int
-	window time.Duration
-	items  map[string]windowCounter
+	mu              sync.Mutex
+	limit           int
+	window          time.Duration
+	items           map[string]windowCounter
+	maxEntries      int
+	cleanupInterval time.Duration
+	lastCleanup     time.Time
 }
 
 type windowCounter struct {
@@ -73,9 +76,11 @@ type windowCounter struct {
 
 func newKeyLimiter(limit int, window time.Duration) *keyLimiter {
 	return &keyLimiter{
-		limit:  limit,
-		window: window,
-		items:  make(map[string]windowCounter),
+		limit:           limit,
+		window:          window,
+		items:           make(map[string]windowCounter),
+		maxEntries:      10000,
+		cleanupInterval: time.Minute,
 	}
 }
 
@@ -87,8 +92,14 @@ func (l *keyLimiter) allow(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	l.cleanupExpiredLocked(now)
+
 	entry, ok := l.items[key]
 	if !ok || now.After(entry.expiresAt) {
+		if !ok && len(l.items) >= l.maxEntries {
+			return false
+		}
+
 		l.items[key] = windowCounter{
 			count:     1,
 			expiresAt: now.Add(l.window),
@@ -107,13 +118,21 @@ func (l *keyLimiter) allow(key string, now time.Time) bool {
 
 func authClientIP(r *http.Request) string {
 	host := strings.TrimSpace(r.RemoteAddr)
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
-		host = strings.TrimSpace(strings.Split(forwarded, ",")[0])
-	}
 
 	if ip, _, err := net.SplitHostPort(host); err == nil {
 		return ip
 	}
 
 	return host
+}
+
+func (l *keyLimiter) cleanupExpiredLocked(now time.Time) {
+	if l.cleanupInterval <= 0 || l.lastCleanup.IsZero() || now.Sub(l.lastCleanup) >= l.cleanupInterval {
+		for key, item := range l.items {
+			if now.After(item.expiresAt) {
+				delete(l.items, key)
+			}
+		}
+		l.lastCleanup = now
+	}
 }

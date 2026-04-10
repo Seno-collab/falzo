@@ -10,7 +10,7 @@ import (
 	"falzo-be/internal/auth/domain/repository"
 	"falzo-be/internal/auth/domain/valueobject"
 	"falzo-be/pkg/database"
-	"strings"
+	"falzo-be/pkg/dberr"
 )
 
 type AccountRepository struct {
@@ -154,5 +154,5 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 }
 
 func isDuplicateError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "duplicate key value violates unique constraint")
+	return dberr.IsUniqueViolation(err)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"falzo-be/pkg/config"
@@ -23,13 +25,21 @@ type postgresClient struct {
 }
 
 func New(cfg config.PostgresConfig) (Client, error) {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		cfg.User,
-		cfg.Password,
-		cfg.Host,
-		cfg.Port,
-		cfg.Database,
-	)
+	sslMode := strings.TrimSpace(cfg.SSLMode)
+	if sslMode == "" {
+		sslMode = "disable"
+	}
+
+	dsnURL := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(cfg.User, cfg.Password),
+		Host:   fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Path:   "/" + cfg.Database,
+	}
+	query := dsnURL.Query()
+	query.Set("sslmode", sslMode)
+	dsnURL.RawQuery = query.Encode()
+	dsn := dsnURL.String()
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

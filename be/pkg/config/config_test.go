@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -10,6 +12,8 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("APP_ENV", "")
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "")
+	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "")
+	t.Setenv("POSTGRES_SSL_MODE", "")
 	t.Setenv("REDIS_ADDR", "")
 
 	cfg := Load()
@@ -24,6 +28,10 @@ func TestLoadUsesDefaults(t *testing.T) {
 
 	if cfg.HTTP.ShutdownTimeout != 60*time.Second {
 		t.Fatalf("expected default shutdown timeout, got %v", cfg.HTTP.ShutdownTimeout)
+	}
+
+	if cfg.HTTP.TrustProxyHeaders {
+		t.Fatal("expected default trusted proxy headers to be disabled")
 	}
 
 	if cfg.Redis.Addr != "127.0.0.1:6379" {
@@ -41,12 +49,18 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.Auth.DependencyCoolDown != 15*time.Second {
 		t.Fatalf("expected default dependency cooldown, got %v", cfg.Auth.DependencyCoolDown)
 	}
+
+	if cfg.Postgres.SSLMode != "disable" {
+		t.Fatalf("expected default postgres ssl mode disable, got %q", cfg.Postgres.SSLMode)
+	}
 }
 
 func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("APP_NAME", "falzo-test")
 	t.Setenv("HTTP_ADDR", ":9090")
 	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "15s")
+	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "true")
+	t.Setenv("POSTGRES_SSL_MODE", "require")
 	t.Setenv("REDIS_DB", "4")
 	t.Setenv("AUTH_RATE_LIMIT_PER_MIN", "15")
 	t.Setenv("AUTH_DEPENDENCY_FAILURE_THRESHOLD", "7")
@@ -66,6 +80,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 		t.Fatalf("expected env shutdown timeout, got %v", cfg.HTTP.ShutdownTimeout)
 	}
 
+	if !cfg.HTTP.TrustProxyHeaders {
+		t.Fatal("expected env trusted proxy headers to be enabled")
+	}
+
 	if cfg.Redis.DB != 4 {
 		t.Fatalf("expected env redis db, got %d", cfg.Redis.DB)
 	}
@@ -81,6 +99,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	if cfg.Auth.DependencyCoolDown != 20*time.Second {
 		t.Fatalf("expected env dependency cooldown, got %v", cfg.Auth.DependencyCoolDown)
 	}
+
+	if cfg.Postgres.SSLMode != "require" {
+		t.Fatalf("expected env postgres ssl mode, got %q", cfg.Postgres.SSLMode)
+	}
 }
 
 func TestValidateRejectsWeakJWTSecretOutsideDevelopment(t *testing.T) {
@@ -93,5 +115,90 @@ func TestValidateRejectsWeakJWTSecretOutsideDevelopment(t *testing.T) {
 
 	if err := Validate(cfg); err == nil {
 		t.Fatal("expected validation error for weak jwt secret")
+	}
+}
+
+func TestValidateRejectsDisabledPostgresTLSOutsideDevelopment(t *testing.T) {
+	cfg := Config{
+		App: AppConfig{Env: "production"},
+		Auth: AuthConfig{
+			JWTSecret: "01234567890123456789012345678901",
+		},
+		Postgres: PostgresConfig{
+			SSLMode: "disable",
+		},
+	}
+
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected validation error for disabled postgres ssl mode")
+	}
+}
+
+func TestLoadReadsValuesFromDotEnvFile(t *testing.T) {
+	tempDir := t.TempDir()
+	dotenvPath := filepath.Join(tempDir, ".env")
+	content := "APP_NAME=from-dotenv\nHTTP_ADDR=:9999\nAUTH_RATE_LIMIT_PER_MIN=21\n"
+	if err := os.WriteFile(dotenvPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalWD) })
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp dir: %v", err)
+	}
+
+	t.Setenv("APP_NAME", "")
+	t.Setenv("HTTP_ADDR", "")
+	t.Setenv("AUTH_RATE_LIMIT_PER_MIN", "")
+
+	cfg := Load()
+
+	if cfg.App.Name != "from-dotenv" {
+		t.Fatalf("expected app name from .env, got %q", cfg.App.Name)
+	}
+
+	if cfg.HTTP.Addr != ":9999" {
+		t.Fatalf("expected http addr from .env, got %q", cfg.HTTP.Addr)
+	}
+
+	if cfg.Auth.RateLimitPerMin != 21 {
+		t.Fatalf("expected auth rate limit from .env, got %d", cfg.Auth.RateLimitPerMin)
+	}
+}
+
+func TestLoadKeepsExistingEnvOverDotEnv(t *testing.T) {
+	tempDir := t.TempDir()
+	dotenvPath := filepath.Join(tempDir, ".env")
+	content := "APP_NAME=from-dotenv\nHTTP_ADDR=:7777\n"
+	if err := os.WriteFile(dotenvPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalWD) })
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp dir: %v", err)
+	}
+
+	t.Setenv("APP_NAME", "from-env")
+	t.Setenv("HTTP_ADDR", ":8888")
+
+	cfg := Load()
+
+	if cfg.App.Name != "from-env" {
+		t.Fatalf("expected app name from env to win, got %q", cfg.App.Name)
+	}
+
+	if cfg.HTTP.Addr != ":8888" {
+		t.Fatalf("expected http addr from env to win, got %q", cfg.HTTP.Addr)
 	}
 }
