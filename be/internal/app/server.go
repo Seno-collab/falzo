@@ -26,6 +26,9 @@ import (
 )
 
 func Run() {
+	// Keep application-wide local time aligned to UTC (UTC+0).
+	time.Local = time.UTC
+
 	config.BootstrapEnv()
 	logger.SetupLogger()
 	cfg := config.Load()

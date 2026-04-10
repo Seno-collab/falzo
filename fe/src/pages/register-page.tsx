@@ -1,32 +1,137 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
+import {
+  getApiErrorMessage,
+  hasAuthSession,
+  registerApi,
+} from "@/api/auth.api";
+import { useLanguage } from "@/app/language-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage, registerApi } from "@/lib/auth-api";
 
-const registerSchema = z
-  .object({
-    fullName: z.string().trim().min(2, "Họ tên tối thiểu 2 ký tự."),
-    email: z.string().trim().email("Email không hợp lệ."),
-    password: z.string().min(6, "Mật khẩu tối thiểu 6 ký tự."),
-    confirmPassword: z.string().min(6, "Vui lòng nhập lại mật khẩu."),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Mật khẩu nhập lại không khớp.",
-  });
+type RegisterCopy = {
+  documentTitle: string;
+  title: string;
+  subtitle: string;
+  fullNameLabel: string;
+  fullNamePlaceholder: string;
+  fullNameMin: string;
+  emailLabel: string;
+  emailPlaceholder: string;
+  emailInvalid: string;
+  passwordLabel: string;
+  passwordPlaceholder: string;
+  passwordMin: string;
+  confirmPasswordLabel: string;
+  confirmPasswordPlaceholder: string;
+  confirmPasswordMin: string;
+  confirmPasswordMismatch: string;
+  submit: string;
+  submitting: string;
+  hasAccountText: string;
+  loginCta: string;
+  successTitle: string;
+  successRedirectDashboard: string;
+  successPromptLogin: string;
+  errorTitle: string;
+};
 
-type RegisterFormValues = z.infer<typeof registerSchema>;
+const REGISTER_COPY: Record<"vi" | "en", RegisterCopy> = {
+  vi: {
+    documentTitle: "Đăng ký | Falzo",
+    title: "Đăng ký tài khoản",
+    subtitle: "Tạo tài khoản mới để bắt đầu sử dụng.",
+    fullNameLabel: "Họ và tên",
+    fullNamePlaceholder: "Nguyen Van A",
+    fullNameMin: "Họ tên tối thiểu 2 ký tự.",
+    emailLabel: "Email",
+    emailPlaceholder: "you@example.com",
+    emailInvalid: "Email không hợp lệ.",
+    passwordLabel: "Mật khẩu",
+    passwordPlaceholder: "••••••••",
+    passwordMin: "Mật khẩu tối thiểu 6 ký tự.",
+    confirmPasswordLabel: "Nhập lại mật khẩu",
+    confirmPasswordPlaceholder: "••••••••",
+    confirmPasswordMin: "Vui lòng nhập lại mật khẩu.",
+    confirmPasswordMismatch: "Mật khẩu nhập lại không khớp.",
+    submit: "Đăng ký",
+    submitting: "Đang tạo tài khoản...",
+    hasAccountText: "Đã có tài khoản?",
+    loginCta: "Đăng nhập",
+    successTitle: "Đăng ký thành công",
+    successRedirectDashboard: "Đang chuyển vào dashboard.",
+    successPromptLogin: "Bạn có thể đăng nhập ngay bây giờ.",
+    errorTitle: "Đăng ký thất bại",
+  },
+  en: {
+    documentTitle: "Register | Falzo",
+    title: "Create account",
+    subtitle: "Create a new account to get started.",
+    fullNameLabel: "Full name",
+    fullNamePlaceholder: "John Doe",
+    fullNameMin: "Full name must be at least 2 characters.",
+    emailLabel: "Email",
+    emailPlaceholder: "you@example.com",
+    emailInvalid: "Invalid email address.",
+    passwordLabel: "Password",
+    passwordPlaceholder: "••••••••",
+    passwordMin: "Password must be at least 6 characters.",
+    confirmPasswordLabel: "Confirm password",
+    confirmPasswordPlaceholder: "••••••••",
+    confirmPasswordMin: "Please confirm your password.",
+    confirmPasswordMismatch: "Password confirmation does not match.",
+    submit: "Sign up",
+    submitting: "Creating account...",
+    hasAccountText: "Already have an account?",
+    loginCta: "Login",
+    successTitle: "Registration successful",
+    successRedirectDashboard: "Redirecting to dashboard.",
+    successPromptLogin: "You can login now.",
+    errorTitle: "Registration failed",
+  },
+};
+
+type RegisterFormValues = {
+  fullName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 export function RegisterPage() {
+  const { language } = useLanguage();
   const navigate = useNavigate();
+  const copy = REGISTER_COPY[language];
+
+  const registerSchema = useMemo(
+    () =>
+      z
+        .object({
+          fullName: z.string().trim().min(2, copy.fullNameMin),
+          email: z.string().trim().email(copy.emailInvalid),
+          password: z.string().min(6, copy.passwordMin),
+          confirmPassword: z.string().min(6, copy.confirmPasswordMin),
+        })
+        .refine((data) => data.password === data.confirmPassword, {
+          path: ["confirmPassword"],
+          message: copy.confirmPasswordMismatch,
+        }),
+    [
+      copy.confirmPasswordMin,
+      copy.confirmPasswordMismatch,
+      copy.emailInvalid,
+      copy.fullNameMin,
+      copy.passwordMin,
+    ],
+  );
+
   const { register, handleSubmit, formState } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -38,8 +143,8 @@ export function RegisterPage() {
   });
 
   useEffect(() => {
-    document.title = "Đăng ký | Falzo";
-  }, []);
+    document.title = copy.documentTitle;
+  }, [copy.documentTitle]);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -49,13 +154,21 @@ export function RegisterPage() {
         password: values.password,
       });
 
-      toast.success("Đăng ký thành công", {
-        description: "Bạn có thể đăng nhập ngay bây giờ.",
+      if (hasAuthSession()) {
+        toast.success(copy.successTitle, {
+          description: copy.successRedirectDashboard,
+        });
+        navigate("/dashboard", { replace: true });
+        return;
+      }
+
+      toast.success(copy.successTitle, {
+        description: copy.successPromptLogin,
       });
       navigate("/login", { replace: true });
     } catch (error) {
-      toast.error("Đăng ký thất bại", {
-        description: getApiErrorMessage(error),
+      toast.error(copy.errorTitle, {
+        description: getApiErrorMessage(error, language),
       });
     }
   });
@@ -72,23 +185,23 @@ export function RegisterPage() {
           <CardContent className="space-y-6 p-6 sm:p-8">
             <div className="space-y-2 text-center">
               <h1 className="text-2xl font-bold tracking-tight text-[#1f2d46]">
-                Đăng ký tài khoản
+                {copy.title}
               </h1>
               <p className="text-sm text-[#60708c]">
-                Tạo tài khoản mới để bắt đầu sử dụng.
+                {copy.subtitle}
               </p>
             </div>
 
             <form className="space-y-4" noValidate onSubmit={onSubmit}>
               <div className="space-y-2">
                 <Label className="text-[#334868]" htmlFor="fullName">
-                  Họ và tên
+                  {copy.fullNameLabel}
                 </Label>
                 <Input
                   className="h-10 border-[#cad6e8] bg-[#fbfcff] text-[#1f2d46] placeholder:text-[#9aabc4]"
                   disabled={formState.isSubmitting}
                   id="fullName"
-                  placeholder="Nguyen Van A"
+                  placeholder={copy.fullNamePlaceholder}
                   type="text"
                   {...register("fullName")}
                 />
@@ -101,14 +214,14 @@ export function RegisterPage() {
 
               <div className="space-y-2">
                 <Label className="text-[#334868]" htmlFor="email">
-                  Email
+                  {copy.emailLabel}
                 </Label>
                 <Input
                   autoComplete="email"
                   className="h-10 border-[#cad6e8] bg-[#fbfcff] text-[#1f2d46] placeholder:text-[#9aabc4]"
                   disabled={formState.isSubmitting}
                   id="email"
-                  placeholder="you@example.com"
+                  placeholder={copy.emailPlaceholder}
                   type="email"
                   {...register("email")}
                 />
@@ -121,14 +234,14 @@ export function RegisterPage() {
 
               <div className="space-y-2">
                 <Label className="text-[#334868]" htmlFor="password">
-                  Mật khẩu
+                  {copy.passwordLabel}
                 </Label>
                 <Input
                   autoComplete="new-password"
                   className="h-10 border-[#cad6e8] bg-[#fbfcff] text-[#1f2d46] placeholder:text-[#9aabc4]"
                   disabled={formState.isSubmitting}
                   id="password"
-                  placeholder="••••••••"
+                  placeholder={copy.passwordPlaceholder}
                   type="password"
                   {...register("password")}
                 />
@@ -141,14 +254,14 @@ export function RegisterPage() {
 
               <div className="space-y-2">
                 <Label className="text-[#334868]" htmlFor="confirmPassword">
-                  Nhập lại mật khẩu
+                  {copy.confirmPasswordLabel}
                 </Label>
                 <Input
                   autoComplete="new-password"
                   className="h-10 border-[#cad6e8] bg-[#fbfcff] text-[#1f2d46] placeholder:text-[#9aabc4]"
                   disabled={formState.isSubmitting}
                   id="confirmPassword"
-                  placeholder="••••••••"
+                  placeholder={copy.confirmPasswordPlaceholder}
                   type="password"
                   {...register("confirmPassword")}
                 />
@@ -164,14 +277,14 @@ export function RegisterPage() {
                 disabled={formState.isSubmitting}
                 type="submit"
               >
-                {formState.isSubmitting ? "Đang tạo tài khoản..." : "Đăng ký"}
+                {formState.isSubmitting ? copy.submitting : copy.submit}
               </Button>
             </form>
 
             <p className="text-center text-sm text-[#60708c]">
-              Đã có tài khoản?{" "}
+              {copy.hasAccountText}{" "}
               <Link className="font-medium text-[#3a5f98] hover:underline" to="/login">
-                Đăng nhập
+                {copy.loginCta}
               </Link>
             </p>
           </CardContent>

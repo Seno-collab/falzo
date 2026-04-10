@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { Toaster } from "sonner";
+import { LanguageProvider } from "@/app/language-provider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,8 +15,10 @@ const queryClient = new QueryClient({
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster richColors position="top-right" />
+      <LanguageProvider>
+        {children}
+        <Toaster richColors position="top-right" />
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

@@ -48,7 +48,8 @@ func SetupLogger(cfgs ...Config) {
 		panic(fmt.Sprintf("failed to create log directory: %v", err))
 	}
 
-	zerolog.TimeFieldFormat = "2006-01-02 15:04:05"
+	zerolog.TimeFieldFormat = time.RFC3339
+	zerolog.TimestampFunc = func() time.Time { return time.Now().UTC() }
 	zerolog.SetGlobalLevel(level)
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
 		relative := strings.TrimPrefix(filepath.ToSlash(file), filepath.ToSlash(rootDir)+"/")
@@ -63,7 +64,7 @@ func SetupLogger(cfgs ...Config) {
 		MaxSize:    cfg.MaxSizeMB,
 		MaxBackups: cfg.MaxBackups,
 		MaxAge:     cfg.MaxAgeDays,
-		LocalTime:  true,
+		LocalTime:  false,
 		Compress:   false,
 	}
 
@@ -130,7 +131,7 @@ func buildWriter(cfg Config, fileWriter io.Writer) io.Writer {
 	if cfg.Pretty {
 		consoleWriter := zerolog.ConsoleWriter{
 			Out:        os.Stdout,
-			TimeFormat: "2006-01-02 15:04:05",
+			TimeFormat: time.RFC3339,
 		}
 		return io.MultiWriter(consoleWriter, fileWriter)
 	}

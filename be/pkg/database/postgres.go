@@ -38,6 +38,8 @@ func New(cfg config.PostgresConfig) (Client, error) {
 	}
 	query := dsnURL.Query()
 	query.Set("sslmode", sslMode)
+	// Force per-session timezone so NOW()/CURRENT_TIMESTAMP are UTC+0.
+	query.Set("timezone", "UTC")
 	dsnURL.RawQuery = query.Encode()
 	dsn := dsnURL.String()
 

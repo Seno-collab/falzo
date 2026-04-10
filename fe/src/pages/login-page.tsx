@@ -1,26 +1,96 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useLanguage } from "@/app/language-provider";
+import { getApiErrorMessage, hasAuthSession, loginApi } from "@/api/auth.api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage, loginApi } from "@/lib/auth-api";
 
-const loginSchema = z.object({
-  email: z.string().trim().email("Email không hợp lệ."),
-  password: z.string().min(6, "Mật khẩu tối thiểu 6 ký tự."),
-  remember: z.boolean(),
-});
+type LoginCopy = {
+  documentTitle: string;
+  title: string;
+  subtitle: string;
+  emailLabel: string;
+  emailPlaceholder: string;
+  emailInvalid: string;
+  passwordLabel: string;
+  passwordPlaceholder: string;
+  passwordMin: string;
+  rememberLabel: string;
+  submit: string;
+  submitting: string;
+  noAccountText: string;
+  registerCta: string;
+  successTitle: string;
+  errorTitle: string;
+};
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+const LOGIN_COPY: Record<"vi" | "en", LoginCopy> = {
+  vi: {
+    documentTitle: "Đăng nhập | Falzo",
+    title: "Đăng nhập",
+    subtitle: "Nhập thông tin tài khoản để tiếp tục.",
+    emailLabel: "Email",
+    emailPlaceholder: "you@example.com",
+    emailInvalid: "Email không hợp lệ.",
+    passwordLabel: "Mật khẩu",
+    passwordPlaceholder: "••••••••",
+    passwordMin: "Mật khẩu tối thiểu 6 ký tự.",
+    rememberLabel: "Ghi nhớ đăng nhập",
+    submit: "Đăng nhập",
+    submitting: "Đang đăng nhập...",
+    noAccountText: "Chưa có tài khoản?",
+    registerCta: "Đăng ký",
+    successTitle: "Đăng nhập thành công",
+    errorTitle: "Đăng nhập thất bại",
+  },
+  en: {
+    documentTitle: "Login | Falzo",
+    title: "Login",
+    subtitle: "Enter your account information to continue.",
+    emailLabel: "Email",
+    emailPlaceholder: "you@example.com",
+    emailInvalid: "Invalid email address.",
+    passwordLabel: "Password",
+    passwordPlaceholder: "••••••••",
+    passwordMin: "Password must be at least 6 characters.",
+    rememberLabel: "Remember login",
+    submit: "Login",
+    submitting: "Signing in...",
+    noAccountText: "Don't have an account?",
+    registerCta: "Sign up",
+    successTitle: "Login successful",
+    errorTitle: "Login failed",
+  },
+};
+
+type LoginFormValues = {
+  email: string;
+  password: string;
+  remember: boolean;
+};
 
 export function LoginPage() {
+  const { language } = useLanguage();
   const navigate = useNavigate();
+  const copy = LOGIN_COPY[language];
+
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        email: z.string().trim().email(copy.emailInvalid),
+        password: z.string().min(6, copy.passwordMin),
+        remember: z.boolean(),
+      }),
+    [copy.emailInvalid, copy.passwordMin],
+  );
+
   const { register, handleSubmit, formState } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -31,17 +101,21 @@ export function LoginPage() {
   });
 
   useEffect(() => {
-    document.title = "Đăng nhập | Falzo";
-  }, []);
+    document.title = copy.documentTitle;
+
+    if (hasAuthSession()) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [copy.documentTitle, navigate]);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
       await loginApi(values);
-      toast.success("Đăng nhập thành công");
-      navigate("/", { replace: true });
+      toast.success(copy.successTitle);
+      navigate("/dashboard", { replace: true });
     } catch (error) {
-      toast.error("Đăng nhập thất bại", {
-        description: getApiErrorMessage(error),
+      toast.error(copy.errorTitle, {
+        description: getApiErrorMessage(error, language),
       });
     }
   });
@@ -58,24 +132,24 @@ export function LoginPage() {
           <CardContent className="space-y-6 p-6 sm:p-8">
             <div className="space-y-2 text-center">
               <h1 className="text-2xl font-bold tracking-tight text-[#1f2d46]">
-                Đăng nhập
+                {copy.title}
               </h1>
               <p className="text-sm text-[#60708c]">
-                Nhập thông tin tài khoản để tiếp tục.
+                {copy.subtitle}
               </p>
             </div>
 
             <form className="space-y-4" noValidate onSubmit={onSubmit}>
               <div className="space-y-2">
                 <Label className="text-[#334868]" htmlFor="email">
-                  Email
+                  {copy.emailLabel}
                 </Label>
                 <Input
                   autoComplete="email"
                   className="h-10 border-[#cad6e8] bg-[#fbfcff] text-[#1f2d46] placeholder:text-[#9aabc4]"
                   disabled={formState.isSubmitting}
                   id="email"
-                  placeholder="you@example.com"
+                  placeholder={copy.emailPlaceholder}
                   type="email"
                   {...register("email")}
                 />
@@ -88,14 +162,14 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <Label className="text-[#334868]" htmlFor="password">
-                  Mật khẩu
+                  {copy.passwordLabel}
                 </Label>
                 <Input
                   autoComplete="current-password"
                   className="h-10 border-[#cad6e8] bg-[#fbfcff] text-[#1f2d46] placeholder:text-[#9aabc4]"
                   disabled={formState.isSubmitting}
                   id="password"
-                  placeholder="••••••••"
+                  placeholder={copy.passwordPlaceholder}
                   type="password"
                   {...register("password")}
                 />
@@ -117,7 +191,7 @@ export function LoginPage() {
                   type="checkbox"
                   {...register("remember")}
                 />
-                Ghi nhớ đăng nhập
+                {copy.rememberLabel}
               </label>
 
               <Button
@@ -125,17 +199,17 @@ export function LoginPage() {
                 disabled={formState.isSubmitting}
                 type="submit"
               >
-                {formState.isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
+                {formState.isSubmitting ? copy.submitting : copy.submit}
               </Button>
             </form>
 
             <p className="text-center text-sm text-[#60708c]">
-              Chưa có tài khoản?{" "}
+              {copy.noAccountText}{" "}
               <Link
                 className="font-medium text-[#3a5f98] hover:underline"
                 to="/register"
               >
-                Đăng ký
+                {copy.registerCta}
               </Link>
             </p>
           </CardContent>

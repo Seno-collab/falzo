@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "@/App";
-import { initializeAuthHeader } from "@/lib/auth-api";
+import { initializeAuthHeader } from "@/api/auth.api";
 import "./styles.css";
 
 initializeAuthHeader();

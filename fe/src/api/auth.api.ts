@@ -1,25 +1,15 @@
 import { AxiosError } from "axios";
+import { messages } from "@/i18n/messages";
 import { http } from "@/lib/http";
+import type {
+  ApiLanguage,
+  AuthSession,
+  LoginRequest,
+  RegisterRequest,
+} from "@/types/api/auth";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
-
-type LoginPayload = {
-  email: string;
-  password: string;
-  remember: boolean;
-};
-
-type RegisterPayload = {
-  fullName: string;
-  email: string;
-  password: string;
-};
-
-type AuthSession = {
-  accessToken: string;
-  refreshToken?: string;
-};
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -139,7 +129,12 @@ export function clearAuthSession() {
   delete http.defaults.headers.common.Authorization;
 }
 
-export function getApiErrorMessage(error: unknown): string {
+export function getApiErrorMessage(
+  error: unknown,
+  language: ApiLanguage = "en",
+): string {
+  const errorMessages = messages[language].apiErrors;
+
   if (error instanceof AxiosError) {
     const serverMessage = readMessage(error.response?.data);
     if (serverMessage) {
@@ -148,28 +143,28 @@ export function getApiErrorMessage(error: unknown): string {
 
     const status = error.response?.status;
     if (status === 401) {
-      return "Email hoặc mật khẩu không đúng.";
+      return errorMessages.unauthorized;
     }
 
     if (status === 409) {
-      return "Email đã được đăng ký.";
+      return errorMessages.conflict;
     }
 
     if (status && status >= 500) {
-      return "Máy chủ đang lỗi, vui lòng thử lại sau.";
+      return errorMessages.server;
     }
 
-    return "Không thể kết nối API xác thực.";
+    return errorMessages.unreachable;
   }
 
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
 
-  return "Có lỗi xảy ra, vui lòng thử lại.";
+  return errorMessages.generic;
 }
 
-export async function loginApi(payload: LoginPayload): Promise<AuthSession> {
+export async function loginApi(payload: LoginRequest): Promise<AuthSession> {
   const endpoint = import.meta.env.VITE_AUTH_LOGIN_ENDPOINT ?? "/auth/login";
   const response = await http.post(endpoint, {
     email: payload.email,
@@ -185,7 +180,7 @@ export async function loginApi(payload: LoginPayload): Promise<AuthSession> {
   return session;
 }
 
-export async function registerApi(payload: RegisterPayload) {
+export async function registerApi(payload: RegisterRequest) {
   const endpoint = import.meta.env.VITE_AUTH_REGISTER_ENDPOINT ?? "/auth/register";
 
   const response = await http.post(endpoint, {
