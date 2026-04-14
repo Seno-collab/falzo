@@ -1,6 +1,10 @@
+  SET TIME ZONE 'UTC';
+  SHOW TIME ZONE;
+  SELECT CURRENT_TIMESTAMP;
+
 CREATE TABLE IF NOT EXISTS users (
     id            BIGSERIAL PRIMARY KEY,
-    username      VARCHAR(50)  NOT NULL UNIQUE,
+    user_name     VARCHAR(50)  NOT NULL UNIQUE,
     email         VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name     VARCHAR(255) NULL,

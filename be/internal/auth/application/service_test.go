@@ -41,7 +41,7 @@ func (f *fakeAccountRepository) Save(ctx context.Context, account *aggregate.Acc
 	return f.saveErr
 }
 
-func (f *fakeAccountRepository) FindActiveByUsername(ctx context.Context, username valueobject.Username) (*aggregate.Account, error) {
+func (f *fakeAccountRepository) FindActiveByEmail(ctx context.Context, email valueobject.Email) (*aggregate.Account, error) {
 	if f.findErr != nil {
 		return nil, f.findErr
 	}
@@ -152,7 +152,7 @@ func TestLoginUnavailableWithoutRepository(t *testing.T) {
 
 	service := application.New(nil, &fakeSessionRepository{active: map[string]bool{}}, bcrypt.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
 
-	if _, err := service.Login(t.Context(), command.Login{Username: "admin", Password: "admin123"}); err != domain.ErrAuthDependencyUnavailable {
+	if _, err := service.Login(t.Context(), command.Login{Email: "admin@example.com", Password: "admin123"}); err != domain.ErrAuthDependencyUnavailable {
 		t.Fatalf("expected auth dependency unavailable, got %v", err)
 	}
 }
@@ -184,7 +184,7 @@ func TestLoginSuccess(t *testing.T) {
 	service := application.New(repo, sessions, hasher, jwtManager, jwtManager, 24*time.Hour)
 
 	tokens, err := service.Login(t.Context(), command.Login{
-		Username: "admin",
+		Email:    "admin@example.com",
 		Password: "admin123",
 	})
 	if err != nil {

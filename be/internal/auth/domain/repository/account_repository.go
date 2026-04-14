@@ -9,5 +9,5 @@ import (
 
 type AccountRepository interface {
 	Save(ctx context.Context, account *aggregate.Account) error
-	FindActiveByUsername(ctx context.Context, username valueobject.Username) (*aggregate.Account, error)
+	FindActiveByEmail(ctx context.Context, email valueobject.Email) (*aggregate.Account, error)
 }

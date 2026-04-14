@@ -52,7 +52,7 @@ func mapAuthError(err error) apiError {
 			status:  http.StatusUnauthorized,
 			message: "Invalid credentials",
 			code:    "UNAUTHORIZED",
-			detail:  "Username or password is incorrect",
+			detail:  "Email or password is incorrect",
 		}
 	case errors.Is(err, domain.ErrInvalidToken):
 		return apiError{

@@ -1,12 +1,12 @@
 package logger
 
 import (
+	"falzo-be/pkg/config"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -80,15 +80,15 @@ func SetupLogger(cfgs ...Config) {
 
 func buildConfig(cfgs ...Config) Config {
 	cfg := Config{
-		ServiceName:   getEnv("APP_NAME", defaultServiceName),
-		Environment:   getEnv("APP_ENV", defaultEnvironment),
-		Level:         getEnv("LOG_LEVEL", defaultLogLevel),
-		Pretty:        getBool("LOG_PRETTY", strings.EqualFold(getEnv("APP_ENV", defaultEnvironment), "development")),
-		LogDir:        getEnv("LOG_DIR", defaultLogDir),
-		SensitiveKeys: loadSensitiveKeyMarkers(getEnv("LOG_SENSITIVE_KEYS", "")),
-		MaxSizeMB:     getInt("LOG_MAX_SIZE_MB", defaultLogMaxSizeMB),
-		MaxBackups:    getInt("LOG_MAX_BACKUPS", defaultLogMaxBackups),
-		MaxAgeDays:    getInt("LOG_MAX_AGE_DAYS", defaultLogMaxAgeDays),
+		ServiceName:   config.GetEnv("APP_NAME", defaultServiceName),
+		Environment:   config.GetEnv("APP_ENV", defaultEnvironment),
+		Level:         config.GetEnv("LOG_LEVEL", defaultLogLevel),
+		Pretty:        config.GetBool("LOG_PRETTY", strings.EqualFold(config.GetEnv("APP_ENV", defaultEnvironment), "development")),
+		LogDir:        config.GetEnv("LOG_DIR", defaultLogDir),
+		SensitiveKeys: loadSensitiveKeyMarkers(config.GetEnv("LOG_SENSITIVE_KEYS", "")),
+		MaxSizeMB:     config.GetInt("LOG_MAX_SIZE_MB", defaultLogMaxSizeMB),
+		MaxBackups:    config.GetInt("LOG_MAX_BACKUPS", defaultLogMaxBackups),
+		MaxAgeDays:    config.GetInt("LOG_MAX_AGE_DAYS", defaultLogMaxAgeDays),
 	}
 
 	if len(cfgs) == 0 {
@@ -163,42 +163,6 @@ func mustGetWorkingDir() string {
 	}
 
 	return wd
-}
-
-func getEnv(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-
-	return fallback
-}
-
-func getInt(key string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-
-	return parsed
-}
-
-func getBool(key string, fallback bool) bool {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return fallback
-	}
-
-	return parsed
 }
 
 type statusRecorder struct {

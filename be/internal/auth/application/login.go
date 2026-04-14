@@ -17,7 +17,7 @@ func (s *service) Login(ctx context.Context, cmd command.Login) (query.TokenPair
 		return query.TokenPair{}, domain.ErrAuthDependencyUnavailable
 	}
 
-	username, err := valueobject.NewUsername(cmd.Username)
+	email, err := valueobject.NewEmail(cmd.Email)
 	if err != nil {
 		return query.TokenPair{}, domain.ErrInvalidCredentials
 	}
@@ -27,7 +27,7 @@ func (s *service) Login(ctx context.Context, cmd command.Login) (query.TokenPair
 		return query.TokenPair{}, domain.ErrInvalidCredentials
 	}
 
-	account, err := s.accounts.FindActiveByUsername(ctx, username)
+	account, err := s.accounts.FindActiveByEmail(ctx, email)
 	if err != nil {
 		return query.TokenPair{}, err
 	}
@@ -61,11 +61,11 @@ func (s *service) Login(ctx context.Context, cmd command.Login) (query.TokenPair
 	}
 
 	if err := s.sessions.Create(ctx, query.Session{
-		SessionID:           principal.SessionID,
-		UserID:              principal.UserID,
-		Username:            principal.Username,
-		Subject:             authenticatedPrincipal.Subject,
-		RefreshTokenHash:    tokenHash(refreshToken),
+		SessionID:            principal.SessionID,
+		UserID:               principal.UserID,
+		Username:             principal.Username,
+		Subject:              authenticatedPrincipal.Subject,
+		RefreshTokenHash:     tokenHash(refreshToken),
 		RefreshExpiresAtUnix: time.Now().Add(s.refreshTTL).Unix(),
 	}); err != nil {
 		return query.TokenPair{}, err

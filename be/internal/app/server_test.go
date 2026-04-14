@@ -41,7 +41,7 @@ func TestAuthRoutesMounted(t *testing.T) {
 	r := chi.NewRouter()
 	r.Mount("/auth", authHTTP.New(fakeAuthService{}).Routes())
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"username":"admin","email":"admin@example.com","password":"admin123"}`))
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"user_name":"admin","email":"admin@example.com","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 

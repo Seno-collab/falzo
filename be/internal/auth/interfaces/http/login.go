@@ -8,11 +8,12 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/domain"
+	"falzo-be/internal/auth/domain/valueobject"
 	httpResponse "falzo-be/pkg/response"
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -32,15 +33,23 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" || req.Password == "" {
+	if req.Email == "" || req.Password == "" {
 		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
-			Message: "Username and password are required",
+			Message: "email and password are required",
 		})
 		return
 	}
 
-	key := authClientIP(r) + ":" + strings.ToLower(req.Username)
+	if _, err := valueobject.NewEmail(req.Email); err != nil {
+		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+			Code:    "INVALID_FIELD",
+			Message: "email must be a valid email",
+		})
+		return
+	}
+
+	key := authClientIP(r) + ":" + strings.ToLower(strings.TrimSpace(req.Email))
 	if !h.protector.loginLimiter.allow(key, now) {
 		httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
 			Code:    "RATE_LIMITED",
@@ -50,7 +59,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokens, err := h.service.Login(r.Context(), command.Login{
-		Username: req.Username,
+		Email:    req.Email,
 		Password: req.Password,
 	})
 	h.protector.observe(err, time.Now())

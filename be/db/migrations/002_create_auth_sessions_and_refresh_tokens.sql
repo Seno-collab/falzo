@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     id          BIGSERIAL PRIMARY KEY,
     session_id  VARCHAR(64)  NOT NULL UNIQUE,
     user_id     BIGINT       NOT NULL,
-    username    VARCHAR(50)  NOT NULL,
+    user_name   VARCHAR(50)  NOT NULL,
     subject     VARCHAR(255) NOT NULL,
     is_revoked  BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,

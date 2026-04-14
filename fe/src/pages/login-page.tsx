@@ -11,64 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-type LoginCopy = {
-  documentTitle: string;
-  title: string;
-  subtitle: string;
-  emailLabel: string;
-  emailPlaceholder: string;
-  emailInvalid: string;
-  passwordLabel: string;
-  passwordPlaceholder: string;
-  passwordMin: string;
-  rememberLabel: string;
-  submit: string;
-  submitting: string;
-  noAccountText: string;
-  registerCta: string;
-  successTitle: string;
-  errorTitle: string;
-};
-
-const LOGIN_COPY: Record<"vi" | "en", LoginCopy> = {
-  vi: {
-    documentTitle: "Đăng nhập | Falzo",
-    title: "Đăng nhập",
-    subtitle: "Nhập thông tin tài khoản để tiếp tục.",
-    emailLabel: "Email",
-    emailPlaceholder: "you@example.com",
-    emailInvalid: "Email không hợp lệ.",
-    passwordLabel: "Mật khẩu",
-    passwordPlaceholder: "••••••••",
-    passwordMin: "Mật khẩu tối thiểu 6 ký tự.",
-    rememberLabel: "Ghi nhớ đăng nhập",
-    submit: "Đăng nhập",
-    submitting: "Đang đăng nhập...",
-    noAccountText: "Chưa có tài khoản?",
-    registerCta: "Đăng ký",
-    successTitle: "Đăng nhập thành công",
-    errorTitle: "Đăng nhập thất bại",
-  },
-  en: {
-    documentTitle: "Login | Falzo",
-    title: "Login",
-    subtitle: "Enter your account information to continue.",
-    emailLabel: "Email",
-    emailPlaceholder: "you@example.com",
-    emailInvalid: "Invalid email address.",
-    passwordLabel: "Password",
-    passwordPlaceholder: "••••••••",
-    passwordMin: "Password must be at least 6 characters.",
-    rememberLabel: "Remember login",
-    submit: "Login",
-    submitting: "Signing in...",
-    noAccountText: "Don't have an account?",
-    registerCta: "Sign up",
-    successTitle: "Login successful",
-    errorTitle: "Login failed",
-  },
-};
+import { messages } from "@/i18n/messages";
 
 type LoginFormValues = {
   email: string;
@@ -79,7 +22,7 @@ type LoginFormValues = {
 export function LoginPage() {
   const { language } = useLanguage();
   const navigate = useNavigate();
-  const copy = LOGIN_COPY[language];
+  const copy = messages[language].loginPage;
 
   const loginSchema = useMemo(
     () =>

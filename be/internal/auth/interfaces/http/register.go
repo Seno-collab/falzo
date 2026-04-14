@@ -11,7 +11,7 @@ import (
 )
 
 type RegisterRequest struct {
-	Username string `json:"username"`
+	Username string `json:"user_name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -35,7 +35,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if req.Username == "" || req.Email == "" || req.Password == "" {
 		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
-			Message: "Username, email and password are required",
+			Message: "user_name, email and password are required",
 		})
 		return
 	}

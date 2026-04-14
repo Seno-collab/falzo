@@ -1,16 +1,22 @@
 import {
+  useCallback,
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type PropsWithChildren,
 } from "react";
 
 export type AppLanguage = "vi" | "en";
+const LANGUAGE_STORAGE_KEY = "falzo.language";
+const SUPPORTED_LANGUAGES: AppLanguage[] = ["vi", "en"];
 
 type LanguageContextValue = {
   language: AppLanguage;
   isVietnamese: boolean;
+  setLanguage: (language: AppLanguage) => void;
+  toggleLanguage: () => void;
 };
 
 const VIETNAM_TIMEZONES = new Set(["Asia/Ho_Chi_Minh", "Asia/Saigon"]);
@@ -43,15 +49,55 @@ function detectLanguageFromBrowser(): AppLanguage {
   return hasVietnameseLocale || hasVietnamTimezone ? "vi" : "en";
 }
 
+function normalizeLanguage(value: unknown): AppLanguage | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.toLowerCase();
+  return SUPPORTED_LANGUAGES.includes(normalized as AppLanguage)
+    ? (normalized as AppLanguage)
+    : null;
+}
+
+function getStoredLanguage(): AppLanguage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
+}
+
 export function LanguageProvider({ children }: PropsWithChildren) {
-  const [language] = useState<AppLanguage>(() => detectLanguageFromBrowser());
+  const [language, setLanguageState] = useState<AppLanguage>(() => {
+    return getStoredLanguage() ?? detectLanguageFromBrowser();
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    document.documentElement.lang = language;
+  }, [language]);
+
+  const setLanguage = useCallback((nextLanguage: AppLanguage) => {
+    setLanguageState(nextLanguage);
+  }, []);
+
+  const toggleLanguage = useCallback(() => {
+    setLanguageState((previous) => (previous === "vi" ? "en" : "vi"));
+  }, []);
 
   const value = useMemo(
     () => ({
       language,
       isVietnamese: language === "vi",
+      setLanguage,
+      toggleLanguage,
     }),
-    [language],
+    [language, setLanguage, toggleLanguage],
   );
 
   return (

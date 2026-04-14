@@ -42,7 +42,7 @@ func (f fakeService) Authenticate(ctx context.Context, token string) (*query.Aut
 func TestRegisterHandler(t *testing.T) {
 	handler := New(fakeService{})
 
-	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"username":"admin","email":"admin@example.com","password":"admin123"}`))
+	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"user_name":"admin","email":"admin@example.com","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -56,7 +56,7 @@ func TestRegisterHandler(t *testing.T) {
 func TestLoginHandler(t *testing.T) {
 	handler := New(fakeService{loginTokens: query.TokenPair{AccessToken: "signed-token", RefreshToken: "refresh-token", TokenType: "Bearer"}})
 
-	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBufferString(`{"username":"admin","password":"admin123"}`))
+	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBufferString(`{"email":"admin@example.com","password":"admin123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 

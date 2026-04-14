@@ -52,7 +52,6 @@ func (m *Manager) Shutdown() error {
 		} else {
 			log.Info().Str("phase", phase.name).Msg("shutdown phase complete")
 		}
-
 		cancel()
 	}
 

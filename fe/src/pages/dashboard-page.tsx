@@ -1,56 +1,67 @@
 import { motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/app/language-provider";
-import { clearAuthSession, hasAuthSession } from "@/api/auth.api";
+import {
+  clearAuthSession,
+  getMeApi,
+  hasAuthSession,
+  logoutApi,
+} from "@/api/auth.api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-
-type DashboardCopy = {
-  documentTitle: string;
-  label: string;
-  title: string;
-  subtitle: string;
-  open3DDemoCta: string;
-  backToLandingCta: string;
-  logoutCta: string;
-};
-
-const DASHBOARD_COPY: Record<"vi" | "en", DashboardCopy> = {
-  vi: {
-    documentTitle: "Dashboard | Falzo",
-    label: "FALZO PLATFORM",
-    title: "Dashboard sau khi dang nhap",
-    subtitle:
-      "Day la khu vuc noi bo sau login. Ban co the mo rong module booking, CRM lead va bao cao kinh doanh tai day.",
-    open3DDemoCta: "Mo demo du lich 3D",
-    backToLandingCta: "Ve trang gioi thieu",
-    logoutCta: "Dang xuat",
-  },
-  en: {
-    documentTitle: "Dashboard | Falzo",
-    label: "FALZO PLATFORM",
-    title: "Dashboard after login",
-    subtitle:
-      "This is the internal area after login. You can extend booking modules, lead CRM, and business reports here.",
-    open3DDemoCta: "Open 3D travel demo",
-    backToLandingCta: "Back to landing page",
-    logoutCta: "Logout",
-  },
-};
+import { messages } from "@/i18n/messages";
 
 export function DashboardPage() {
   const { language } = useLanguage();
   const navigate = useNavigate();
-  const copy = DASHBOARD_COPY[language];
+  const copy = messages[language].dashboardPage;
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     document.title = copy.documentTitle;
 
     if (!hasAuthSession()) {
       navigate("/login", { replace: true });
+      return;
     }
+
+    let disposed = false;
+
+    const validateSession = async () => {
+      try {
+        await getMeApi();
+      } catch {
+        if (disposed) {
+          return;
+        }
+
+        clearAuthSession();
+        navigate("/login", { replace: true });
+      }
+    };
+
+    void validateSession();
+
+    return () => {
+      disposed = true;
+    };
   }, [copy.documentTitle, navigate]);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    try {
+      await logoutApi();
+      navigate("/login", { replace: true });
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-linear-to-b from-[#f4f7fb] via-[#edf2fa] to-[#e6edf8] px-4 py-12 sm:px-6">
@@ -77,7 +88,7 @@ export function DashboardPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 className="border-[#c8d4e6] text-[#334868] hover:bg-[#f5f8fd]"
-                onClick={() => navigate("/travel-3d")}
+                onClick={() => navigate("/scenic-gallery")}
                 type="button"
                 variant="outline"
               >
@@ -93,9 +104,9 @@ export function DashboardPage() {
               </Button>
               <Button
                 className="bg-[#2f578f] text-white hover:bg-[#274a79]"
+                disabled={isLoggingOut}
                 onClick={() => {
-                  clearAuthSession();
-                  navigate("/login", { replace: true });
+                  void handleLogout();
                 }}
                 type="button"
               >

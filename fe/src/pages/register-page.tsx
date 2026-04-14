@@ -15,88 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-type RegisterCopy = {
-  documentTitle: string;
-  title: string;
-  subtitle: string;
-  fullNameLabel: string;
-  fullNamePlaceholder: string;
-  fullNameMin: string;
-  emailLabel: string;
-  emailPlaceholder: string;
-  emailInvalid: string;
-  passwordLabel: string;
-  passwordPlaceholder: string;
-  passwordMin: string;
-  confirmPasswordLabel: string;
-  confirmPasswordPlaceholder: string;
-  confirmPasswordMin: string;
-  confirmPasswordMismatch: string;
-  submit: string;
-  submitting: string;
-  hasAccountText: string;
-  loginCta: string;
-  successTitle: string;
-  successRedirectDashboard: string;
-  successPromptLogin: string;
-  errorTitle: string;
-};
-
-const REGISTER_COPY: Record<"vi" | "en", RegisterCopy> = {
-  vi: {
-    documentTitle: "Đăng ký | Falzo",
-    title: "Đăng ký tài khoản",
-    subtitle: "Tạo tài khoản mới để bắt đầu sử dụng.",
-    fullNameLabel: "Họ và tên",
-    fullNamePlaceholder: "Nguyen Van A",
-    fullNameMin: "Họ tên tối thiểu 2 ký tự.",
-    emailLabel: "Email",
-    emailPlaceholder: "you@example.com",
-    emailInvalid: "Email không hợp lệ.",
-    passwordLabel: "Mật khẩu",
-    passwordPlaceholder: "••••••••",
-    passwordMin: "Mật khẩu tối thiểu 6 ký tự.",
-    confirmPasswordLabel: "Nhập lại mật khẩu",
-    confirmPasswordPlaceholder: "••••••••",
-    confirmPasswordMin: "Vui lòng nhập lại mật khẩu.",
-    confirmPasswordMismatch: "Mật khẩu nhập lại không khớp.",
-    submit: "Đăng ký",
-    submitting: "Đang tạo tài khoản...",
-    hasAccountText: "Đã có tài khoản?",
-    loginCta: "Đăng nhập",
-    successTitle: "Đăng ký thành công",
-    successRedirectDashboard: "Đang chuyển vào dashboard.",
-    successPromptLogin: "Bạn có thể đăng nhập ngay bây giờ.",
-    errorTitle: "Đăng ký thất bại",
-  },
-  en: {
-    documentTitle: "Register | Falzo",
-    title: "Create account",
-    subtitle: "Create a new account to get started.",
-    fullNameLabel: "Full name",
-    fullNamePlaceholder: "John Doe",
-    fullNameMin: "Full name must be at least 2 characters.",
-    emailLabel: "Email",
-    emailPlaceholder: "you@example.com",
-    emailInvalid: "Invalid email address.",
-    passwordLabel: "Password",
-    passwordPlaceholder: "••••••••",
-    passwordMin: "Password must be at least 6 characters.",
-    confirmPasswordLabel: "Confirm password",
-    confirmPasswordPlaceholder: "••••••••",
-    confirmPasswordMin: "Please confirm your password.",
-    confirmPasswordMismatch: "Password confirmation does not match.",
-    submit: "Sign up",
-    submitting: "Creating account...",
-    hasAccountText: "Already have an account?",
-    loginCta: "Login",
-    successTitle: "Registration successful",
-    successRedirectDashboard: "Redirecting to dashboard.",
-    successPromptLogin: "You can login now.",
-    errorTitle: "Registration failed",
-  },
-};
+import { messages } from "@/i18n/messages";
 
 type RegisterFormValues = {
   fullName: string;
@@ -108,7 +27,7 @@ type RegisterFormValues = {
 export function RegisterPage() {
   const { language } = useLanguage();
   const navigate = useNavigate();
-  const copy = REGISTER_COPY[language];
+  const copy = messages[language].registerPage;
 
   const registerSchema = useMemo(
     () =>

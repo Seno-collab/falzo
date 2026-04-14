@@ -2,8 +2,8 @@ package httpapi
 
 import (
 	"falzo-be/internal/auth/application"
+	"falzo-be/pkg/config"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -16,11 +16,19 @@ type Handler struct {
 
 func New(service application.Service, opts ...Option) *Handler {
 	h := &Handler{
-		service:   service,
-		protector: newAuthProtector(60, 5, 15*time.Second),
+		service: service,
 	}
 	for _, opt := range opts {
 		opt(h)
+	}
+
+	if h.protector == nil {
+		cfg := config.Load()
+		h.protector = newAuthProtector(
+			cfg.Auth.RateLimitPerMin,
+			cfg.Auth.DependencyFailureThreshold,
+			cfg.Auth.DependencyCoolDown,
+		)
 	}
 
 	return h

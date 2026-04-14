@@ -3,7 +3,7 @@ import { DashboardPage } from "@/pages/dashboard-page";
 import { HomePage } from "@/pages/home-page";
 import { LoginPage } from "@/pages/login-page";
 import { RegisterPage } from "@/pages/register-page";
-import { Travel3DPage } from "@/pages/travel-3d-page";
+import { ScenicGalleryPage } from "@/pages/scenic-gallery-page";
 
 export const router = createBrowserRouter([
   {
@@ -23,8 +23,12 @@ export const router = createBrowserRouter([
     element: <RegisterPage />,
   },
   {
+    path: "/scenic-gallery",
+    element: <ScenicGalleryPage />,
+  },
+  {
     path: "/travel-3d",
-    element: <Travel3DPage />,
+    element: <Navigate replace to="/scenic-gallery" />,
   },
   {
     path: "*",

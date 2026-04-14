@@ -1,6 +1,6 @@
 package command
 
 type Login struct {
-	Username string
+	Email    string
 	Password string
 }

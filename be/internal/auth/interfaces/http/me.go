@@ -17,8 +17,8 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Authenticated user fetched successfully", map[string]any{
-		"username": claims.Username,
-		"subject":  claims.Subject,
-		"expires":  claims.ExpiresAt,
+		"user_name": claims.Username,
+		"subject":   claims.Subject,
+		"expires":   claims.ExpiresAt,
 	}, r)
 }

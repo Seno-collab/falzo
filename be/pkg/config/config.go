@@ -22,9 +22,14 @@ type AppConfig struct {
 }
 
 type HTTPConfig struct {
-	Addr              string
-	ShutdownTimeout   time.Duration
-	TrustProxyHeaders bool
+	Addr                 string
+	ShutdownTimeout      time.Duration
+	TrustProxyHeaders    bool
+	CORSAllowedOrigins   []string
+	CORSAllowedMethods   []string
+	CORSAllowedHeaders   []string
+	CORSAllowCredentials bool
+	CORSMaxAgeSeconds    int
 }
 
 type AuthConfig struct {
@@ -59,37 +64,42 @@ func Load() Config {
 
 	return Config{
 		App: AppConfig{
-			Name: getEnv("APP_NAME", "falzo-api"),
-			Env:  getEnv("APP_ENV", "development"),
+			Name: GetEnv("APP_NAME", "falzo-api"),
+			Env:  GetEnv("APP_ENV", "development"),
 		},
 		HTTP: HTTPConfig{
-			Addr:              getEnv("HTTP_ADDR", ":8080"),
-			ShutdownTimeout:   getDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
-			TrustProxyHeaders: getBool("HTTP_TRUST_PROXY_HEADERS", false),
+			Addr:                 GetEnv("HTTP_ADDR", ":8080"),
+			ShutdownTimeout:      GetDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
+			TrustProxyHeaders:    GetBool("HTTP_TRUST_PROXY_HEADERS", false),
+			CORSAllowedOrigins:   getCSV("HTTP_CORS_ALLOWED_ORIGINS", []string{"*"}),
+			CORSAllowedMethods:   getCSV("HTTP_CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
+			CORSAllowedHeaders:   getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
+			CORSAllowCredentials: GetBool("HTTP_CORS_ALLOW_CREDENTIALS", false),
+			CORSMaxAgeSeconds:    GetInt("HTTP_CORS_MAX_AGE_SECONDS", 600),
 		},
 		Auth: AuthConfig{
-			JWTSecret:                  getEnv("AUTH_JWT_SECRET", "change-me-in-production"),
-			TokenTTL:                   getDuration("AUTH_TOKEN_TTL", 15*time.Minute),
-			RefreshTokenTTL:            getDuration("AUTH_REFRESH_TOKEN_TTL", 168*time.Hour),
-			RateLimitPerMin:            getInt("AUTH_RATE_LIMIT_PER_MIN", 60),
-			DependencyFailureThreshold: getInt("AUTH_DEPENDENCY_FAILURE_THRESHOLD", 5),
-			DependencyCoolDown:         getDuration("AUTH_DEPENDENCY_COOLDOWN", 15*time.Second),
+			JWTSecret:                  GetEnv("AUTH_JWT_SECRET", "change-me-in-production"),
+			TokenTTL:                   GetDuration("AUTH_TOKEN_TTL", 15*time.Minute),
+			RefreshTokenTTL:            GetDuration("AUTH_REFRESH_TOKEN_TTL", 168*time.Hour),
+			RateLimitPerMin:            GetInt("AUTH_RATE_LIMIT_PER_MIN", 60),
+			DependencyFailureThreshold: GetInt("AUTH_DEPENDENCY_FAILURE_THRESHOLD", 5),
+			DependencyCoolDown:         GetDuration("AUTH_DEPENDENCY_COOLDOWN", 15*time.Second),
 		},
 		Postgres: PostgresConfig{
-			Host:            getEnv("POSTGRES_HOST", "127.0.0.1"),
-			Port:            getEnv("POSTGRES_PORT", "5432"),
-			Database:        getEnv("POSTGRES_DATABASE", ""),
-			User:            getEnv("POSTGRES_USER", ""),
-			Password:        getEnv("POSTGRES_PASSWORD", ""),
-			SSLMode:         getEnv("POSTGRES_SSL_MODE", "disable"),
-			MaxOpenConns:    getInt("POSTGRES_MAX_OPEN_CONNS", 25),
-			MaxIdleConns:    getInt("POSTGRES_MAX_IDLE_CONNS", 25),
-			ConnMaxLifetime: getDuration("POSTGRES_CONN_MAX_LIFETIME", 5*time.Minute),
+			Host:            GetEnv("POSTGRES_HOST", "127.0.0.1"),
+			Port:            GetEnv("POSTGRES_PORT", "5432"),
+			Database:        GetEnv("POSTGRES_DATABASE", ""),
+			User:            GetEnv("POSTGRES_USER", ""),
+			Password:        GetEnv("POSTGRES_PASSWORD", ""),
+			SSLMode:         GetEnv("POSTGRES_SSL_MODE", "disable"),
+			MaxOpenConns:    GetInt("POSTGRES_MAX_OPEN_CONNS", 25),
+			MaxIdleConns:    GetInt("POSTGRES_MAX_IDLE_CONNS", 25),
+			ConnMaxLifetime: GetDuration("POSTGRES_CONN_MAX_LIFETIME", 5*time.Minute),
 		},
 		Redis: RedisConfig{
-			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
-			Password: getEnv("REDIS_PASSWORD", ""),
-			DB:       getInt("REDIS_DB", 0),
+			Addr:     GetEnv("REDIS_ADDR", "127.0.0.1:6379"),
+			Password: GetEnv("REDIS_PASSWORD", ""),
+			DB:       GetInt("REDIS_DB", 0),
 		},
 	}
 }
@@ -110,7 +120,7 @@ func Validate(cfg Config) error {
 	return nil
 }
 
-func getEnv(key, fallback string) string {
+func GetEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
@@ -118,7 +128,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getInt(key string, fallback int) int {
+func GetInt(key string, fallback int) int {
 	value := os.Getenv(key)
 	if value == "" {
 		return fallback
@@ -132,7 +142,7 @@ func getInt(key string, fallback int) int {
 	return parsed
 }
 
-func getDuration(key string, fallback time.Duration) time.Duration {
+func GetDuration(key string, fallback time.Duration) time.Duration {
 	value := os.Getenv(key)
 	if value == "" {
 		return fallback
@@ -146,7 +156,7 @@ func getDuration(key string, fallback time.Duration) time.Duration {
 	return parsed
 }
 
-func getBool(key string, fallback bool) bool {
+func GetBool(key string, fallback bool) bool {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
@@ -158,4 +168,27 @@ func getBool(key string, fallback bool) bool {
 	}
 
 	return parsed
+}
+
+func getCSV(key string, fallback []string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return append([]string(nil), fallback...)
+	}
+
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		items = append(items, trimmed)
+	}
+
+	if len(items) == 0 {
+		return append([]string(nil), fallback...)
+	}
+
+	return items
 }

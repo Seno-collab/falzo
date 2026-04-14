@@ -1,15 +1,28 @@
 import { AxiosError } from "axios";
+import type { AxiosRequestConfig } from "axios";
 import { messages } from "@/i18n/messages";
 import { http } from "@/lib/http";
 import type {
   ApiLanguage,
   AuthSession,
+  AuthUser,
   LoginRequest,
   RegisterRequest,
 } from "@/types/api/auth";
+import type { ApiEnvelope } from "@/types/api/response";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
+const AUTH_EXCLUDED_RETRY = /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
+
+type StorageScope = "local" | "session";
+type RetryableRequestConfig = AxiosRequestConfig & {
+  _retry?: boolean;
+  skipAuthRefresh?: boolean;
+};
+
+let authInterceptorInstalled = false;
+let refreshInFlight: Promise<AuthSession> | null = null;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -46,19 +59,40 @@ function findFirstString(value: unknown, keys: string[], depth = 0): string | nu
   return null;
 }
 
+function extractDataNode(value: unknown): unknown {
+  const node = asRecord(value);
+  if (!node || !("data" in node)) {
+    return value;
+  }
+
+  return node.data;
+}
+
+function unwrapResponseData<T>(value: ApiEnvelope<T> | T): T {
+  const node = asRecord(value);
+  if (!node || !("data" in node) || !("success" in node)) {
+    return value as T;
+  }
+
+  return node.data as T;
+}
+
 function readMessage(data: unknown): string | null {
   const payload = asRecord(data);
   if (!payload) {
     return null;
   }
 
-  const message = payload.message ?? payload.error ?? payload.detail;
+  const firstError = Array.isArray(payload.errors) ? payload.errors[0] : null;
+  const errorNode = asRecord(firstError);
+  const nestedMessage = errorNode?.message;
+  const message = payload.message ?? nestedMessage ?? payload.error ?? payload.detail;
   return typeof message === "string" && message.trim() ? message : null;
 }
 
-function writeStorage(remember: boolean, key: string, value: string) {
-  const primary = remember ? localStorage : sessionStorage;
-  const secondary = remember ? sessionStorage : localStorage;
+function writeStorage(scope: StorageScope, key: string, value: string) {
+  const primary = scope === "local" ? localStorage : sessionStorage;
+  const secondary = scope === "local" ? sessionStorage : localStorage;
 
   primary.setItem(key, value);
   secondary.removeItem(key);
@@ -73,11 +107,37 @@ function getStoredValue(key: string): string | null {
   return localStorage.getItem(key) ?? sessionStorage.getItem(key);
 }
 
-function persistSession(session: AuthSession, remember: boolean) {
-  writeStorage(remember, ACCESS_TOKEN_KEY, session.accessToken);
+function getStorageScopeForKey(key: string): StorageScope | null {
+  if (localStorage.getItem(key)) {
+    return "local";
+  }
+
+  if (sessionStorage.getItem(key)) {
+    return "session";
+  }
+
+  return null;
+}
+
+function resolveStorageScope(remember?: boolean): StorageScope {
+  if (remember === true) {
+    return "local";
+  }
+
+  if (remember === false) {
+    return "session";
+  }
+
+  return getStorageScopeForKey(ACCESS_TOKEN_KEY) ??
+    getStorageScopeForKey(REFRESH_TOKEN_KEY) ??
+    "local";
+}
+
+function persistSession(session: AuthSession, scope: StorageScope) {
+  writeStorage(scope, ACCESS_TOKEN_KEY, session.accessToken);
 
   if (session.refreshToken) {
-    writeStorage(remember, REFRESH_TOKEN_KEY, session.refreshToken);
+    writeStorage(scope, REFRESH_TOKEN_KEY, session.refreshToken);
   } else {
     clearStorageKey(REFRESH_TOKEN_KEY);
   }
@@ -86,26 +146,128 @@ function persistSession(session: AuthSession, remember: boolean) {
 }
 
 function parseSession(data: unknown): AuthSession | null {
-  const accessToken = findFirstString(data, [
+  const dataNode = extractDataNode(data);
+  const accessToken = findFirstString(dataNode, [
     "accessToken",
     "access_token",
     "token",
     "jwt",
     "id_token",
-  ]);
+  ]) ??
+    findFirstString(data, ["accessToken", "access_token", "token", "jwt", "id_token"]);
 
   if (!accessToken) {
     return null;
   }
 
-  const refreshToken = findFirstString(data, ["refreshToken", "refresh_token"]);
+  const refreshToken = findFirstString(dataNode, ["refreshToken", "refresh_token"]) ??
+    findFirstString(data, ["refreshToken", "refresh_token"]);
   return {
     accessToken,
     refreshToken: refreshToken ?? undefined,
   };
 }
 
+function isExcludedFromRetry(url?: string): boolean {
+  if (!url) {
+    return false;
+  }
+
+  return AUTH_EXCLUDED_RETRY.test(url);
+}
+
+async function refreshTokenApi(): Promise<AuthSession> {
+  const endpoint =
+    import.meta.env.VITE_AUTH_REFRESH_ENDPOINT ?? "/auth/refresh-token";
+  const storageScope = resolveStorageScope();
+  const currentRefreshToken = getStoredValue(REFRESH_TOKEN_KEY);
+
+  const response = await http.post(
+    endpoint,
+    currentRefreshToken ? { refreshToken: currentRefreshToken } : {},
+    { skipAuthRefresh: true } as RetryableRequestConfig,
+  );
+
+  const refreshedSession = parseSession(response.data);
+  if (!refreshedSession) {
+    throw new Error("Refresh token API did not return an access token.");
+  }
+
+  if (!refreshedSession.refreshToken && currentRefreshToken) {
+    refreshedSession.refreshToken = currentRefreshToken;
+  }
+
+  persistSession(refreshedSession, storageScope);
+  return refreshedSession;
+}
+
+function getRefreshPromise() {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshTokenApi().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+
+  return refreshInFlight;
+}
+
+function installAuthInterceptor() {
+  if (authInterceptorInstalled) {
+    return;
+  }
+
+  authInterceptorInstalled = true;
+
+  http.interceptors.response.use(
+    (response) => response,
+    async (error: unknown) => {
+      if (!(error instanceof AxiosError)) {
+        return Promise.reject(error);
+      }
+
+      const status = error.response?.status;
+      const requestConfig = error.config as RetryableRequestConfig | undefined;
+      if (!requestConfig) {
+        return Promise.reject(error);
+      }
+
+      if (
+        status !== 401 ||
+        requestConfig._retry ||
+        requestConfig.skipAuthRefresh ||
+        isExcludedFromRetry(requestConfig.url)
+      ) {
+        return Promise.reject(error);
+      }
+
+      if (!getStoredValue(REFRESH_TOKEN_KEY)) {
+        clearAuthSession();
+        return Promise.reject(error);
+      }
+
+      requestConfig._retry = true;
+
+      try {
+        const session = await getRefreshPromise();
+        requestConfig.headers = {
+          ...requestConfig.headers,
+          Authorization: `Bearer ${session.accessToken}`,
+        };
+
+        return http.request(requestConfig);
+      } catch {
+        clearAuthSession();
+        return Promise.reject(error);
+      }
+    },
+  );
+}
+
 export function initializeAuthHeader() {
+  if (typeof window !== "undefined") {
+    installAuthInterceptor();
+  }
+
   if (typeof window === "undefined") {
     return;
   }
@@ -173,10 +335,10 @@ export async function loginApi(payload: LoginRequest): Promise<AuthSession> {
 
   const session = parseSession(response.data);
   if (!session) {
-    throw new Error("API login không trả về access token.");
+    throw new Error("Login API did not return an access token.");
   }
 
-  persistSession(session, payload.remember);
+  persistSession(session, resolveStorageScope(payload.remember));
   return session;
 }
 
@@ -191,8 +353,29 @@ export async function registerApi(payload: RegisterRequest) {
 
   const session = parseSession(response.data);
   if (session) {
-    persistSession(session, true);
+    persistSession(session, "local");
   }
 
   return response.data;
+}
+
+export async function getMeApi<TUser extends AuthUser = AuthUser>(): Promise<TUser> {
+  const endpoint = import.meta.env.VITE_AUTH_ME_ENDPOINT ?? "/auth/me";
+  const response = await http.get<ApiEnvelope<TUser> | TUser>(endpoint);
+  return unwrapResponseData(response.data);
+}
+
+export async function logoutApi(): Promise<void> {
+  const endpoint = import.meta.env.VITE_AUTH_LOGOUT_ENDPOINT ?? "/auth/logout";
+  const refreshToken = getStoredValue(REFRESH_TOKEN_KEY);
+
+  try {
+    await http.post(
+      endpoint,
+      refreshToken ? { refreshToken } : {},
+      { skipAuthRefresh: true } as RetryableRequestConfig,
+    );
+  } finally {
+    clearAuthSession();
+  }
 }

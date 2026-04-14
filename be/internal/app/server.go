@@ -60,6 +60,13 @@ func Run() {
 	if cfg.HTTP.TrustProxyHeaders {
 		r.Use(middleware.RealIP)
 	}
+	r.Use(httpMiddleware.CORS(httpMiddleware.CORSConfig{
+		AllowedOrigins:   cfg.HTTP.CORSAllowedOrigins,
+		AllowedMethods:   cfg.HTTP.CORSAllowedMethods,
+		AllowedHeaders:   cfg.HTTP.CORSAllowedHeaders,
+		AllowCredentials: cfg.HTTP.CORSAllowCredentials,
+		MaxAgeSeconds:    cfg.HTTP.CORSMaxAgeSeconds,
+	}))
 	r.Use(middleware.RequestID)
 	r.Use(httpMiddleware.Recover)
 	r.Use(logger.RequestLogger)
