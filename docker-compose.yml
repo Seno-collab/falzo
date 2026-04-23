@@ -1,0 +1,41 @@
+services:
+  api:
+    build: 
+      context: ./be
+      dockerfile: Dockerfile
+      env:
+        - ./be/.env
+      ports:
+        - "8000:8000"
+      depends_on:
+        - postgres
+        - redis
+  web:
+    build:
+      context: ./fe
+      dockerfile: Dockerfile
+      args:
+        API_BASE_URL: http://api:8000
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+  postgres:
+    image: postgis/postgis:18-3.6-alpine
+    environment:
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  redis:
+    image: redis:latest
+    environment:
+      - REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+volumes:
+  postgres_data:
+  redis:
