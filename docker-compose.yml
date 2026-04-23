@@ -28,7 +28,7 @@ services:
     image: postgis/postgis:18-3.6-alpine
     restart: unless-stopped
     environment:
-        POSTGRES_DATABASE: ${POSTGRES_DATABASE}
+        POSTGRES_DB: ${POSTGRES_DATABASE}
         POSTGRES_USER: ${POSTGRES_USER}
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
