@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const targetApiBase =
   process.env.API_BASE_URL ??
@@ -7,6 +8,7 @@ const targetApiBase =
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  outputFileTracingRoot: path.resolve(),
   images: {
     remotePatterns: [
       {
