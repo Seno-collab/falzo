@@ -3,13 +3,14 @@ services:
     build: 
       context: ./be
       dockerfile: Dockerfile
-      env:
-        - ./be/.env
-      ports:
-        - "8000:8000"
-      depends_on:
-        - postgres
-        - redis
+    restart: unless-stopped
+    env_file: ./be/.env
+    depends_on:
+      - postgres
+      - redis
+      - mongodb
+    expose:
+      - "8000"
   web:
     build:
       context: ./fe
@@ -18,20 +19,37 @@ services:
         API_BASE_URL: http://api:8000
     environment:
       API_BASE_URL: http://api:8000
+    restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:
       - api
   postgres:
     image: postgis/postgis:18-3.6-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
         POSTGRES_DB: ${POSTGRES_DB}
         POSTGRES_USER: ${POSTGRES_USER}
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+  mongodb:
+    image: mongo:latest
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/var/lib/mongodb/data
   redis:
     image: redis:latest
+    restart: unless-stopped
     environment:
       - REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
@@ -39,3 +57,4 @@ services:
 volumes:
   postgres_data:
   redis:
+  mongo_data:
