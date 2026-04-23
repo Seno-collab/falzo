@@ -5,7 +5,9 @@
 logs
 internal/logs
 bin
-pkg
+.gocache
+.gopath
+.env
 *.log
 *.test
 coverage.out
