@@ -8,6 +8,9 @@ import (
 	"falzo-be/internal/auth/infrastructure/security/bcrypt"
 	"falzo-be/internal/auth/infrastructure/token"
 	authHTTP "falzo-be/internal/auth/interfaces/http"
+	locationApplication "falzo-be/internal/location/application"
+	locationInfra "falzo-be/internal/location/infrastructure"
+	locationHTTP "falzo-be/internal/location/interfaces/http"
 	"falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
@@ -55,6 +58,9 @@ func Run() {
 	authRateLimit := httpMiddleware.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
 	authProtector := authHTTP.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCoolDown)
 	authHandler := authHTTP.New(authService, authProtector, authHTTP.WithPublicMiddlewares(authRateLimit))
+	locationRepository := locationInfra.NewLocationRepositoryPG(db)
+	locationService := locationApplication.New(locationRepository)
+	locationHandler := locationHTTP.New(locationService)
 
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {
@@ -74,6 +80,7 @@ func Run() {
 		w.Write([]byte("Hello world!"))
 	})
 	r.Mount("/auth", authHandler.Routes())
+	r.Mount("/locations", locationHandler.Routes())
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}

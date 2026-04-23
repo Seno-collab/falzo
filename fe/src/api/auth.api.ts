@@ -14,6 +14,28 @@ import type { ApiEnvelope } from "@/types/api/response";
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
 const AUTH_EXCLUDED_RETRY = /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
+const AUTH_ENDPOINTS = {
+  login:
+    process.env.NEXT_PUBLIC_AUTH_LOGIN_ENDPOINT ??
+    process.env.VITE_AUTH_LOGIN_ENDPOINT ??
+    "/auth/login",
+  register:
+    process.env.NEXT_PUBLIC_AUTH_REGISTER_ENDPOINT ??
+    process.env.VITE_AUTH_REGISTER_ENDPOINT ??
+    "/auth/register",
+  me:
+    process.env.NEXT_PUBLIC_AUTH_ME_ENDPOINT ??
+    process.env.VITE_AUTH_ME_ENDPOINT ??
+    "/auth/me",
+  refresh:
+    process.env.NEXT_PUBLIC_AUTH_REFRESH_ENDPOINT ??
+    process.env.VITE_AUTH_REFRESH_ENDPOINT ??
+    "/auth/refresh-token",
+  logout:
+    process.env.NEXT_PUBLIC_AUTH_LOGOUT_ENDPOINT ??
+    process.env.VITE_AUTH_LOGOUT_ENDPOINT ??
+    "/auth/logout",
+} as const;
 
 type StorageScope = "local" | "session";
 type RetryableRequestConfig = AxiosRequestConfig & {
@@ -91,6 +113,10 @@ function readMessage(data: unknown): string | null {
 }
 
 function writeStorage(scope: StorageScope, key: string, value: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   const primary = scope === "local" ? localStorage : sessionStorage;
   const secondary = scope === "local" ? sessionStorage : localStorage;
 
@@ -99,15 +125,27 @@ function writeStorage(scope: StorageScope, key: string, value: string) {
 }
 
 function clearStorageKey(key: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   localStorage.removeItem(key);
   sessionStorage.removeItem(key);
 }
 
 function getStoredValue(key: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   return localStorage.getItem(key) ?? sessionStorage.getItem(key);
 }
 
 function getStorageScopeForKey(key: string): StorageScope | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   if (localStorage.getItem(key)) {
     return "local";
   }
@@ -177,8 +215,7 @@ function isExcludedFromRetry(url?: string): boolean {
 }
 
 async function refreshTokenApi(): Promise<AuthSession> {
-  const endpoint =
-    import.meta.env.VITE_AUTH_REFRESH_ENDPOINT ?? "/auth/refresh-token";
+  const endpoint = AUTH_ENDPOINTS.refresh;
   const storageScope = resolveStorageScope();
   const currentRefreshToken = getStoredValue(REFRESH_TOKEN_KEY);
 
@@ -327,7 +364,7 @@ export function getApiErrorMessage(
 }
 
 export async function loginApi(payload: LoginRequest): Promise<AuthSession> {
-  const endpoint = import.meta.env.VITE_AUTH_LOGIN_ENDPOINT ?? "/auth/login";
+  const endpoint = AUTH_ENDPOINTS.login;
   const response = await http.post(endpoint, {
     email: payload.email,
     password: payload.password,
@@ -343,7 +380,7 @@ export async function loginApi(payload: LoginRequest): Promise<AuthSession> {
 }
 
 export async function registerApi(payload: RegisterRequest) {
-  const endpoint = import.meta.env.VITE_AUTH_REGISTER_ENDPOINT ?? "/auth/register";
+  const endpoint = AUTH_ENDPOINTS.register;
 
   const response = await http.post(endpoint, {
     fullName: payload.fullName,
@@ -360,13 +397,13 @@ export async function registerApi(payload: RegisterRequest) {
 }
 
 export async function getMeApi<TUser extends AuthUser = AuthUser>(): Promise<TUser> {
-  const endpoint = import.meta.env.VITE_AUTH_ME_ENDPOINT ?? "/auth/me";
+  const endpoint = AUTH_ENDPOINTS.me;
   const response = await http.get<ApiEnvelope<TUser> | TUser>(endpoint);
   return unwrapResponseData(response.data);
 }
 
 export async function logoutApi(): Promise<void> {
-  const endpoint = import.meta.env.VITE_AUTH_LOGOUT_ENDPOINT ?? "/auth/logout";
+  const endpoint = AUTH_ENDPOINTS.logout;
   const refreshToken = getStoredValue(REFRESH_TOKEN_KEY);
 
   try {
