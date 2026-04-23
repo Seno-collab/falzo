@@ -10,12 +10,12 @@ import (
 )
 
 func mapDBError(ctx context.Context, service, operation string, err error) error {
-	return dberr.Handle(err, service, operation, chimiddleware.GetReqID(ctx), func(kind dberr.Kind, _ error) error {
-		switch kind {
-		case dberr.KindDependency:
-			return domain.ErrLocationDependencyUnavailable
-		default:
-			return domain.ErrLocationInternal
-		}
-	})
+	return dberr.MapDependencyOrInternal(
+		err,
+		service,
+		operation,
+		chimiddleware.GetReqID(ctx),
+		domain.ErrLocationDependencyUnavailable,
+		domain.ErrLocationInternal,
+	)
 }

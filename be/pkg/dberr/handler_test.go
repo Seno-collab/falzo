@@ -76,3 +76,32 @@ func TestIsUniqueViolation(t *testing.T) {
 		t.Fatal("expected unique violation to be false")
 	}
 }
+
+func TestMapDependencyOrInternal(t *testing.T) {
+	dependencyErr := errors.New("dependency unavailable")
+	internalErr := errors.New("internal error")
+
+	got := MapDependencyOrInternal(
+		context.DeadlineExceeded,
+		"auth",
+		"accounts.find",
+		"req-1",
+		dependencyErr,
+		internalErr,
+	)
+	if !errors.Is(got, dependencyErr) {
+		t.Fatalf("expected dependency error, got %v", got)
+	}
+
+	got = MapDependencyOrInternal(
+		errors.New("boom"),
+		"auth",
+		"accounts.find",
+		"req-2",
+		dependencyErr,
+		internalErr,
+	)
+	if !errors.Is(got, internalErr) {
+		t.Fatalf("expected internal error, got %v", got)
+	}
+}

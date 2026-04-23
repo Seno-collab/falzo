@@ -49,6 +49,30 @@ func Handle(err error, module string, operation string, requestID string, mapFn 
 	return mapFn(kind, err)
 }
 
+func MapDependencyOrInternal(
+	err error,
+	module string,
+	operation string,
+	requestID string,
+	dependencyErr error,
+	internalErr error,
+) error {
+	return Handle(err, module, operation, requestID, func(kind Kind, _ error) error {
+		if kind == KindDependency {
+			if dependencyErr != nil {
+				return dependencyErr
+			}
+			return err
+		}
+
+		if internalErr != nil {
+			return internalErr
+		}
+
+		return err
+	})
+}
+
 func Classify(err error) (Kind, string) {
 	if err == nil {
 		return KindInternal, ""

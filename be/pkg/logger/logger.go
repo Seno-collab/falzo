@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"bytes"
+	"encoding/json"
 	"falzo-be/pkg/config"
 	"fmt"
 	"io"
@@ -17,13 +19,14 @@ import (
 )
 
 const (
-	defaultServiceName   = "falzo-api"
-	defaultEnvironment   = "development"
-	defaultLogDir        = "logs"
-	defaultLogLevel      = "info"
-	defaultLogMaxSizeMB  = 50
-	defaultLogMaxBackups = 5
-	defaultLogMaxAgeDays = 7
+	defaultServiceName         = "falzo-api"
+	defaultEnvironment         = "development"
+	defaultLogDir              = "logs"
+	defaultLogLevel            = "info"
+	defaultLogMaxSizeMB        = 50
+	defaultLogMaxBackups       = 5
+	defaultLogMaxAgeDays       = 7
+	defaultHTTPLogBodyMaxBytes = 4096
 )
 
 type Config struct {
@@ -167,8 +170,12 @@ func mustGetWorkingDir() string {
 
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
-	bytes  int
+	status          int
+	bytes           int
+	captureBody     bool
+	bodyCaptureSize int
+	bodyTruncated   bool
+	bodySample      bytes.Buffer
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
@@ -180,6 +187,7 @@ func (r *statusRecorder) Write(data []byte) (int, error) {
 	if r.status == 0 {
 		r.status = http.StatusOK
 	}
+	r.captureResponseBody(data)
 
 	n, err := r.ResponseWriter.Write(data)
 	r.bytes += n
@@ -187,11 +195,25 @@ func (r *statusRecorder) Write(data []byte) (int, error) {
 }
 
 func RequestLogger(next http.Handler) http.Handler {
+	bodyCfg := loadBodyLogConfig()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		rec := &statusRecorder{ResponseWriter: w}
+		requestBody := capturedJSONBody{}
+		if bodyCfg.Enabled {
+			requestBody = captureRequestBody(r, bodyCfg.MaxBytes)
+		}
+
+		rec := &statusRecorder{
+			ResponseWriter:  w,
+			captureBody:     bodyCfg.Enabled,
+			bodyCaptureSize: bodyCfg.MaxBytes,
+		}
 
 		next.ServeHTTP(rec, r)
+		if rec.status == 0 {
+			rec.status = http.StatusOK
+		}
 
 		event := log.Info()
 		if r.URL.Path == "/favicon.ico" {
@@ -215,6 +237,21 @@ func RequestLogger(next http.Handler) http.Handler {
 			event = event.Int64("content_length", r.ContentLength)
 		}
 
+		if bodyCfg.Enabled {
+			if requestBody.Payload != nil {
+				event = event.Interface("request_body", requestBody.Payload)
+			}
+			if requestBody.Truncated {
+				event = event.Bool("request_body_truncated", true)
+			}
+			if responseBody, ok := rec.responseBody(); ok {
+				event = event.Interface("response_body", responseBody)
+			}
+			if rec.bodyTruncated {
+				event = event.Bool("response_body_truncated", true)
+			}
+		}
+
 		event.Msg("request completed")
 	})
 }
@@ -225,4 +262,111 @@ func sanitizeRequestID(requestID string) string {
 	}
 
 	return requestID
+}
+
+type bodyLogConfig struct {
+	Enabled  bool
+	MaxBytes int
+}
+
+func loadBodyLogConfig() bodyLogConfig {
+	enabledByDefault := strings.EqualFold(config.GetEnv("APP_ENV", defaultEnvironment), "development")
+	enabled := config.GetBool("LOG_HTTP_BODY_ENABLED", enabledByDefault)
+	maxBytes := config.GetInt("LOG_HTTP_BODY_MAX_BYTES", defaultHTTPLogBodyMaxBytes)
+	if maxBytes <= 0 {
+		maxBytes = defaultHTTPLogBodyMaxBytes
+	}
+
+	return bodyLogConfig{
+		Enabled:  enabled,
+		MaxBytes: maxBytes,
+	}
+}
+
+type capturedJSONBody struct {
+	Payload   any
+	Truncated bool
+}
+
+func captureRequestBody(r *http.Request, maxBytes int) capturedJSONBody {
+	if r == nil || r.Body == nil || maxBytes <= 0 {
+		return capturedJSONBody{}
+	}
+
+	originalBody := r.Body
+	sample, err := io.ReadAll(io.LimitReader(originalBody, int64(maxBytes+1)))
+	if err != nil {
+		r.Body = originalBody
+		return capturedJSONBody{}
+	}
+	r.Body = replayBody(sample, originalBody)
+
+	if len(sample) == 0 {
+		return capturedJSONBody{}
+	}
+
+	if len(sample) > maxBytes {
+		return capturedJSONBody{Truncated: true}
+	}
+
+	payload, ok := decodeJSONPayload(sample)
+	if !ok {
+		return capturedJSONBody{}
+	}
+
+	return capturedJSONBody{Payload: payload}
+}
+
+func (r *statusRecorder) captureResponseBody(data []byte) {
+	if r == nil || !r.captureBody || len(data) == 0 || r.bodyCaptureSize <= 0 || r.bodyTruncated {
+		return
+	}
+
+	remaining := r.bodyCaptureSize - r.bodySample.Len()
+	if remaining <= 0 {
+		r.bodyTruncated = true
+		return
+	}
+
+	if len(data) > remaining {
+		_, _ = r.bodySample.Write(data[:remaining])
+		r.bodyTruncated = true
+		return
+	}
+
+	_, _ = r.bodySample.Write(data)
+}
+
+func (r *statusRecorder) responseBody() (any, bool) {
+	if r == nil || r.bodySample.Len() == 0 {
+		return nil, false
+	}
+
+	return decodeJSONPayload(r.bodySample.Bytes())
+}
+
+func decodeJSONPayload(data []byte) (any, bool) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return nil, false
+	}
+
+	var payload any
+	if err := json.Unmarshal(trimmed, &payload); err != nil {
+		return nil, false
+	}
+
+	return payload, true
+}
+
+type replayReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
+func replayBody(prefix []byte, body io.ReadCloser) io.ReadCloser {
+	return replayReadCloser{
+		Reader: io.MultiReader(bytes.NewReader(prefix), body),
+		Closer: body,
+	}
 }

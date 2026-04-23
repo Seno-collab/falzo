@@ -5,7 +5,6 @@ import { useEffect, useState, type PropsWithChildren } from "react";
 import { Toaster } from "sonner";
 import { LanguageProvider } from "@/app/language-provider";
 import { initializeAuthHeader } from "@/api/auth.api";
-import { SavedLocationsProvider } from "@/providers/saved-locations-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(
@@ -28,16 +27,14 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
-        <SavedLocationsProvider>
-          {children}
-          <Toaster
-            closeButton
-            position="top-center"
-            toastOptions={{
-              className: "!rounded-xl !border !border-[#d7e2ef] !bg-white !text-[#143052]",
-            }}
-          />
-        </SavedLocationsProvider>
+        {children}
+        <Toaster
+          closeButton
+          position="top-center"
+          toastOptions={{
+            className: "!rounded-xl !border !border-[#d7e2ef] !bg-white !text-[#143052]",
+          }}
+        />
       </LanguageProvider>
     </QueryClientProvider>
   );

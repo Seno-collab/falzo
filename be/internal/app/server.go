@@ -11,6 +11,9 @@ import (
 	locationApplication "falzo-be/internal/location/application"
 	locationInfra "falzo-be/internal/location/infrastructure"
 	locationHTTP "falzo-be/internal/location/interfaces/http"
+	postApplication "falzo-be/internal/post/application"
+	postInfra "falzo-be/internal/post/infrastructure/persistence/postgres"
+	postHTTP "falzo-be/internal/post/interfaces/http"
 	"falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
@@ -61,6 +64,9 @@ func Run() {
 	locationRepository := locationInfra.NewLocationRepositoryPG(db)
 	locationService := locationApplication.New(locationRepository)
 	locationHandler := locationHTTP.New(locationService)
+	postRepository := postInfra.NewPostRepository(db)
+	postService := postApplication.New(postRepository)
+	postHandler := postHTTP.New(postService)
 
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {
@@ -81,6 +87,7 @@ func Run() {
 	})
 	r.Mount("/auth", authHandler.Routes())
 	r.Mount("/locations", locationHandler.Routes())
+	r.Mount("/posts", postHandler.Routes())
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}

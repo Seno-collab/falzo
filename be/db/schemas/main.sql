@@ -1,2 +1,0 @@
--- Snapshot moved to versioned migrations in be/db/migrations.
--- For fresh environments, use those migration files instead of this legacy schema snapshot.

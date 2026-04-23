@@ -9,8 +9,8 @@ services:
       - postgres
       - redis
       - mongodb
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
   web:
     build:
       context: ./fe

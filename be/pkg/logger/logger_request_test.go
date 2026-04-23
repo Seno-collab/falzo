@@ -1,0 +1,122 @@
+package logger
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+)
+
+func TestCaptureRequestBodyRestoresBody(t *testing.T) {
+	const original = `{"email":"admin@example.com","password":"top-secret"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(original))
+	captured := captureRequestBody(req, 2048)
+	if captured.Truncated {
+		t.Fatal("expected non-truncated request body")
+	}
+
+	payload, ok := captured.Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected json payload to be parsed, got %#v", captured.Payload)
+	}
+	if payload["email"] != "admin@example.com" {
+		t.Fatalf("expected email to be parsed, got %#v", payload["email"])
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("failed to read replayed request body: %v", err)
+	}
+	if string(body) != original {
+		t.Fatalf("expected replayed request body %q, got %q", original, string(body))
+	}
+}
+
+func TestCaptureRequestBodyMarksTruncated(t *testing.T) {
+	original := `{"payload":"` + strings.Repeat("a", 128) + `"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(original))
+	captured := captureRequestBody(req, 16)
+	if !captured.Truncated {
+		t.Fatal("expected request body to be marked truncated")
+	}
+	if captured.Payload != nil {
+		t.Fatalf("expected truncated payload to be skipped, got %#v", captured.Payload)
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("failed to read replayed request body: %v", err)
+	}
+	if string(body) != original {
+		t.Fatalf("expected replayed request body %q, got %q", original, string(body))
+	}
+}
+
+func TestRequestLoggerLogsSanitizedJSONBodies(t *testing.T) {
+	t.Setenv("LOG_HTTP_BODY_ENABLED", "true")
+	t.Setenv("LOG_HTTP_BODY_MAX_BYTES", "4096")
+
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+
+	log.Logger = zerolog.New(newSensitiveDataWriter(&output, nil)).With().Timestamp().Logger()
+
+	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read downstream request body: %v", err)
+		}
+		if got := string(data); got != `{"username":"alice","password":"secret"}` {
+			t.Fatalf("expected downstream request body to match original, got %q", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"token":"raw-token","ok":true}`))
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"username":"alice","password":"secret"}`))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) == "" {
+		t.Fatal("expected request log output")
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &entry); err != nil {
+		t.Fatalf("failed to parse log entry json: %v", err)
+	}
+
+	requestBody, ok := entry["request_body"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected request_body object, got %#v", entry["request_body"])
+	}
+	if requestBody["password"] != redactedLogValue {
+		t.Fatalf("expected request password to be redacted, got %#v", requestBody["password"])
+	}
+
+	responseBody, ok := entry["response_body"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected response_body object, got %#v", entry["response_body"])
+	}
+	if responseBody["token"] != redactedLogValue {
+		t.Fatalf("expected response token to be redacted, got %#v", responseBody["token"])
+	}
+}

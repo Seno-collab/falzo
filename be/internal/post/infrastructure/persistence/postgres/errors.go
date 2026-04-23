@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"falzo-be/internal/auth/domain"
+	"falzo-be/internal/post/domain"
 	"falzo-be/pkg/dberr"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -15,7 +15,7 @@ func mapDBError(ctx context.Context, service, operation string, err error) error
 		service,
 		operation,
 		chimiddleware.GetReqID(ctx),
-		domain.ErrAuthDependencyUnavailable,
-		domain.ErrAuthInternal,
+		domain.ErrPostDependencyUnavailable,
+		domain.ErrPostInternal,
 	)
 }
