@@ -6,23 +6,33 @@ name: Go
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - "be/**"
+      - ".github/workflows/go.yml"
   pull_request:
     branches: [ "main" ]
+    paths:
+      - "be/**"
+      - ".github/workflows/go.yml"
 
 jobs:
 
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: be
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.26.2'
+        go-version-file: be/go.mod
+        cache-dependency-path: be/go.sum
 
     - name: Build
-      run: go build -v be/cmd/api/main.go
+      run: go build -v ./cmd/api
 
     - name: Test
-      run: go test -v be/cmd/api/main.go
+      run: go test -v ./...
