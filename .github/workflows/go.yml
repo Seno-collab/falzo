@@ -22,7 +22,7 @@ jobs:
         go-version: '1.26.2'
 
     - name: Build
-      run: go build -v cmd/api/main.go
+      run: go build -v be/cmd/api/main.go
 
     - name: Test
-      run: go test -v cmd/api/main.go
+      run: go test -v be/cmd/api/main.go
