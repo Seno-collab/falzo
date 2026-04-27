@@ -6,7 +6,7 @@ RUN go mod download
 COPY . .
 RUN go build -o falzo-api ./cmd/api
 
-FROM alpine:latests
+FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/falzo-api ./falzo-api
 COPY --from=chrislusf/seaweedfs:latest /usr/bin/weed /usr/local/bin/weed
