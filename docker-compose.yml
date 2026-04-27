@@ -9,6 +9,7 @@ services:
       - postgres
       - redis
       - mongodb
+      - seaweedfs
     expose:
       - "8000"
   web:
@@ -20,6 +21,7 @@ services:
     environment:
       API_BASE_URL: http://api:8000
     restart: unless-stopped
+    env_file: ./fe/.env
     ports:
       - "3000:3000"
     depends_on:
@@ -55,7 +57,18 @@ services:
       - ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/seaweedfs_s3.json
+    ports:
+      - "8333:8333"
+      - "9333:9333"
+      - "8888:8888"
+    volumes:
+      - seaweedfs_data:/data
+      - ./be/secretkey/seaweedfs_s3.json:/etc/seaweedfs/seaweedfs_s3.json:ro
 volumes:
   postgres_data:
   redis:
   mongo_data:
+  seaweedfs_data:

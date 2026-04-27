@@ -44,9 +44,7 @@ function detectLanguageFromBrowser(): AppLanguage {
 
   const hasVietnameseLocale = browserLocales.some(isVietnameseLocale);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const hasVietnamTimezone = timezone
-    ? VIETNAM_TIMEZONES.has(timezone)
-    : false;
+  const hasVietnamTimezone = timezone ? VIETNAM_TIMEZONES.has(timezone) : false;
 
   return hasVietnameseLocale || hasVietnamTimezone ? "vi" : "en";
 }
@@ -103,7 +101,9 @@ export function LanguageProvider({ children }: PropsWithChildren) {
   );
 
   return (
-    <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+    <LanguageContext.Provider value={value}>
+      {children}
+    </LanguageContext.Provider>
   );
 }
 

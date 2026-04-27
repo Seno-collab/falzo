@@ -41,3 +41,5 @@ scripts/
 be/.gocache/
 be/.vscode/
 be/.gopath/
+be/secrets/seaweedfs_s3.json
+*.secret

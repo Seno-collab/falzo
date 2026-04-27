@@ -1,7 +1,7 @@
-import { ShieldCheck, Sparkles } from "lucide-react"
-import type { ReactNode } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { PageShell } from "@/components/layout/page-shell"
+import { ShieldCheck, Sparkles } from "lucide-react";
+import type { ReactNode } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageShell } from "@/components/layout/page-shell";
 
 export function AuthShell({
   topbar,
@@ -13,14 +13,14 @@ export function AuthShell({
   children,
   footer,
 }: {
-  topbar: ReactNode
-  label: string
-  title: string
-  subtitle: string
-  points: string[]
-  note: string
-  children: ReactNode
-  footer?: ReactNode
+  topbar: ReactNode;
+  label: string;
+  title: string;
+  subtitle: string;
+  points: string[];
+  note: string;
+  children: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
     <PageShell contentClassName="pb-12 md:pb-16" topbar={topbar}>
@@ -31,8 +31,12 @@ export function AuthShell({
           <div className="absolute -bottom-12 left-8 -z-10 h-36 w-36 rounded-full bg-[#f3c782]/30 blur-3xl" />
 
           <p className="app-kicker text-[#d6e7f9]">{label}</p>
-          <h1 className="falzo-display mt-2 text-4xl leading-tight font-semibold">{title}</h1>
-          <p className="mt-3 max-w-lg text-sm leading-7 text-[#d8e8f8]">{subtitle}</p>
+          <h1 className="falzo-display mt-2 text-4xl leading-tight font-semibold">
+            {title}
+          </h1>
+          <p className="mt-3 max-w-lg text-sm leading-7 text-[#d8e8f8]">
+            {subtitle}
+          </p>
 
           <div className="mt-7 space-y-3">
             {points.map((point) => (
@@ -62,5 +66,5 @@ export function AuthShell({
         </Card>
       </div>
     </PageShell>
-  )
+  );
 }

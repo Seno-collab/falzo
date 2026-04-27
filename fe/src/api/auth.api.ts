@@ -13,7 +13,8 @@ import type { ApiEnvelope } from "@/types/api/response";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
-const AUTH_EXCLUDED_RETRY = /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
+const AUTH_EXCLUDED_RETRY =
+  /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
 const AUTH_ENDPOINTS = {
   login:
     process.env.NEXT_PUBLIC_AUTH_LOGIN_ENDPOINT ??
@@ -54,7 +55,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function findFirstString(value: unknown, keys: string[], depth = 0): string | null {
+function findFirstString(
+  value: unknown,
+  keys: string[],
+  depth = 0,
+): string | null {
   if (depth > 5) {
     return null;
   }
@@ -108,7 +113,8 @@ function readMessage(data: unknown): string | null {
   const firstError = Array.isArray(payload.errors) ? payload.errors[0] : null;
   const errorNode = asRecord(firstError);
   const nestedMessage = errorNode?.message;
-  const message = payload.message ?? nestedMessage ?? payload.error ?? payload.detail;
+  const message =
+    payload.message ?? nestedMessage ?? payload.error ?? payload.detail;
   return typeof message === "string" && message.trim() ? message : null;
 }
 
@@ -166,9 +172,11 @@ function resolveStorageScope(remember?: boolean): StorageScope {
     return "session";
   }
 
-  return getStorageScopeForKey(ACCESS_TOKEN_KEY) ??
+  return (
+    getStorageScopeForKey(ACCESS_TOKEN_KEY) ??
     getStorageScopeForKey(REFRESH_TOKEN_KEY) ??
-    "local";
+    "local"
+  );
 }
 
 function persistSession(session: AuthSession, scope: StorageScope) {
@@ -185,20 +193,28 @@ function persistSession(session: AuthSession, scope: StorageScope) {
 
 function parseSession(data: unknown): AuthSession | null {
   const dataNode = extractDataNode(data);
-  const accessToken = findFirstString(dataNode, [
-    "accessToken",
-    "access_token",
-    "token",
-    "jwt",
-    "id_token",
-  ]) ??
-    findFirstString(data, ["accessToken", "access_token", "token", "jwt", "id_token"]);
+  const accessToken =
+    findFirstString(dataNode, [
+      "accessToken",
+      "access_token",
+      "token",
+      "jwt",
+      "id_token",
+    ]) ??
+    findFirstString(data, [
+      "accessToken",
+      "access_token",
+      "token",
+      "jwt",
+      "id_token",
+    ]);
 
   if (!accessToken) {
     return null;
   }
 
-  const refreshToken = findFirstString(dataNode, ["refreshToken", "refresh_token"]) ??
+  const refreshToken =
+    findFirstString(dataNode, ["refreshToken", "refresh_token"]) ??
     findFirstString(data, ["refreshToken", "refresh_token"]);
   return {
     accessToken,
@@ -396,7 +412,9 @@ export async function registerApi(payload: RegisterRequest) {
   return response.data;
 }
 
-export async function getMeApi<TUser extends AuthUser = AuthUser>(): Promise<TUser> {
+export async function getMeApi<
+  TUser extends AuthUser = AuthUser,
+>(): Promise<TUser> {
   const endpoint = AUTH_ENDPOINTS.me;
   const response = await http.get<ApiEnvelope<TUser> | TUser>(endpoint);
   return unwrapResponseData(response.data);
@@ -407,11 +425,9 @@ export async function logoutApi(): Promise<void> {
   const refreshToken = getStoredValue(REFRESH_TOKEN_KEY);
 
   try {
-    await http.post(
-      endpoint,
-      refreshToken ? { refreshToken } : {},
-      { skipAuthRefresh: true } as RetryableRequestConfig,
-    );
+    await http.post(endpoint, refreshToken ? { refreshToken } : {}, {
+      skipAuthRefresh: true,
+    } as RetryableRequestConfig);
   } finally {
     clearAuthSession();
   }

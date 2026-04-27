@@ -1,4 +1,7 @@
-import { getOptimizedScenicImage, getScenicImageUrl } from "@/lib/scenic-images";
+import {
+  getOptimizedScenicImage,
+  getScenicImageUrl,
+} from "@/lib/scenic-images";
 
 type ScenicImageProps = {
   id: string;
@@ -51,7 +54,10 @@ export function ScenicImage({
         fetchPriority={fetchPriority}
         loading={loading}
         onError={(event) => {
-          if (remoteFallback && !event.currentTarget.src.includes(remoteFallback)) {
+          if (
+            remoteFallback &&
+            !event.currentTarget.src.includes(remoteFallback)
+          ) {
             event.currentTarget.src = remoteFallback;
             return;
           }

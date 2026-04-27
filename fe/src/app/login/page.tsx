@@ -1,38 +1,38 @@
-"use client"
+"use client";
 
-import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowRight, House, LogIn } from "lucide-react"
-import { motion } from "motion/react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useMemo } from "react"
-import { useForm } from "react-hook-form"
-import { toast } from "sonner"
-import { z } from "zod"
-import { useLanguage } from "@/app/language-provider"
-import { getApiErrorMessage, hasAuthSession, loginApi } from "@/api/auth.api"
-import { AppTopbar } from "@/components/layout/app-topbar"
-import { AuthShell } from "@/components/layout/auth-shell"
-import { UserPresenceBadge } from "@/components/layout/user-presence-badge"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { messages } from "@/i18n/messages"
-import { ROUTES } from "@/lib/routes"
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRight, House, LogIn } from "lucide-react";
+import { motion } from "motion/react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { useLanguage } from "@/app/language-provider";
+import { getApiErrorMessage, hasAuthSession, loginApi } from "@/api/auth.api";
+import { AppTopbar } from "@/components/layout/app-topbar";
+import { AuthShell } from "@/components/layout/auth-shell";
+import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { messages } from "@/i18n/messages";
+import { ROUTES } from "@/lib/routes";
 
 type LoginFormValues = {
-  email: string
-  password: string
-  remember: boolean
-}
+  email: string;
+  password: string;
+  remember: boolean;
+};
 
 export default function LoginRoutePage() {
-  const { language } = useLanguage()
-  const router = useRouter()
-  const copy = messages[language].loginPage
-  const commonCopy = messages[language].common
-  const homeCopy = messages[language].homePage
+  const { language } = useLanguage();
+  const router = useRouter();
+  const copy = messages[language].loginPage;
+  const commonCopy = messages[language].common;
+  const homeCopy = messages[language].homePage;
 
   const loginSchema = useMemo(
     () =>
@@ -42,7 +42,7 @@ export default function LoginRoutePage() {
         remember: z.boolean(),
       }),
     [copy.emailInvalid, copy.passwordMin],
-  )
+  );
 
   const { register, handleSubmit, formState } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -51,34 +51,37 @@ export default function LoginRoutePage() {
       password: "",
       remember: true,
     },
-  })
+  });
 
   useEffect(() => {
-    document.title = copy.documentTitle
+    document.title = copy.documentTitle;
 
     if (hasAuthSession()) {
-      router.replace(ROUTES.dashboard)
+      router.replace(ROUTES.dashboard);
     }
-  }, [copy.documentTitle, router])
+  }, [copy.documentTitle, router]);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      await loginApi(values)
-      toast.success(copy.successTitle)
-      router.replace(ROUTES.dashboard)
+      await loginApi(values);
+      toast.success(copy.successTitle);
+      router.replace(ROUTES.dashboard);
     } catch (error) {
       toast.error(copy.errorTitle, {
         description: getApiErrorMessage(error, language),
-      })
+      });
     }
-  })
+  });
 
   return (
     <AuthShell
       footer={
         <p className="text-center text-sm text-[#5b7799]">
           {copy.noAccountText}{" "}
-          <Link className="font-semibold text-[#2f5f95] hover:underline" href={ROUTES.register}>
+          <Link
+            className="font-semibold text-[#2f5f95] hover:underline"
+            href={ROUTES.register}
+          >
             {copy.registerCta}
           </Link>
         </p>
@@ -173,7 +176,10 @@ export default function LoginRoutePage() {
             ) : null}
           </div>
 
-          <label className="inline-flex items-center gap-2.5 text-sm text-[#567396]" htmlFor="remember">
+          <label
+            className="inline-flex items-center gap-2.5 text-sm text-[#567396]"
+            htmlFor="remember"
+          >
             <input
               className="h-4 w-4 rounded border-[#b2cae2] accent-[#2f5f95]"
               disabled={formState.isSubmitting}
@@ -184,12 +190,17 @@ export default function LoginRoutePage() {
             {copy.rememberLabel}
           </label>
 
-          <Button className="w-full" disabled={formState.isSubmitting} type="submit" variant="gradient">
+          <Button
+            className="w-full"
+            disabled={formState.isSubmitting}
+            type="submit"
+            variant="gradient"
+          >
             <LogIn className="size-4" />
             {formState.isSubmitting ? copy.submitting : copy.submit}
           </Button>
         </form>
       </motion.div>
     </AuthShell>
-  )
+  );
 }

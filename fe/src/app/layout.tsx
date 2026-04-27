@@ -16,10 +16,15 @@ const sora = Sora({
 
 export const metadata: Metadata = {
   title: "Travel Discovery",
-  description: "Discover places, explore on map, and save your dream destinations.",
+  description:
+    "Discover places, explore on map, and save your dream destinations.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body className={`${manrope.variable} ${sora.variable}`}>

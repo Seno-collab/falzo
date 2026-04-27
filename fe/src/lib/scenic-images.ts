@@ -3,7 +3,8 @@ import { scenicImageManifest } from "@/generated/scenic-image-manifest";
 const SCENIC_IMAGE_BY_ID: Record<string, string> = {
   "mu-cang-chai-dawn": "https://picsum.photos/seed/falzo-mu-cang-chai/1500/900",
   "ly-son-coast": "https://picsum.photos/seed/falzo-ly-son/900/1400",
-  "kyoto-lantern-night": "https://picsum.photos/seed/falzo-kyoto-night/1600/1000",
+  "kyoto-lantern-night":
+    "https://picsum.photos/seed/falzo-kyoto-night/1600/1000",
   "swiss-lake-view": "https://picsum.photos/seed/falzo-swiss-lake/1000/1500",
   "istanbul-skyline": "https://picsum.photos/seed/falzo-istanbul/1400/900",
   "patagonia-trail": "https://picsum.photos/seed/falzo-patagonia/1800/1000",
@@ -16,7 +17,9 @@ const SCENIC_IMAGE_BY_ID: Record<string, string> = {
 };
 
 function toSrcSet(variants: Array<{ src: string; width: number }>) {
-  return variants.map((variant) => `${variant.src} ${variant.width}w`).join(", ");
+  return variants
+    .map((variant) => `${variant.src} ${variant.width}w`)
+    .join(", ");
 }
 
 export function getScenicImageUrl(id: string) {

@@ -1,5 +1,5 @@
-import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function PageShell({
   children,
@@ -7,10 +7,10 @@ export function PageShell({
   className,
   contentClassName,
 }: {
-  children: ReactNode
-  topbar?: ReactNode
-  className?: string
-  contentClassName?: string
+  children: ReactNode;
+  topbar?: ReactNode;
+  className?: string;
+  contentClassName?: string;
 }) {
   return (
     <div className={cn("app-shell", className)}>
@@ -19,9 +19,15 @@ export function PageShell({
           <div className="app-container">{topbar}</div>
         </header>
       ) : null}
-      <main className={cn("app-container", topbar ? "pt-2" : "pt-8", contentClassName)}>
+      <main
+        className={cn(
+          "app-container",
+          topbar ? "pt-2" : "pt-8",
+          contentClassName,
+        )}
+      >
         {children}
       </main>
     </div>
-  )
+  );
 }

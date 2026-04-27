@@ -1,43 +1,43 @@
-"use client"
+"use client";
 
-import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowRight, House, UserPlus } from "lucide-react"
-import { motion } from "motion/react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useMemo } from "react"
-import { useForm } from "react-hook-form"
-import { toast } from "sonner"
-import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRight, House, UserPlus } from "lucide-react";
+import { motion } from "motion/react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import {
   getApiErrorMessage,
   hasAuthSession,
   registerApi,
-} from "@/api/auth.api"
-import { useLanguage } from "@/app/language-provider"
-import { AppTopbar } from "@/components/layout/app-topbar"
-import { AuthShell } from "@/components/layout/auth-shell"
-import { UserPresenceBadge } from "@/components/layout/user-presence-badge"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { messages } from "@/i18n/messages"
-import { ROUTES } from "@/lib/routes"
+} from "@/api/auth.api";
+import { useLanguage } from "@/app/language-provider";
+import { AppTopbar } from "@/components/layout/app-topbar";
+import { AuthShell } from "@/components/layout/auth-shell";
+import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { messages } from "@/i18n/messages";
+import { ROUTES } from "@/lib/routes";
 
 type RegisterFormValues = {
-  fullName: string
-  email: string
-  password: string
-  confirmPassword: string
-}
+  fullName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 export default function RegisterRoutePage() {
-  const { language } = useLanguage()
-  const router = useRouter()
-  const copy = messages[language].registerPage
-  const commonCopy = messages[language].common
-  const homeCopy = messages[language].homePage
+  const { language } = useLanguage();
+  const router = useRouter();
+  const copy = messages[language].registerPage;
+  const commonCopy = messages[language].common;
+  const homeCopy = messages[language].homePage;
 
   const registerSchema = useMemo(
     () =>
@@ -59,7 +59,7 @@ export default function RegisterRoutePage() {
       copy.fullNameMin,
       copy.passwordMin,
     ],
-  )
+  );
 
   const { register, handleSubmit, formState } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -69,11 +69,11 @@ export default function RegisterRoutePage() {
       password: "",
       confirmPassword: "",
     },
-  })
+  });
 
   useEffect(() => {
-    document.title = copy.documentTitle
-  }, [copy.documentTitle])
+    document.title = copy.documentTitle;
+  }, [copy.documentTitle]);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -81,33 +81,36 @@ export default function RegisterRoutePage() {
         fullName: values.fullName,
         email: values.email,
         password: values.password,
-      })
+      });
 
       if (hasAuthSession()) {
         toast.success(copy.successTitle, {
           description: copy.successRedirectDashboard,
-        })
-        router.replace(ROUTES.dashboard)
-        return
+        });
+        router.replace(ROUTES.dashboard);
+        return;
       }
 
       toast.success(copy.successTitle, {
         description: copy.successPromptLogin,
-      })
-      router.replace(ROUTES.login)
+      });
+      router.replace(ROUTES.login);
     } catch (error) {
       toast.error(copy.errorTitle, {
         description: getApiErrorMessage(error, language),
-      })
+      });
     }
-  })
+  });
 
   return (
     <AuthShell
       footer={
         <p className="text-center text-sm text-[#5b7799]">
           {copy.hasAccountText}{" "}
-          <Link className="font-semibold text-[#2f5f95] hover:underline" href={ROUTES.login}>
+          <Link
+            className="font-semibold text-[#2f5f95] hover:underline"
+            href={ROUTES.login}
+          >
             {copy.loginCta}
           </Link>
         </p>
@@ -218,7 +221,9 @@ export default function RegisterRoutePage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">{copy.confirmPasswordLabel}</Label>
+              <Label htmlFor="confirmPassword">
+                {copy.confirmPasswordLabel}
+              </Label>
               <Input
                 autoComplete="new-password"
                 disabled={formState.isSubmitting}
@@ -228,17 +233,24 @@ export default function RegisterRoutePage() {
                 {...register("confirmPassword")}
               />
               {formState.errors.confirmPassword ? (
-                <p className="app-error">{formState.errors.confirmPassword.message}</p>
+                <p className="app-error">
+                  {formState.errors.confirmPassword.message}
+                </p>
               ) : null}
             </div>
           </div>
 
-          <Button className="w-full" disabled={formState.isSubmitting} type="submit" variant="gradient">
+          <Button
+            className="w-full"
+            disabled={formState.isSubmitting}
+            type="submit"
+            variant="gradient"
+          >
             <UserPlus className="size-4" />
             {formState.isSubmitting ? copy.submitting : copy.submit}
           </Button>
         </form>
       </motion.div>
     </AuthShell>
-  )
+  );
 }

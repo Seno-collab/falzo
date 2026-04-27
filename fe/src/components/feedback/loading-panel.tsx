@@ -1,12 +1,12 @@
-import { LoaderCircle } from "lucide-react"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LoaderCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function LoadingPanel({
   title,
   description,
 }: {
-  title: string
-  description: string
+  title: string;
+  description: string;
 }) {
   return (
     <div className="app-panel-soft space-y-4 p-6">
@@ -21,5 +21,5 @@ export function LoadingPanel({
         <Skeleton className="h-4 w-1/2" />
       </div>
     </div>
-  )
+  );
 }

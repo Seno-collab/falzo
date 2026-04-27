@@ -1,22 +1,25 @@
-import { Clock3, Globe } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { useLanguage } from "@/app/language-provider"
+import { Clock3, Globe } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useLanguage } from "@/app/language-provider";
 
 export function UserPresenceBadge() {
-  const { language } = useLanguage()
-  const [now, setNow] = useState(() => new Date())
+  const { language } = useLanguage();
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setNow(new Date())
-    }, 60_000)
+      setNow(new Date());
+    }, 60_000);
 
     return () => {
-      window.clearInterval(timer)
-    }
-  }, [])
+      window.clearInterval(timer);
+    };
+  }, []);
 
-  const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
+  const timezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
   const time = useMemo(
     () =>
       new Intl.DateTimeFormat(language === "vi" ? "vi-VN" : "en-US", {
@@ -24,7 +27,7 @@ export function UserPresenceBadge() {
         minute: "2-digit",
       }).format(now),
     [language, now],
-  )
+  );
 
   return (
     <div className="inline-flex flex-wrap items-center gap-1.5">
@@ -40,5 +43,5 @@ export function UserPresenceBadge() {
         {timezone.replaceAll("_", " ")}
       </span>
     </div>
-  )
+  );
 }

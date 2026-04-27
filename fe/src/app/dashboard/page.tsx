@@ -1,102 +1,102 @@
-"use client"
+"use client";
 
-import { BarChart3, Compass, House, LogOut, Sparkles } from "lucide-react"
-import { motion } from "motion/react"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useLanguage } from "@/app/language-provider"
+import { BarChart3, Compass, House, LogOut, Sparkles } from "lucide-react";
+import { motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useLanguage } from "@/app/language-provider";
 import {
   clearAuthSession,
   getMeApi,
   hasAuthSession,
   logoutApi,
-} from "@/api/auth.api"
-import { LoadingPanel } from "@/components/feedback/loading-panel"
-import { AppTopbar } from "@/components/layout/app-topbar"
-import { PageShell } from "@/components/layout/page-shell"
-import { SectionHeading } from "@/components/layout/section-heading"
-import { UserPresenceBadge } from "@/components/layout/user-presence-badge"
-import { ScenicFieldNote } from "@/components/scenic/scenic-field-note"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { messages } from "@/i18n/messages"
-import { ROUTES } from "@/lib/routes"
+} from "@/api/auth.api";
+import { LoadingPanel } from "@/components/feedback/loading-panel";
+import { AppTopbar } from "@/components/layout/app-topbar";
+import { PageShell } from "@/components/layout/page-shell";
+import { SectionHeading } from "@/components/layout/section-heading";
+import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
+import { ScenicFieldNote } from "@/components/scenic/scenic-field-note";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { messages } from "@/i18n/messages";
+import { ROUTES } from "@/lib/routes";
 
 function resolveUserDisplayName(payload: unknown): string | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return null
+    return null;
   }
 
-  const data = payload as Record<string, unknown>
+  const data = payload as Record<string, unknown>;
   for (const key of ["fullName", "name", "displayName", "email"]) {
-    const value = data[key]
+    const value = data[key];
     if (typeof value === "string" && value.trim()) {
-      return value.trim()
+      return value.trim();
     }
   }
 
-  return null
+  return null;
 }
 
 export default function DashboardRoutePage() {
-  const { language } = useLanguage()
-  const router = useRouter()
-  const copy = messages[language].dashboardPage
-  const featuredFrame = messages[language].homePage.scenicGallery[0]
+  const { language } = useLanguage();
+  const router = useRouter();
+  const copy = messages[language].dashboardPage;
+  const featuredFrame = messages[language].homePage.scenicGallery[0];
 
-  const [isSessionChecking, setIsSessionChecking] = useState(true)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [userDisplayName, setUserDisplayName] = useState<string | null>(null)
+  const [isSessionChecking, setIsSessionChecking] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = copy.documentTitle
+    document.title = copy.documentTitle;
 
     if (!hasAuthSession()) {
-      router.replace(ROUTES.login)
-      return
+      router.replace(ROUTES.login);
+      return;
     }
 
-    let disposed = false
+    let disposed = false;
 
     const validateSession = async () => {
       try {
-        const profile = await getMeApi<Record<string, unknown>>()
+        const profile = await getMeApi<Record<string, unknown>>();
         if (!disposed) {
-          setUserDisplayName(resolveUserDisplayName(profile))
-          setIsSessionChecking(false)
+          setUserDisplayName(resolveUserDisplayName(profile));
+          setIsSessionChecking(false);
         }
       } catch {
         if (disposed) {
-          return
+          return;
         }
 
-        clearAuthSession()
-        router.replace(ROUTES.login)
+        clearAuthSession();
+        router.replace(ROUTES.login);
       }
-    }
+    };
 
-    void validateSession()
+    void validateSession();
 
     return () => {
-      disposed = true
-    }
-  }, [copy.documentTitle, router])
+      disposed = true;
+    };
+  }, [copy.documentTitle, router]);
 
   const handleLogout = async () => {
     if (isLoggingOut) {
-      return
+      return;
     }
 
-    setIsLoggingOut(true)
+    setIsLoggingOut(true);
 
     try {
-      await logoutApi()
-      router.replace(ROUTES.login)
+      await logoutApi();
+      router.replace(ROUTES.login);
     } finally {
-      setIsLoggingOut(false)
+      setIsLoggingOut(false);
     }
-  }
+  };
 
   return (
     <PageShell
@@ -107,7 +107,6 @@ export default function DashboardRoutePage() {
               id: "gallery",
               icon: <Compass className="size-4" />,
               label: copy.open3DDemoCta,
-              to: ROUTES.scenicGallery,
               variant: "outline",
             },
             {
@@ -122,7 +121,7 @@ export default function DashboardRoutePage() {
               icon: <LogOut className="size-4" />,
               label: copy.logoutCta,
               onClick: () => {
-                void handleLogout()
+                void handleLogout();
               },
               variant: "default",
             },
@@ -138,7 +137,11 @@ export default function DashboardRoutePage() {
       {isSessionChecking ? (
         <LoadingPanel
           description={copy.subtitle}
-          title={language === "vi" ? "Đang kiểm tra phiên đăng nhập" : "Verifying your session"}
+          title={
+            language === "vi"
+              ? "Đang kiểm tra phiên đăng nhập"
+              : "Verifying your session"
+          }
         />
       ) : (
         <motion.div
@@ -157,13 +160,18 @@ export default function DashboardRoutePage() {
                 />
                 {userDisplayName ? (
                   <p className="text-sm text-[#527299]">
-                    {language === "vi" ? "Xin chào" : "Welcome"}, {userDisplayName}
+                    {language === "vi" ? "Xin chào" : "Welcome"},{" "}
+                    {userDisplayName}
                   </p>
                 ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                {[copy.open3DDemoCta, copy.backToLandingCta, copy.logoutCta].map((label) => (
+                {[
+                  copy.open3DDemoCta,
+                  copy.backToLandingCta,
+                  copy.logoutCta,
+                ].map((label) => (
                   <div
                     className="app-panel-soft rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3"
                     key={label}
@@ -171,7 +179,9 @@ export default function DashboardRoutePage() {
                     <p className="text-xs font-semibold tracking-wide text-[#6988ae] uppercase">
                       {language === "vi" ? "Tác vụ" : "Action"}
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-[#1d3d64]">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#1d3d64]">
+                      {label}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -187,7 +197,7 @@ export default function DashboardRoutePage() {
               <div className="flex flex-wrap gap-2.5">
                 <Button
                   className="min-w-48"
-                  onClick={() => router.push(ROUTES.scenicGallery)}
+                  onClick={() => router.push(ROUTES.home)}
                   type="button"
                   variant="gradient"
                 >
@@ -205,7 +215,7 @@ export default function DashboardRoutePage() {
                 <Button
                   disabled={isLoggingOut}
                   onClick={() => {
-                    void handleLogout()
+                    void handleLogout();
                   }}
                   type="button"
                   variant="soft"
@@ -219,5 +229,5 @@ export default function DashboardRoutePage() {
         </motion.div>
       )}
     </PageShell>
-  )
+  );
 }

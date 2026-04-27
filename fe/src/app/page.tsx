@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   ArrowRight,
@@ -8,50 +8,50 @@ import {
   Mountain,
   Sparkles,
   Sun,
-} from "lucide-react"
-import { motion } from "motion/react"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useLanguage } from "@/app/language-provider"
-import { hasAuthSession } from "@/api/auth.api"
-import { AppTopbar } from "@/components/layout/app-topbar"
-import { PageShell } from "@/components/layout/page-shell"
-import { SectionHeading } from "@/components/layout/section-heading"
-import { UserPresenceBadge } from "@/components/layout/user-presence-badge"
-import { ScenicImage } from "@/components/scenic-image"
-import { ScenicFieldNote } from "@/components/scenic/scenic-field-note"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { messages } from "@/i18n/messages"
-import { ROUTES, getDashboardOrRegisterRoute } from "@/lib/routes"
+} from "lucide-react";
+import { motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useLanguage } from "@/app/language-provider";
+import { hasAuthSession } from "@/api/auth.api";
+import { AppTopbar } from "@/components/layout/app-topbar";
+import { PageShell } from "@/components/layout/page-shell";
+import { SectionHeading } from "@/components/layout/section-heading";
+import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
+import { ScenicImage } from "@/components/scenic-image";
+import { ScenicFieldNote } from "@/components/scenic/scenic-field-note";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { messages } from "@/i18n/messages";
+import { ROUTES, getDashboardOrRegisterRoute } from "@/lib/routes";
 
 const THEME_ICONS = {
   "alpine-lines": Mountain,
   "golden-coast": Sun,
   "heritage-streets": Compass,
-} as const
+} as const;
 
 const HIGHLIGHT_ICONS = {
   "visual-first": Camera,
   "region-story": MapPinned,
   "promo-ready": Sparkles,
-} as const
+} as const;
 
 export default function RootPage() {
-  const { language } = useLanguage()
-  const router = useRouter()
-  const [authenticated, setAuthenticated] = useState(false)
-  const copy = messages[language].homePage
-  const commonCopy = messages[language].common
+  const { language } = useLanguage();
+  const router = useRouter();
+  const [authenticated, setAuthenticated] = useState(false);
+  const copy = messages[language].homePage;
+  const commonCopy = messages[language].common;
 
   useEffect(() => {
-    document.title = copy.documentTitle
-  }, [copy.documentTitle])
+    document.title = copy.documentTitle;
+  }, [copy.documentTitle]);
 
   useEffect(() => {
-    setAuthenticated(hasAuthSession())
-  }, [])
+    setAuthenticated(hasAuthSession());
+  }, []);
 
   return (
     <PageShell
@@ -99,13 +99,17 @@ export default function RootPage() {
         >
           <div className="space-y-3">
             <Badge>{copy.heroBadge}</Badge>
-            <h1 className="app-title max-w-3xl text-4xl sm:text-5xl">{copy.heroTitle}</h1>
-            <p className="app-subtitle max-w-3xl text-sm sm:text-base">{copy.heroDescription}</p>
+            <h1 className="app-title max-w-3xl text-4xl sm:text-5xl">
+              {copy.heroTitle}
+            </h1>
+            <p className="app-subtitle max-w-3xl text-sm sm:text-base">
+              {copy.heroDescription}
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2.5">
             <Button
-              onClick={() => router.push(ROUTES.scenicGallery)}
+              onClick={() => router.push(ROUTES.home)}
               type="button"
               variant="gradient"
             >
@@ -113,7 +117,7 @@ export default function RootPage() {
               {copy.heroPrimaryCta}
             </Button>
             <Button
-              onClick={() => router.push(ROUTES.scenicGallery)}
+              onClick={() => router.push(ROUTES.home)}
               type="button"
               variant="outline"
             >
@@ -160,10 +164,14 @@ export default function RootPage() {
             <h2 className="falzo-display text-2xl font-semibold tracking-tight sm:text-3xl">
               {copy.heroSideTitle}
             </h2>
-            <p className="text-xs leading-6 text-[#c9dcee] sm:text-sm">{copy.heroSideSubtitle}</p>
+            <p className="text-xs leading-6 text-[#c9dcee] sm:text-sm">
+              {copy.heroSideSubtitle}
+            </p>
           </div>
 
-          <div className={`relative h-48 overflow-hidden rounded-2xl ${copy.scenicGallery[0].imageGradient}`}>
+          <div
+            className={`relative h-48 overflow-hidden rounded-2xl ${copy.scenicGallery[0].imageGradient}`}
+          >
             <ScenicImage
               alt={copy.scenicGallery[0].title}
               className="absolute inset-0 h-full w-full object-cover"
@@ -174,7 +182,9 @@ export default function RootPage() {
               {copy.scenicGallery[0].tag}
             </div>
             <div className="absolute inset-x-3 bottom-3 text-white">
-              <p className="text-sm font-semibold">{copy.scenicGallery[0].title}</p>
+              <p className="text-sm font-semibold">
+                {copy.scenicGallery[0].title}
+              </p>
               <p className="mt-1 inline-flex items-center gap-1 text-xs text-white/88">
                 <MapPinned className="size-3.5" />
                 {copy.scenicGallery[0].location}
@@ -201,7 +211,7 @@ export default function RootPage() {
 
           <Button
             className="w-full"
-            onClick={() => router.push(ROUTES.scenicGallery)}
+            onClick={() => router.push(ROUTES.home)}
             type="button"
             variant="gradient"
           >
@@ -211,19 +221,28 @@ export default function RootPage() {
       </section>
 
       <section className="mt-11 app-section">
-        <SectionHeading description={copy.showcaseSubtitle} title={copy.showcaseTitle} />
+        <SectionHeading
+          description={copy.showcaseSubtitle}
+          title={copy.showcaseTitle}
+        />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {copy.scenicGallery.map((item, index) => (
             <motion.div
               initial={{ opacity: 0, y: 14 }}
               key={item.id}
-              transition={{ duration: 0.28, delay: Math.min(index * 0.04, 0.2), ease: "easeOut" }}
+              transition={{
+                duration: 0.28,
+                delay: Math.min(index * 0.04, 0.2),
+                ease: "easeOut",
+              }}
               viewport={{ amount: 0.2, once: true }}
               whileInView={{ opacity: 1, y: 0 }}
             >
               <Card className="app-hover overflow-hidden border-[#d6e4f4] bg-white/90 py-0">
-                <div className={`relative aspect-[4/3] w-full ${item.imageGradient}`}>
+                <div
+                  className={`relative aspect-4/3 w-full ${item.imageGradient}`}
+                >
                   <ScenicImage
                     alt={item.title}
                     className="absolute inset-0 h-full w-full object-cover"
@@ -238,23 +257,31 @@ export default function RootPage() {
                       <MapPinned className="size-3.5" />
                       {item.location}
                     </span>
-                    <span className="rounded-full bg-black/22 px-2 py-0.5">HDR</span>
+                    <span className="rounded-full bg-black/22 px-2 py-0.5">
+                      HDR
+                    </span>
                   </div>
                 </div>
 
                 <CardContent className="space-y-3 p-4">
-                  <h3 className="text-lg font-semibold text-[#173a61]">{item.title}</h3>
+                  <h3 className="text-lg font-semibold text-[#173a61]">
+                    {item.title}
+                  </h3>
                   <div className="space-y-1.5 text-xs text-[#567496]">
                     <p>
-                      {copy.bestTimeLabel}: <strong className="text-[#284f7e]">{item.bestTime}</strong>
+                      {copy.bestTimeLabel}:{" "}
+                      <strong className="text-[#284f7e]">
+                        {item.bestTime}
+                      </strong>
                     </p>
                     <p>
-                      {copy.moodLabel}: <strong className="text-[#284f7e]">{item.mood}</strong>
+                      {copy.moodLabel}:{" "}
+                      <strong className="text-[#284f7e]">{item.mood}</strong>
                     </p>
                   </div>
                   <Button
                     className="w-full"
-                    onClick={() => router.push(ROUTES.scenicGallery)}
+                    onClick={() => router.push(ROUTES.home)}
                     type="button"
                     variant="outline"
                   >
@@ -268,28 +295,43 @@ export default function RootPage() {
       </section>
 
       <section className="mt-11 app-section">
-        <SectionHeading description={copy.themeSubtitle} title={copy.themeTitle} />
+        <SectionHeading
+          description={copy.themeSubtitle}
+          title={copy.themeTitle}
+        />
 
         <div className="grid gap-4 md:grid-cols-3">
           {copy.scenicThemes.map((theme, index) => {
-            const Icon = THEME_ICONS[theme.id as keyof typeof THEME_ICONS] ?? Compass
+            const Icon =
+              THEME_ICONS[theme.id as keyof typeof THEME_ICONS] ?? Compass;
 
             return (
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 key={theme.id}
-                transition={{ duration: 0.28, delay: Math.min(index * 0.05, 0.2), ease: "easeOut" }}
+                transition={{
+                  duration: 0.28,
+                  delay: Math.min(index * 0.05, 0.2),
+                  ease: "easeOut",
+                }}
                 viewport={{ amount: 0.2, once: true }}
                 whileInView={{ opacity: 1, y: 0 }}
               >
                 <Card className="app-hover border-[#d7e4f3] bg-white/90 py-0">
                   <CardContent className="space-y-3 p-5">
                     <Icon className="size-5 text-[#2e639c]" />
-                    <h3 className="text-lg font-semibold text-[#193a60]">{theme.title}</h3>
-                    <p className="text-sm leading-6 text-[#4f6d8f]">{theme.description}</p>
+                    <h3 className="text-lg font-semibold text-[#193a60]">
+                      {theme.title}
+                    </h3>
+                    <p className="text-sm leading-6 text-[#4f6d8f]">
+                      {theme.description}
+                    </p>
                     <div className="space-y-1.5 text-xs text-[#567395]">
                       {theme.points.map((point) => (
-                        <p className="inline-flex items-center gap-1.5" key={point}>
+                        <p
+                          className="inline-flex items-center gap-1.5"
+                          key={point}
+                        >
                           <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#4f80b4]" />
                           {point}
                         </p>
@@ -298,7 +340,7 @@ export default function RootPage() {
                   </CardContent>
                 </Card>
               </motion.div>
-            )
+            );
           })}
         </div>
       </section>
@@ -306,10 +348,15 @@ export default function RootPage() {
       <section className="mt-11 grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
         <Card className="app-hover border-[#d7e4f3] bg-white/90 py-0">
           <CardContent className="space-y-4 p-5 sm:p-6">
-            <SectionHeading description={copy.highlightsSubtitle} title={copy.highlightsTitle} />
+            <SectionHeading
+              description={copy.highlightsSubtitle}
+              title={copy.highlightsTitle}
+            />
             <div className="grid gap-3 sm:grid-cols-3">
               {copy.brandHighlights.map((item) => {
-                const Icon = HIGHLIGHT_ICONS[item.id as keyof typeof HIGHLIGHT_ICONS] ?? Sparkles
+                const Icon =
+                  HIGHLIGHT_ICONS[item.id as keyof typeof HIGHLIGHT_ICONS] ??
+                  Sparkles;
 
                 return (
                   <div
@@ -317,10 +364,14 @@ export default function RootPage() {
                     key={item.id}
                   >
                     <Icon className="mb-2 size-4 text-[#2e639c]" />
-                    <p className="text-sm font-semibold text-[#193a60]">{item.title}</p>
-                    <p className="mt-1.5 text-xs leading-5 text-[#4f6d8f]">{item.description}</p>
+                    <p className="text-sm font-semibold text-[#193a60]">
+                      {item.title}
+                    </p>
+                    <p className="mt-1.5 text-xs leading-5 text-[#4f6d8f]">
+                      {item.description}
+                    </p>
                   </div>
-                )
+                );
               })}
             </div>
           </CardContent>
@@ -328,7 +379,10 @@ export default function RootPage() {
 
         <Card className="app-hover border-[#d7e4f3] bg-white/90 py-0">
           <CardContent className="space-y-3 p-5 sm:p-6">
-            <SectionHeading description={copy.regionHint} title={copy.regionTitle} />
+            <SectionHeading
+              description={copy.regionHint}
+              title={copy.regionTitle}
+            />
             <div className="flex flex-wrap gap-2">
               {copy.regionTags.map((tag) => (
                 <span className="app-chip" key={tag}>
@@ -345,12 +399,18 @@ export default function RootPage() {
         <div className="absolute -right-12 -top-14 h-44 w-44 rounded-full bg-[#f5ca86]/30 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div className="max-w-2xl space-y-1.5">
-            <h3 className="falzo-display text-2xl font-semibold tracking-tight">{copy.bottomBannerTitle}</h3>
-            <p className="text-sm text-[#d9e8f8]">{copy.bottomBannerSubtitle}</p>
+            <h3 className="falzo-display text-2xl font-semibold tracking-tight">
+              {copy.bottomBannerTitle}
+            </h3>
+            <p className="text-sm text-[#d9e8f8]">
+              {copy.bottomBannerSubtitle}
+            </p>
           </div>
           <Button
             className="min-w-36"
-            onClick={() => router.push(getDashboardOrRegisterRoute(authenticated))}
+            onClick={() =>
+              router.push(getDashboardOrRegisterRoute(authenticated))
+            }
             type="button"
             variant="outline"
           >
@@ -363,7 +423,7 @@ export default function RootPage() {
       <div className="fixed inset-x-4 bottom-4 z-40 md:hidden">
         <Button
           className="h-11 w-full"
-          onClick={() => router.push(ROUTES.scenicGallery)}
+          onClick={() => router.push(ROUTES.home)}
           type="button"
           variant="gradient"
         >
@@ -372,5 +432,5 @@ export default function RootPage() {
         </Button>
       </div>
     </PageShell>
-  )
+  );
 }

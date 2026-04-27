@@ -32,7 +32,8 @@ export function AppProviders({ children }: PropsWithChildren) {
           closeButton
           position="top-center"
           toastOptions={{
-            className: "!rounded-xl !border !border-[#d7e2ef] !bg-white !text-[#143052]",
+            className:
+              "!rounded-xl !border !border-[#d7e2ef] !bg-white !text-[#143052]",
           }}
         />
       </LanguageProvider>
