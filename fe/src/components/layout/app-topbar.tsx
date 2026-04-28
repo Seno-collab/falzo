@@ -28,10 +28,10 @@ type TopbarAction = {
 function TopbarActionButton({
   action,
   fullWidth = false,
-}: {
+}: Readonly<{
   action: TopbarAction;
   fullWidth?: boolean;
-}) {
+}>) {
   const classes = cn(fullWidth ? "w-full justify-start" : "");
 
   if (action.to && !action.disabled) {

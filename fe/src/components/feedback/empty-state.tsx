@@ -8,13 +8,13 @@ export function EmptyState({
   icon,
   action,
   className,
-}: {
+}: Readonly<{
   title: string;
   description: string;
   icon?: ReactNode;
   action?: ReactNode;
   className?: string;
-}) {
+}>) {
   return (
     <div className={cn("app-empty-state", className)}>
       <span className="app-empty-icon">

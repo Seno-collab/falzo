@@ -7,12 +7,12 @@ export function UserPresenceBadge() {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    const timer = globalThis.setInterval(() => {
       setNow(new Date());
     }, 60_000);
 
     return () => {
-      window.clearInterval(timer);
+      globalThis.clearInterval(timer);
     };
   }, []);
 

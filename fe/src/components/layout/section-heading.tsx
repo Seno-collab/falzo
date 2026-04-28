@@ -7,13 +7,13 @@ export function SectionHeading({
   description,
   action,
   className,
-}: {
+}: Readonly<{
   kicker?: string;
   title: string;
   description?: string;
   action?: ReactNode;
   className?: string;
-}) {
+}>) {
   return (
     <div
       className={cn(

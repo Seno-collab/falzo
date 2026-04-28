@@ -4,10 +4,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function LoadingPanel({
   title,
   description,
-}: {
+}: Readonly<{
   title: string;
   description: string;
-}) {
+}>) {
   return (
     <div className="app-panel-soft space-y-4 p-6">
       <div className="inline-flex items-center gap-2 text-sm font-medium text-[#416389]">

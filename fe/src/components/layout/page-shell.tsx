@@ -6,12 +6,12 @@ export function PageShell({
   topbar,
   className,
   contentClassName,
-}: {
+}: Readonly<{
   children: ReactNode;
   topbar?: ReactNode;
   className?: string;
   contentClassName?: string;
-}) {
+}>) {
   return (
     <div className={cn("app-shell", className)}>
       {topbar ? (
