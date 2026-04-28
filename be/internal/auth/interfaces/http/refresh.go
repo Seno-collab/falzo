@@ -7,6 +7,7 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/domain"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 )
 
@@ -23,16 +24,16 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "INVALID_FORMAT",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.INVALID_FORMAT,
 			Message: "Invalid JSON payload",
 		})
 		return
 	}
 
 	if req.RefreshToken == "" {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "REQUIRED_FIELD",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.REQUIRED_FIELD,
 			Field:   "refresh_token",
 			Message: "Refresh token is required",
 		})
@@ -42,7 +43,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	key := authClientIP(r)
 	if !h.protector.refreshLimiter.allow(key, now) {
 		httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
-			Code:    "RATE_LIMITED",
+			Code:    share.RATE_LIMITED,
 			Message: "Too many refresh attempts, please try again later",
 		})
 		return

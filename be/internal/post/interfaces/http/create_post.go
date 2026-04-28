@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"falzo-be/internal/post/application/command"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 )
 
@@ -20,7 +21,7 @@ type CreatePostRequest struct {
 func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	var req CreatePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
 			Message: "Invalid JSON payload",
 		})

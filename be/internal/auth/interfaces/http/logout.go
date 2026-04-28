@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"falzo-be/internal/auth/application/command"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 )
 
@@ -13,7 +14,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	token, ok := strings.CutPrefix(authHeader, "Bearer ")
 	if !ok || token == "" {
 		httpResponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpResponse.ErrorDetail{
-			Code:    "UNAUTHORIZED",
+			Code:    share.UNAUTHORIZED,
 			Message: "Invalid authorization header",
 		})
 		return

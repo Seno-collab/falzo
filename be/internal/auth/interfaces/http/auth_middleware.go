@@ -5,16 +5,19 @@ import (
 	"strings"
 
 	"falzo-be/internal/auth/application"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 )
+
+const Unauthorized = "Unauthorized"
 
 func requireAuth(service application.Service) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				httpResponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpResponse.ErrorDetail{
-					Code:    "UNAUTHORIZED",
+				httpResponse.Error(w, http.StatusUnauthorized, Unauthorized, r, httpResponse.ErrorDetail{
+					Code:    share.UNAUTHORIZED,
 					Message: "Missing bearer token",
 				})
 				return
@@ -22,8 +25,8 @@ func requireAuth(service application.Service) func(next http.Handler) http.Handl
 
 			token, ok := strings.CutPrefix(authHeader, "Bearer ")
 			if !ok || token == "" {
-				httpResponse.Error(w, http.StatusUnauthorized, "Unauthorized", r, httpResponse.ErrorDetail{
-					Code:    "UNAUTHORIZED",
+				httpResponse.Error(w, http.StatusUnauthorized, Unauthorized, r, httpResponse.ErrorDetail{
+					Code:    share.UNAUTHORIZED,
 					Message: "Invalid authorization header",
 				})
 				return

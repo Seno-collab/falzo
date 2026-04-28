@@ -1,5 +1,13 @@
 package share
 
 const (
-	ValidationField = "Validation field"
+	ValidationField     = "Validation field"
+	INVALID_FIELD       = "INVALID_FIELD"
+	REQUIRED_FIELD      = "REQUIRED_FIELD"
+	SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+	INTERNAL_ERROR      = "INTERNAL_ERROR"
+	INVALID_FORMAT      = "INVALID_FORMAT"
+	RATE_LIMITED        = "RATE_LIMITED"
+	UNAUTHORIZED        = "UNAUTHORIZED"
+	NOT_FOUND           = "NOT_FOUND"
 )

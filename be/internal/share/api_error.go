@@ -1,4 +1,4 @@
-type share
+package share
 
 type ApiError struct {
 	status  int

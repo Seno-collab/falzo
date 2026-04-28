@@ -9,6 +9,7 @@ import (
 	"falzo-be/internal/location/application"
 	"falzo-be/internal/location/application/query"
 	"falzo-be/internal/location/domain"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -54,8 +55,8 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 	radiusRaw := strings.TrimSpace(r.URL.Query().Get("radius"))
 
 	if latRaw == "" || lngRaw == "" || radiusRaw == "" {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "REQUIRED_FIELD",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.REQUIRED_FIELD,
 			Message: "lat, lng and radius are required",
 		})
 		return
@@ -63,8 +64,8 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 
 	lat, err := strconv.ParseFloat(latRaw, 64)
 	if err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "INVALID_FIELD",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.INVALID_FIELD,
 			Field:   "lat",
 			Message: "lat must be a valid float64",
 		})
@@ -73,8 +74,8 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 
 	lng, err := strconv.ParseFloat(lngRaw, 64)
 	if err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "INVALID_FIELD",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.INVALID_FIELD,
 			Field:   "lng",
 			Message: "lng must be a valid float64",
 		})
@@ -83,8 +84,8 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 
 	radius, err := strconv.ParseFloat(radiusRaw, 64)
 	if err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "INVALID_FIELD",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.INVALID_FIELD,
 			Field:   "radius",
 			Message: "radius must be a valid float64",
 		})
@@ -151,40 +152,40 @@ func mapLocationError(err error) apiError {
 	case errors.Is(err, application.ErrSearchQueryRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "REQUIRED_FIELD",
+			message: share.ValidationField,
+			code:    share.REQUIRED_FIELD,
 			field:   "q",
 			detail:  "q is required",
 		}
 	case errors.Is(err, application.ErrLatitudeOutOfRange):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "lat",
 			detail:  "lat must be between -90 and 90",
 		}
 	case errors.Is(err, application.ErrLongitudeOutOfRange):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "lng",
 			detail:  "lng must be between -180 and 180",
 		}
 	case errors.Is(err, application.ErrRadiusMustBePositive):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "radius",
 			detail:  "radius must be greater than 0",
 		}
 	case errors.Is(err, application.ErrLocationIDRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "REQUIRED_FIELD",
+			message: share.ValidationField,
+			code:    share.REQUIRED_FIELD,
 			field:   "id",
 			detail:  "location id is required",
 		}
@@ -192,23 +193,15 @@ func mapLocationError(err error) apiError {
 		return apiError{
 			status:  http.StatusServiceUnavailable,
 			message: "Location service unavailable",
-			code:    "SERVICE_UNAVAILABLE",
+			code:    share.SERVICE_UNAVAILABLE,
 			detail:  "Location service is temporarily unavailable",
-			logErr:  true,
-		}
-	case errors.Is(err, domain.ErrLocationInternal):
-		return apiError{
-			status:  http.StatusInternalServerError,
-			message: "Internal server error",
-			code:    "INTERNAL_ERROR",
-			detail:  "An unexpected error occurred",
 			logErr:  true,
 		}
 	default:
 		return apiError{
 			status:  http.StatusInternalServerError,
 			message: "Internal server error",
-			code:    "INTERNAL_ERROR",
+			code:    share.INTERNAL_ERROR,
 			detail:  "An unexpected error occurred",
 			logErr:  true,
 		}

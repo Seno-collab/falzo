@@ -7,6 +7,7 @@ import (
 	"falzo-be/internal/post/application"
 	"falzo-be/internal/post/domain"
 	"falzo-be/internal/post/domain/value_object"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -46,7 +47,7 @@ func mapPostError(err error) apiError {
 	case errors.Is(err, application.ErrUserIDRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
+			message: share.ValidationField,
 			code:    "REQUIRED_FIELD",
 			field:   "user_id",
 			detail:  "user_id is required",
@@ -54,7 +55,7 @@ func mapPostError(err error) apiError {
 	case errors.Is(err, application.ErrPostIDRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
+			message: share.ValidationField,
 			code:    "REQUIRED_FIELD",
 			field:   "id",
 			detail:  "post id is required",
@@ -62,72 +63,72 @@ func mapPostError(err error) apiError {
 	case errors.Is(err, application.ErrPageMustBePositive):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "page",
 			detail:  "page must be greater than 0",
 		}
 	case errors.Is(err, application.ErrLimitMustBePositive):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "limit",
 			detail:  "limit must be greater than 0",
 		}
 	case errors.Is(err, application.ErrLocationNameRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "REQUIRED_FIELD",
+			message: share.ValidationField,
+			code:    share.REQUIRED_FIELD,
 			field:   "location_name",
 			detail:  "location_name is required",
 		}
 	case errors.Is(err, application.ErrLatitudeOutOfRange):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "latitude",
 			detail:  "latitude must be between -90 and 90",
 		}
 	case errors.Is(err, application.ErrLongitudeOutOfRange):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "longitude",
 			detail:  "longitude must be between -180 and 180",
 		}
 	case errors.Is(err, value_object.ErrImageURLRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "REQUIRED_FIELD",
+			message: share.ValidationField,
+			code:    share.REQUIRED_FIELD,
 			field:   "image_url",
 			detail:  "image_url is required",
 		}
 	case errors.Is(err, value_object.ErrInvalidImageURL):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "image_url",
 			detail:  "image_url must be a valid URL",
 		}
 	case errors.Is(err, value_object.ErrCaptionTooLong):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "caption",
 			detail:  "caption exceeds max length",
 		}
 	case errors.Is(err, value_object.ErrLocationNameTooLong):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "ValidationField",
-			code:    "INVALID_FIELD",
+			message: share.ValidationField,
+			code:    share.INVALID_FIELD,
 			field:   "location_name",
 			detail:  "location_name exceeds max length",
 		}
@@ -135,14 +136,14 @@ func mapPostError(err error) apiError {
 		return apiError{
 			status:  http.StatusNotFound,
 			message: "Post not found",
-			code:    "NOT_FOUND",
+			code:    share.NOT_FOUND,
 			detail:  "Requested post does not exist",
 		}
 	case errors.Is(err, domain.ErrPostDependencyUnavailable):
 		return apiError{
 			status:  http.StatusServiceUnavailable,
 			message: "Post service unavailable",
-			code:    "SERVICE_UNAVAILABLE",
+			code:    share.SERVICE_UNAVAILABLE,
 			detail:  "Post service is temporarily unavailable",
 			logErr:  true,
 		}
@@ -150,7 +151,7 @@ func mapPostError(err error) apiError {
 		return apiError{
 			status:  http.StatusInternalServerError,
 			message: "Internal server error",
-			code:    "INTERNAL_ERROR",
+			code:    share.INTERNAL_ERROR,
 			detail:  "An unexpected error occurred",
 			logErr:  true,
 		}

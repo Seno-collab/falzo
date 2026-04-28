@@ -7,6 +7,7 @@ import (
 
 	"falzo-be/internal/auth/application/command"
 	"falzo-be/internal/auth/domain"
+	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 )
 
@@ -25,16 +26,16 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "INVALID_FORMAT",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.INVALID_FORMAT,
 			Message: "Invalid JSON payload",
 		})
 		return
 	}
 
 	if req.Username == "" || req.Email == "" || req.Password == "" {
-		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
-			Code:    "REQUIRED_FIELD",
+		httpResponse.Error(w, http.StatusBadRequest, share.ValidationField, r, httpResponse.ErrorDetail{
+			Code:    share.REQUIRED_FIELD,
 			Message: "user_name, email and password are required",
 		})
 		return
@@ -42,7 +43,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	if !h.protector.registerLimiter.allow(authClientIP(r), now) {
 		httpResponse.Error(w, http.StatusTooManyRequests, "Too many requests", r, httpResponse.ErrorDetail{
-			Code:    "RATE_LIMITED",
+			Code:    share.RATE_LIMITED,
 			Message: "Too many registration attempts, please try again later",
 		})
 		return
