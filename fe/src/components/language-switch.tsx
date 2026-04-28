@@ -32,20 +32,20 @@ function LanguageOption({
 }
 
 export function LanguageSwitch() {
-  const { language, setLanguage } = useLanguage();
+  const { appLanguage, setAppLanguage } = useLanguage();
 
   return (
     <div className="fixed top-20 right-3 z-[70] sm:top-4 sm:right-4">
       <div className="inline-flex items-center gap-1 rounded-xl border border-white/70 bg-white/86 px-2 py-1 shadow-[0_20px_36px_-24px_rgba(20,50,85,0.7)] backdrop-blur-md">
         <Globe className="mx-0.5 size-3.5 text-[#3f648f]" />
         <LanguageOption
-          active={language === "vi"}
-          onSelect={setLanguage}
+          active={appLanguage === "vi"}
+          onSelect={setAppLanguage}
           target="vi"
         />
         <LanguageOption
-          active={language === "en"}
-          onSelect={setLanguage}
+          active={appLanguage === "en"}
+          onSelect={setAppLanguage}
           target="en"
         />
       </div>

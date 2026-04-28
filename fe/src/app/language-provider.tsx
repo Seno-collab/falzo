@@ -16,8 +16,8 @@ const SUPPORTED_LANGUAGES = new Set<AppLanguage>(["vi", "en"]);
 type LanguageContextValue = {
   appLanguage: AppLanguage;
   isVietnamese: boolean;
-  setLanguage: (language: AppLanguage) => void;
-  toggleLanguage: () => void;
+  setAppLanguage: (language: AppLanguage) => void;
+  toggleAppLanguage: () => void;
 };
 
 const VIETNAM_TIMEZONES = new Set(["Asia/Ho_Chi_Minh", "Asia/Saigon"]);
@@ -68,7 +68,7 @@ function getStoredLanguage(): AppLanguage | null {
 }
 
 export function LanguageProvider({ children }: Readonly<PropsWithChildren>) {
-  const [appLanguage, setAppLanguage] = useState<AppLanguage>(() => {
+  const [appLanguageState, setAppLanguageState] = useState<AppLanguage>(() => {
     return getStoredLanguage() ?? detectLanguageFromBrowser();
   });
 
@@ -77,26 +77,26 @@ export function LanguageProvider({ children }: Readonly<PropsWithChildren>) {
       return;
     }
 
-    globalThis.window.localStorage.setItem(LANGUAGE_STORAGE_KEY, appLanguage);
-    document.documentElement.lang = appLanguage;
-  }, [appLanguage]);
+    globalThis.window.localStorage.setItem(LANGUAGE_STORAGE_KEY, appLanguageState);
+    document.documentElement.lang = appLanguageState;
+  }, [  ]);
 
-  const setLanguage = useCallback((nextLanguage: AppLanguage) => {
-    setAppLanguage(nextLanguage);
+  const setAppLanguage = useCallback((nextLanguage: AppLanguage) => {
+    setAppLanguageState(nextLanguage);
   }, []);
 
-  const toggleLanguage = useCallback(() => {
-    setAppLanguage((previous) => (previous === "vi" ? "en" : "vi"));
+  const toggleAppLanguage = useCallback(() => {
+    setAppLanguageState((previous) => (previous === "vi" ? "en" : "vi"));
   }, []);
 
   const value = useMemo(
     () => ({
-      appLanguage,
-      isVietnamese: appLanguage === "vi",
-      setLanguage,
-      toggleLanguage,
+      appLanguage: appLanguageState,
+      isVietnamese: appLanguageState === "vi",
+      setAppLanguage,
+      toggleAppLanguage,
     }),
-    [appLanguage, setLanguage, toggleLanguage],
+    [appLanguageState, setAppLanguage, toggleAppLanguage],
   );
 
   return (
