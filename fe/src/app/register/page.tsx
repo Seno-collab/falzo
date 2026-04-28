@@ -33,11 +33,11 @@ type RegisterFormValues = {
 };
 
 export default function RegisterRoutePage() {
-  const { language } = useLanguage();
+  const { appLanguage } = useLanguage();
   const router = useRouter();
-  const copy = messages[language].registerPage;
-  const commonCopy = messages[language].common;
-  const homeCopy = messages[language].homePage;
+  const copy = messages[appLanguage].registerPage;
+  const commonCopy = messages[appLanguage].common;
+  const homeCopy = messages[appLanguage].homePage;
 
   const registerSchema = useMemo(
     () =>
@@ -97,7 +97,7 @@ export default function RegisterRoutePage() {
       router.replace(ROUTES.login);
     } catch (error) {
       toast.error(copy.errorTitle, {
-        description: getApiErrorMessage(error, language),
+        description: getApiErrorMessage(error, appLanguage),
       });
     }
   });
@@ -116,22 +116,8 @@ export default function RegisterRoutePage() {
         </p>
       }
       label={homeCopy.brand}
-      note={
-        language === "vi"
-          ? "Đăng ký nhanh với cấu trúc biểu mẫu rõ ràng."
-          : "Fast onboarding with a clean and structured form flow."
-      }
-      points={[
-        language === "vi"
-          ? "Biểu mẫu đăng ký được chuẩn hóa và tối ưu khả năng đọc."
-          : "Registration form follows the new system with stronger readability.",
-        language === "vi"
-          ? "Giữ nguyên toàn bộ endpoint và luồng backend hiện tại."
-          : "All current API endpoints and backend flow are preserved.",
-        language === "vi"
-          ? "Ưu tiên thao tác nhanh trên màn hình nhỏ."
-          : "Interaction is optimized for smaller touch screens.",
-      ]}
+      note={""}
+      points={[]}
       subtitle={copy.subtitle}
       title={copy.title}
       topbar={
@@ -140,7 +126,7 @@ export default function RegisterRoutePage() {
             {
               id: "home",
               icon: <House className="size-4" />,
-              label: language === "vi" ? "Trang chủ" : "Home",
+              label: appLanguage === "vi" ? "Trang chủ" : "Home",
               to: ROUTES.home,
               variant: "outline",
             },
@@ -156,7 +142,7 @@ export default function RegisterRoutePage() {
           brandIcon={<UserPlus className="size-3.5" />}
           meta={<UserPresenceBadge />}
           mobileMenuTitle={copy.title}
-          subtitle={language === "vi" ? "Đăng ký tài khoản" : "Create account"}
+          subtitle={appLanguage === "vi" ? "Đăng ký tài khoản" : "Create account"}
         />
       }
     >

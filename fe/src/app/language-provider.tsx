@@ -12,10 +12,9 @@ import {
 
 export type AppLanguage = "vi" | "en";
 const LANGUAGE_STORAGE_KEY = "falzo.language";
-const SUPPORTED_LANGUAGES: AppLanguage[] = new Set(["vi", "en"]);
-
+const SUPPORTED_LANGUAGES = new Set<AppLanguage>(["vi", "en"]);
 type LanguageContextValue = {
-  language: AppLanguage;
+  appLanguage: AppLanguage;
   isVietnamese: boolean;
   setLanguage: (language: AppLanguage) => void;
   toggleLanguage: () => void;
@@ -55,7 +54,7 @@ function normalizeLanguage(value: unknown): AppLanguage | null {
   }
 
   const normalized = value.toLowerCase();
-  return SUPPORTED_LANGUAGES.(normalized as AppLanguage)
+  return SUPPORTED_LANGUAGES.has(normalized as AppLanguage)
     ? (normalized as AppLanguage)
     : null;
 }
@@ -65,39 +64,39 @@ function getStoredLanguage(): AppLanguage | null {
     return null;
   }
 
-  return normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
+  return normalizeLanguage(globalThis.window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
 }
 
-export function LanguageProvider({ children }: PropsWithChildren) {
-  const [language, setLanguage] = useState<AppLanguage>(() => {
+export function LanguageProvider({ children }: Readonly<PropsWithChildren>) {
+  const [appLanguage, setAppLanguage] = useState<AppLanguage>(() => {
     return getStoredLanguage() ?? detectLanguageFromBrowser();
   });
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (globalThis.window === undefined) {
       return;
     }
 
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-    document.documentElement.lang = language;
-  }, [language]);
+    globalThis.window.localStorage.setItem(LANGUAGE_STORAGE_KEY, appLanguage);
+    document.documentElement.lang = appLanguage;
+  }, [appLanguage]);
 
   const setLanguage = useCallback((nextLanguage: AppLanguage) => {
-    setLanguageState(nextLanguage);
+    setAppLanguage(nextLanguage);
   }, []);
 
   const toggleLanguage = useCallback(() => {
-    setLanguage((previous) => (previous === "vi" ? "en" : "vi"));
+    setAppLanguage((previous) => (previous === "vi" ? "en" : "vi"));
   }, []);
 
   const value = useMemo(
     () => ({
-      language,
-      isVietnamese: language === "vi",
+      appLanguage,
+      isVietnamese: appLanguage === "vi",
       setLanguage,
       toggleLanguage,
     }),
-    [language, setLanguage, toggleLanguage],
+    [appLanguage, setLanguage, toggleLanguage],
   );
 
   return (

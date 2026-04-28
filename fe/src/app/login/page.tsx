@@ -28,11 +28,11 @@ type LoginFormValues = {
 };
 
 export default function LoginRoutePage() {
-  const { language } = useLanguage();
+  const { appLanguage } = useLanguage();
   const router = useRouter();
-  const copy = messages[language].loginPage;
-  const commonCopy = messages[language].common;
-  const homeCopy = messages[language].homePage;
+  const copy = messages[appLanguage].loginPage;
+  const commonCopy = messages[appLanguage].common;
+  const homeCopy = messages[appLanguage].homePage;
 
   const loginSchema = useMemo(
     () =>
@@ -68,7 +68,7 @@ export default function LoginRoutePage() {
       router.replace(ROUTES.dashboard);
     } catch (error) {
       toast.error(copy.errorTitle, {
-        description: getApiErrorMessage(error, language),
+        description: getApiErrorMessage(error, appLanguage),
       });
     }
   });
@@ -87,22 +87,8 @@ export default function LoginRoutePage() {
         </p>
       }
       label={homeCopy.brand}
-      note={
-        language === "vi"
-          ? "Đảm bảo đăng nhập ổn định với phản hồi rõ ràng."
-          : "Designed for stable sign-in flows with clear feedback."
-      }
-      points={[
-        language === "vi"
-          ? "Giữ nguyên kết nối API và quy trình xác thực hiện tại."
-          : "Preserves your existing API and authentication contract.",
-        language === "vi"
-          ? "Trạng thái lỗi, loading và phản hồi form rõ ràng hơn."
-          : "Clear loading, validation and error feedback during sign-in.",
-        language === "vi"
-          ? "Thiết kế responsive cho desktop, tablet và mobile."
-          : "Responsive for desktop, tablet, and mobile usage.",
-      ]}
+      note={""}
+      points={[]}
       subtitle={copy.subtitle}
       title={copy.title}
       topbar={
@@ -111,7 +97,7 @@ export default function LoginRoutePage() {
             {
               id: "home",
               icon: <House className="size-4" />,
-              label: language === "vi" ? "Trang chủ" : "Home",
+              label: appLanguage === "vi" ? "Trang chủ" : "Home",
               to: ROUTES.home,
               variant: "outline",
             },
@@ -127,7 +113,7 @@ export default function LoginRoutePage() {
           brandIcon={<LogIn className="size-3.5" />}
           meta={<UserPresenceBadge />}
           mobileMenuTitle={copy.title}
-          subtitle={language === "vi" ? "Đăng nhập bảo mật" : "Secure login"}
+          subtitle={appLanguage === "vi" ? "Đăng nhập bảo mật" : "Secure login"}
         />
       }
     >

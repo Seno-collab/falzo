@@ -340,6 +340,11 @@ export const viMessages = {
     successRedirectDashboard: "Đang chuyển vào dashboard.",
     successPromptLogin: "Bạn có thể đăng nhập ngay bây giờ.",
     errorTitle: "Đăng ký thất bại",
+    features: [
+      "Biểu mẫu đăng ký được chuẩn hóa và tối ưu khả năng đọc.",
+      "Giữ nguyên toàn bộ endpoint và luồng backend hiện tại.",
+      "Ưu tiên thao tác nhanh trên màn hình nhỏ.",
+    ],
   },
   auth: {
     loginSuccess: "Đăng nhập thành công",

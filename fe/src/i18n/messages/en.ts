@@ -349,6 +349,11 @@ export const enMessages = {
     successRedirectDashboard: "Redirecting to dashboard.",
     successPromptLogin: "You can login now.",
     errorTitle: "Registration failed",
+    features: [
+      "Registration form follows the new system with stronger readability.",
+      "All current API endpoints and backend flow are preserved.",
+      "Interaction is optimized for smaller touch screens.",
+    ],
   },
   auth: {
     loginSuccess: "Login successful",

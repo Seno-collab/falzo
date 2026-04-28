@@ -40,10 +40,10 @@ function resolveUserDisplayName(payload: unknown): string | null {
 }
 
 export default function DashboardRoutePage() {
-  const { language } = useLanguage();
+  const { appLanguage } = useLanguage();
   const router = useRouter();
-  const copy = messages[language].dashboardPage;
-  const featuredFrame = messages[language].homePage.scenicGallery[0];
+  const copy = messages[appLanguage].dashboardPage;
+  const featuredFrame = messages[appLanguage].homePage.scenicGallery[0];
 
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -138,7 +138,7 @@ export default function DashboardRoutePage() {
         <LoadingPanel
           description={copy.subtitle}
           title={
-            language === "vi"
+            appLanguage === "vi"
               ? "Đang kiểm tra phiên đăng nhập"
               : "Verifying your session"
           }
@@ -160,7 +160,7 @@ export default function DashboardRoutePage() {
                 />
                 {userDisplayName ? (
                   <p className="text-sm text-[#527299]">
-                    {language === "vi" ? "Xin chào" : "Welcome"},{" "}
+                    {appLanguage === "vi" ? "Xin chào" : "Welcome"},{" "}
                     {userDisplayName}
                   </p>
                 ) : null}
@@ -177,7 +177,7 @@ export default function DashboardRoutePage() {
                     key={label}
                   >
                     <p className="text-xs font-semibold tracking-wide text-[#6988ae] uppercase">
-                      {language === "vi" ? "Tác vụ" : "Action"}
+                      {appLanguage === "vi" ? "Tác vụ" : "Action"}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[#1d3d64]">
                       {label}
@@ -188,7 +188,7 @@ export default function DashboardRoutePage() {
 
               <ScenicFieldNote
                 bestTime={featuredFrame.bestTime}
-                language={language}
+                language={appLanguage}
                 location={featuredFrame.location}
                 mood={featuredFrame.mood}
                 tag={featuredFrame.tag}

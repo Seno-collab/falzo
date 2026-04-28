@@ -39,11 +39,11 @@ const HIGHLIGHT_ICONS = {
 } as const;
 
 export default function RootPage() {
-  const { language } = useLanguage();
+  const { appLanguage } = useLanguage();
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
-  const copy = messages[language].homePage;
-  const commonCopy = messages[language].common;
+const copy = messages[appLanguage as keyof typeof messages].homePage;
+  const commonCopy = messages[appLanguage  as keyof typeof messages].common;
 
   useEffect(() => {
     document.title = copy.documentTitle;
@@ -136,7 +136,7 @@ export default function RootPage() {
 
           <ScenicFieldNote
             bestTime={copy.scenicGallery[0].bestTime}
-            language={language}
+            language={appLanguage}
             location={copy.scenicGallery[0].location}
             mood={copy.scenicGallery[0].mood}
             tag={copy.scenicGallery[0].tag}
@@ -303,7 +303,7 @@ export default function RootPage() {
         <div className="grid gap-4 md:grid-cols-3">
           {copy.scenicThemes.map((theme, index) => {
             const Icon =
-              THEME_ICONS[theme.id as keyof typeof THEME_ICONS] ?? Compass;
+              THEME_ICONS[theme.id] ?? Compass;
 
             return (
               <motion.div
@@ -355,7 +355,7 @@ export default function RootPage() {
             <div className="grid gap-3 sm:grid-cols-3">
               {copy.brandHighlights.map((item) => {
                 const Icon =
-                  HIGHLIGHT_ICONS[item.id as keyof typeof HIGHLIGHT_ICONS] ??
+                  HIGHLIGHT_ICONS[item.id] ??
                   Sparkles;
 
                 return (
