@@ -44,7 +44,7 @@ export default function RegisterRoutePage() {
       z
         .object({
           fullName: z.string().trim().min(2, copy.fullNameMin),
-          email: z.string().trim().email(copy.emailInvalid),
+          email: z.string().trim().email({ message: copy.emailInvalid }),
           password: z.string().min(6, copy.passwordMin),
           confirmPassword: z.string().min(6, copy.confirmPasswordMin),
         })

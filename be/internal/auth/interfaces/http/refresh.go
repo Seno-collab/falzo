@@ -23,7 +23,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
 			Message: "Invalid JSON payload",
 		})
@@ -31,7 +31,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.RefreshToken == "" {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
 			Field:   "refresh_token",
 			Message: "Refresh token is required",

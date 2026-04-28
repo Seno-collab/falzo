@@ -14,7 +14,7 @@ import (
 func (h *Handler) GetPostDetail(w http.ResponseWriter, r *http.Request) {
 	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
 	if err != nil || postID == 0 {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FIELD",
 			Field:   "id",
 			Message: "id must be a valid positive integer",

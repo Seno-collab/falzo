@@ -5,7 +5,7 @@ import (
 
 	"falzo-be/internal/post/domain/entity"
 	"falzo-be/internal/post/domain/event"
-	"falzo-be/internal/post/domain/valueobject"
+	"falzo-be/internal/post/domain/value_object"
 )
 
 type Post struct {
@@ -16,9 +16,9 @@ type Post struct {
 func NewPost(
 	id uint64,
 	userID uint64,
-	imageURL valueobject.ImageURL,
-	caption valueobject.Caption,
-	locationName valueobject.LocationName,
+	imageURL value_object.ImageURL,
+	caption value_object.Caption,
+	locationName value_object.LocationName,
 	latitude float64,
 	longitude float64,
 ) *Post {

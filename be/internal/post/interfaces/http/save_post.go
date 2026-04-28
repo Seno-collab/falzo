@@ -19,7 +19,7 @@ type SavePostRequest struct {
 func (h *Handler) SavePost(w http.ResponseWriter, r *http.Request) {
 	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
 	if err != nil || postID == 0 {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FIELD",
 			Field:   "id",
 			Message: "id must be a valid positive integer",
@@ -29,7 +29,7 @@ func (h *Handler) SavePost(w http.ResponseWriter, r *http.Request) {
 
 	var req SavePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FORMAT",
 			Message: "Invalid JSON payload",
 		})

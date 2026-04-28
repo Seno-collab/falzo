@@ -8,7 +8,7 @@ import (
 	"falzo-be/internal/post/application/query"
 	"falzo-be/internal/post/domain"
 	"falzo-be/internal/post/domain/aggregate"
-	"falzo-be/internal/post/domain/valueobject"
+	"falzo-be/internal/post/domain/value_object"
 )
 
 var ErrUserIDRequired = errors.New("user id is required")
@@ -31,15 +31,15 @@ func (s *service) CreatePost(ctx context.Context, cmd command.CreatePost) (query
 		return query.Post{}, ErrLongitudeOutOfRange
 	}
 
-	imageURL, err := valueobject.NewImageURL(cmd.ImageURL)
+	imageURL, err := value_object.NewImageURL(cmd.ImageURL)
 	if err != nil {
 		return query.Post{}, err
 	}
-	caption, err := valueobject.NewCaption(cmd.Caption)
+	caption, err := value_object.NewCaption(cmd.Caption)
 	if err != nil {
 		return query.Post{}, err
 	}
-	locationName, err := valueobject.NewLocationName(cmd.LocationName)
+	locationName, err := value_object.NewLocationName(cmd.LocationName)
 	if err != nil {
 		return query.Post{}, err
 	}

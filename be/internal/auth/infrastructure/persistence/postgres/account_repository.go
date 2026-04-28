@@ -8,7 +8,7 @@ import (
 	"falzo-be/internal/auth/domain/aggregate"
 	"falzo-be/internal/auth/domain/entity"
 	"falzo-be/internal/auth/domain/repository"
-	"falzo-be/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/value_object"
 	"falzo-be/pkg/database"
 	"falzo-be/pkg/dberr"
 )
@@ -73,7 +73,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 	return nil
 }
 
-func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email valueobject.Email) (*aggregate.Account, error) {
+func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email value_object.Email) (*aggregate.Account, error) {
 	if r.db == nil || r.db.DB() == nil {
 		return nil, domain.ErrAuthDependencyUnavailable
 	}
@@ -106,15 +106,15 @@ func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email valueob
 		return nil, mapDBError(ctx, accountRepoService, "accounts.find_active_by_email", err)
 	}
 
-	user.Username, err = valueobject.NewUsername(rawUsername)
+	user.Username, err = value_object.NewUsername(rawUsername)
 	if err != nil {
 		return nil, err
 	}
-	user.Email, err = valueobject.NewEmail(rawEmail)
+	user.Email, err = value_object.NewEmail(rawEmail)
 	if err != nil {
 		return nil, err
 	}
-	user.PasswordHash, err = valueobject.NewPasswordHash(rawPasswordHash)
+	user.PasswordHash, err = value_object.NewPasswordHash(rawPasswordHash)
 	if err != nil {
 		return nil, err
 	}

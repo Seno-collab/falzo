@@ -54,7 +54,7 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 	radiusRaw := strings.TrimSpace(r.URL.Query().Get("radius"))
 
 	if latRaw == "" || lngRaw == "" || radiusRaw == "" {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "REQUIRED_FIELD",
 			Message: "lat, lng and radius are required",
 		})
@@ -63,7 +63,7 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 
 	lat, err := strconv.ParseFloat(latRaw, 64)
 	if err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FIELD",
 			Field:   "lat",
 			Message: "lat must be a valid float64",
@@ -73,7 +73,7 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 
 	lng, err := strconv.ParseFloat(lngRaw, 64)
 	if err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FIELD",
 			Field:   "lng",
 			Message: "lng must be a valid float64",
@@ -83,7 +83,7 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 
 	radius, err := strconv.ParseFloat(radiusRaw, 64)
 	if err != nil {
-		httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+		httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 			Code:    "INVALID_FIELD",
 			Field:   "radius",
 			Message: "radius must be a valid float64",
@@ -151,7 +151,7 @@ func mapLocationError(err error) apiError {
 	case errors.Is(err, application.ErrSearchQueryRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "Validation failed",
+			message: "ValidationField",
 			code:    "REQUIRED_FIELD",
 			field:   "q",
 			detail:  "q is required",
@@ -159,7 +159,7 @@ func mapLocationError(err error) apiError {
 	case errors.Is(err, application.ErrLatitudeOutOfRange):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "Validation failed",
+			message: "ValidationField",
 			code:    "INVALID_FIELD",
 			field:   "lat",
 			detail:  "lat must be between -90 and 90",
@@ -167,7 +167,7 @@ func mapLocationError(err error) apiError {
 	case errors.Is(err, application.ErrLongitudeOutOfRange):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "Validation failed",
+			message: "ValidationField",
 			code:    "INVALID_FIELD",
 			field:   "lng",
 			detail:  "lng must be between -180 and 180",
@@ -175,7 +175,7 @@ func mapLocationError(err error) apiError {
 	case errors.Is(err, application.ErrRadiusMustBePositive):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "Validation failed",
+			message: "ValidationField",
 			code:    "INVALID_FIELD",
 			field:   "radius",
 			detail:  "radius must be greater than 0",
@@ -183,7 +183,7 @@ func mapLocationError(err error) apiError {
 	case errors.Is(err, application.ErrLocationIDRequired):
 		return apiError{
 			status:  http.StatusBadRequest,
-			message: "Validation failed",
+			message: "ValidationField",
 			code:    "REQUIRED_FIELD",
 			field:   "id",
 			detail:  "location id is required",

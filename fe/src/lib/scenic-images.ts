@@ -32,7 +32,7 @@ export function getOptimizedScenicImage(id: string) {
     return null;
   }
 
-  const fallbackVariant = entry.jpg[entry.jpg.length - 1];
+  const fallbackVariant = entry.jpg.at(-1);
 
   return {
     avifSrcSet: toSrcSet(entry.avif),

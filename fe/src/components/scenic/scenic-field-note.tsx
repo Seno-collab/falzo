@@ -8,14 +8,14 @@ export function ScenicFieldNote({
   mood,
   tag,
   className,
-}: {
+}: Readonly<{
   language: "vi" | "en"
   location: string
   bestTime: string
   mood: string
   tag: string
   className?: string
-}) {
+}>) {
   const copy =
     language === "vi"
       ? {

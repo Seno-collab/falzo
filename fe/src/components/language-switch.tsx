@@ -7,11 +7,11 @@ function LanguageOption({
   target,
   active,
   onSelect,
-}: {
+}: Readonly<{
   target: AppLanguage;
   active: boolean;
   onSelect: (language: AppLanguage) => void;
-}) {
+}>) {
   return (
     <Button
       aria-pressed={active}

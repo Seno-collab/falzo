@@ -12,7 +12,7 @@ import {
 
 export type AppLanguage = "vi" | "en";
 const LANGUAGE_STORAGE_KEY = "falzo.language";
-const SUPPORTED_LANGUAGES: AppLanguage[] = ["vi", "en"];
+const SUPPORTED_LANGUAGES: AppLanguage[] = new Set(["vi", "en"]);
 
 type LanguageContextValue = {
   language: AppLanguage;
@@ -34,12 +34,12 @@ function isVietnameseLocale(locale: string) {
 }
 
 function detectLanguageFromBrowser(): AppLanguage {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return "en";
   }
 
   const browserLocales = Array.from(
-    new Set([...(window.navigator.languages ?? []), window.navigator.language]),
+    new Set([...(globalThis.navigator.languages ?? []), globalThis.navigator.language]),
   ).filter((value): value is string => Boolean(value));
 
   const hasVietnameseLocale = browserLocales.some(isVietnameseLocale);
@@ -55,13 +55,13 @@ function normalizeLanguage(value: unknown): AppLanguage | null {
   }
 
   const normalized = value.toLowerCase();
-  return SUPPORTED_LANGUAGES.includes(normalized as AppLanguage)
+  return SUPPORTED_LANGUAGES.(normalized as AppLanguage)
     ? (normalized as AppLanguage)
     : null;
 }
 
 function getStoredLanguage(): AppLanguage | null {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return null;
   }
 
@@ -69,7 +69,7 @@ function getStoredLanguage(): AppLanguage | null {
 }
 
 export function LanguageProvider({ children }: PropsWithChildren) {
-  const [language, setLanguageState] = useState<AppLanguage>(() => {
+  const [language, setLanguage] = useState<AppLanguage>(() => {
     return getStoredLanguage() ?? detectLanguageFromBrowser();
   });
 
@@ -87,7 +87,7 @@ export function LanguageProvider({ children }: PropsWithChildren) {
   }, []);
 
   const toggleLanguage = useCallback(() => {
-    setLanguageState((previous) => (previous === "vi" ? "en" : "vi"));
+    setLanguage((previous) => (previous === "vi" ? "en" : "vi"));
   }, []);
 
   const value = useMemo(

@@ -7,7 +7,7 @@ import (
 
 	"falzo-be/internal/post/application/query"
 	"falzo-be/internal/post/domain"
-	"falzo-be/internal/post/domain/valueobject"
+	"falzo-be/internal/post/domain/value_object"
 )
 
 var ErrLocationNameRequired = errors.New("location name is required")
@@ -21,7 +21,7 @@ func (s *service) GetPostsByLocation(ctx context.Context, input query.GetPostsBy
 		return nil, ErrLocationNameRequired
 	}
 
-	locationName, err := valueobject.NewLocationName(input.LocationName)
+	locationName, err := value_object.NewLocationName(input.LocationName)
 	if err != nil {
 		return nil, err
 	}

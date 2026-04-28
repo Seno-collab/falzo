@@ -4,7 +4,7 @@ import (
 	"context"
 	"falzo-be/internal/auth/domain"
 	"falzo-be/internal/auth/domain/aggregate"
-	"falzo-be/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/value_object"
 
 	"falzo-be/internal/auth/application/command"
 )
@@ -14,17 +14,17 @@ func (s *service) Register(ctx context.Context, cmd command.Register) error {
 		return domain.ErrAuthDependencyUnavailable
 	}
 
-	username, err := valueobject.NewUsername(cmd.Username)
+	username, err := value_object.NewUsername(cmd.Username)
 	if err != nil {
 		return err
 	}
 
-	email, err := valueobject.NewEmail(cmd.Email)
+	email, err := value_object.NewEmail(cmd.Email)
 	if err != nil {
 		return err
 	}
 
-	password, err := valueobject.NewRawPassword(cmd.Password)
+	password, err := value_object.NewRawPassword(cmd.Password)
 	if err != nil {
 		return err
 	}

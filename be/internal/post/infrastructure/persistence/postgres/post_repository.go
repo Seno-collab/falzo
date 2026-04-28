@@ -11,7 +11,7 @@ import (
 	"falzo-be/internal/post/domain/aggregate"
 	"falzo-be/internal/post/domain/entity"
 	"falzo-be/internal/post/domain/repository"
-	"falzo-be/internal/post/domain/valueobject"
+	"falzo-be/internal/post/domain/value_object"
 	"falzo-be/pkg/database"
 )
 
@@ -162,7 +162,7 @@ func (r *PostRepository) GetPostDetail(ctx context.Context, postID uint64) (*ent
 	return &post, nil
 }
 
-func (r *PostRepository) GetPostsByLocation(ctx context.Context, locationName valueobject.LocationName) ([]entity.Post, error) {
+func (r *PostRepository) GetPostsByLocation(ctx context.Context, locationName value_object.LocationName) ([]entity.Post, error) {
 	if r.db == nil || r.db.DB() == nil {
 		return nil, domain.ErrPostDependencyUnavailable
 	}
@@ -244,15 +244,15 @@ func scanPost(scanner rowScanner) (entity.Post, error) {
 		return entity.Post{}, err
 	}
 
-	imageURL, err := valueobject.NewImageURL(rawImageURL)
+	imageURL, err := value_object.NewImageURL(rawImageURL)
 	if err != nil {
 		return entity.Post{}, err
 	}
-	caption, err := valueobject.NewCaption(rawCaption)
+	caption, err := value_object.NewCaption(rawCaption)
 	if err != nil {
 		return entity.Post{}, err
 	}
-	locationName, err := valueobject.NewLocationName(rawLocationName)
+	locationName, err := value_object.NewLocationName(rawLocationName)
 	if err != nil {
 		return entity.Post{}, err
 	}

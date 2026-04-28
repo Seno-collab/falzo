@@ -17,7 +17,7 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 	if pageRaw != "" {
 		parsedPage, err := strconv.Atoi(pageRaw)
 		if err != nil {
-			httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+			httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 				Code:    "INVALID_FIELD",
 				Field:   "page",
 				Message: "page must be an integer",
@@ -31,7 +31,7 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 	if limitRaw != "" {
 		parsedLimit, err := strconv.Atoi(limitRaw)
 		if err != nil {
-			httpResponse.Error(w, http.StatusBadRequest, "Validation failed", r, httpResponse.ErrorDetail{
+			httpResponse.Error(w, http.StatusBadRequest, "ValidationField", r, httpResponse.ErrorDetail{
 				Code:    "INVALID_FIELD",
 				Field:   "limit",
 				Message: "limit must be an integer",

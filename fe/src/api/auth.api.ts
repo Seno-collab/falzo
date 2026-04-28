@@ -119,7 +119,7 @@ function readMessage(data: unknown): string | null {
 }
 
 function writeStorage(scope: StorageScope, key: string, value: string) {
-  if (typeof window === "undefined") {
+   if (globalThis.window === undefined) {
     return;
   }
 
@@ -131,7 +131,7 @@ function writeStorage(scope: StorageScope, key: string, value: string) {
 }
 
 function clearStorageKey(key: string) {
-  if (typeof window === "undefined") {
+   if (globalThis.window === undefined) {
     return;
   }
 
@@ -140,7 +140,7 @@ function clearStorageKey(key: string) {
 }
 
 function getStoredValue(key: string): string | null {
-  if (typeof window === "undefined") {
+   if (globalThis.window === undefined) {
     return null;
   }
 
@@ -148,7 +148,7 @@ function getStoredValue(key: string): string | null {
 }
 
 function getStorageScopeForKey(key: string): StorageScope | null {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return null;
   }
 
@@ -255,11 +255,9 @@ async function refreshTokenApi(): Promise<AuthSession> {
 }
 
 function getRefreshPromise() {
-  if (!refreshInFlight) {
-    refreshInFlight = refreshTokenApi().finally(() => {
+  refreshInFlight ??= refreshTokenApi().finally(() => {
       refreshInFlight = null;
     });
-  }
 
   return refreshInFlight;
 }
@@ -275,13 +273,13 @@ function installAuthInterceptor() {
     (response) => response,
     async (error: unknown) => {
       if (!(error instanceof AxiosError)) {
-        return Promise.reject(error);
+        throw error;
       }
 
       const status = error.response?.status;
       const requestConfig = error.config as RetryableRequestConfig | undefined;
       if (!requestConfig) {
-        return Promise.reject(error);
+        throw error;
       }
 
       if (
@@ -290,12 +288,12 @@ function installAuthInterceptor() {
         requestConfig.skipAuthRefresh ||
         isExcludedFromRetry(requestConfig.url)
       ) {
-        return Promise.reject(error);
+        throw error;
       }
 
       if (!getStoredValue(REFRESH_TOKEN_KEY)) {
         clearAuthSession();
-        return Promise.reject(error);
+        throw error;
       }
 
       requestConfig._retry = true;
@@ -310,18 +308,18 @@ function installAuthInterceptor() {
         return http.request(requestConfig);
       } catch {
         clearAuthSession();
-        return Promise.reject(error);
+        throw error;
       }
     },
   );
 }
 
 export function initializeAuthHeader() {
-  if (typeof window !== "undefined") {
+  if (globalThis.window !== undefined) {
     installAuthInterceptor();
   }
 
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return;
   }
 

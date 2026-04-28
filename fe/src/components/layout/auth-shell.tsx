@@ -12,7 +12,7 @@ export function AuthShell({
   note,
   children,
   footer,
-}: {
+}: Readonly<{
   topbar: ReactNode;
   label: string;
   title: string;
@@ -21,7 +21,7 @@ export function AuthShell({
   note: string;
   children: ReactNode;
   footer?: ReactNode;
-}) {
+}>) {
   return (
     <PageShell contentClassName="pb-12 md:pb-16" topbar={topbar}>
       <div className="grid gap-5 lg:grid-cols-[1.02fr_0.98fr]">

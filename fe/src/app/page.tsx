@@ -431,6 +431,7 @@ export default function RootPage() {
           {copy.stickyMobileCta}
         </Button>
       </div>
+      <div className="bg-red-500 text-white p-4">Test Tailwind</div>
     </PageShell>
   );
 }

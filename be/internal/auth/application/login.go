@@ -8,7 +8,7 @@ import (
 	"falzo-be/internal/auth/application/query"
 	"falzo-be/internal/auth/domain"
 	"falzo-be/internal/auth/domain/aggregate"
-	"falzo-be/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/value_object"
 	"time"
 )
 
@@ -17,12 +17,12 @@ func (s *service) Login(ctx context.Context, cmd command.Login) (query.TokenPair
 		return query.TokenPair{}, domain.ErrAuthDependencyUnavailable
 	}
 
-	email, err := valueobject.NewEmail(cmd.Email)
+	email, err := value_object.NewEmail(cmd.Email)
 	if err != nil {
 		return query.TokenPair{}, domain.ErrInvalidCredentials
 	}
 
-	password, err := valueobject.NewRawPassword(cmd.Password)
+	password, err := value_object.NewRawPassword(cmd.Password)
 	if err != nil {
 		return query.TokenPair{}, domain.ErrInvalidCredentials
 	}

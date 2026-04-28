@@ -72,14 +72,14 @@ export function AppTopbar({
   meta,
   actions,
   mobileMenuTitle,
-}: {
+}: Readonly<{
   brand: string;
   brandIcon?: ReactNode;
   subtitle?: string;
   meta?: ReactNode;
   actions: TopbarAction[];
   mobileMenuTitle: string;
-}) {
+}>) {
   return (
     <div className="app-topbar-panel">
       <div className="min-w-0 space-y-1">

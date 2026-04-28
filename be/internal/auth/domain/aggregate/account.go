@@ -5,7 +5,7 @@ import (
 
 	"falzo-be/internal/auth/domain/entity"
 	"falzo-be/internal/auth/domain/event"
-	"falzo-be/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/value_object"
 )
 
 type Account struct {
@@ -16,9 +16,9 @@ type Account struct {
 
 func NewAccount(
 	id uint64,
-	username valueobject.Username,
-	email valueobject.Email,
-	passwordHash valueobject.PasswordHash,
+	username value_object.Username,
+	email value_object.Email,
+	passwordHash value_object.PasswordHash,
 	roles []string,
 ) *Account {
 	now := time.Now().UTC()

@@ -10,7 +10,7 @@ import (
 	"falzo-be/internal/auth/domain"
 	"falzo-be/internal/auth/domain/aggregate"
 	"falzo-be/internal/auth/domain/entity"
-	"falzo-be/internal/auth/domain/valueobject"
+	"falzo-be/internal/auth/domain/value_object"
 	"falzo-be/internal/auth/infrastructure/security/bcrypt"
 	"falzo-be/internal/auth/infrastructure/token"
 	"falzo-be/pkg/config"
@@ -41,7 +41,7 @@ func (f *fakeAccountRepository) Save(ctx context.Context, account *aggregate.Acc
 	return f.saveErr
 }
 
-func (f *fakeAccountRepository) FindActiveByEmail(ctx context.Context, email valueobject.Email) (*aggregate.Account, error) {
+func (f *fakeAccountRepository) FindActiveByEmail(ctx context.Context, email value_object.Email) (*aggregate.Account, error) {
 	if f.findErr != nil {
 		return nil, f.findErr
 	}
@@ -159,13 +159,13 @@ func TestLoginUnavailableWithoutRepository(t *testing.T) {
 
 func TestLoginSuccess(t *testing.T) {
 	hasher := bcrypt.NewPasswordHasher()
-	hash, err := hasher.Hash(valueobject.RawPassword("admin123"))
+	hash, err := hasher.Hash(value_object.RawPassword("admin123"))
 	if err != nil {
 		t.Fatalf("hash password: %v", err)
 	}
 
-	username, _ := valueobject.NewUsername("admin")
-	email, _ := valueobject.NewEmail("admin@example.com")
+	username, _ := value_object.NewUsername("admin")
+	email, _ := value_object.NewEmail("admin@example.com")
 	account := aggregate.RehydrateAccount(entity.User{
 		ID:           7,
 		Username:     username,
