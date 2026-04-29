@@ -42,8 +42,8 @@ export default function RootPage() {
   const { appLanguage } = useLanguage();
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
-const copy = messages[appLanguage as keyof typeof messages].homePage;
-  const commonCopy = messages[appLanguage  as keyof typeof messages].common;
+  const copy = messages[appLanguage as keyof typeof messages].homePage;
+  const commonCopy = messages[appLanguage as keyof typeof messages].common;
 
   useEffect(() => {
     document.title = copy.documentTitle;
@@ -302,8 +302,7 @@ const copy = messages[appLanguage as keyof typeof messages].homePage;
 
         <div className="grid gap-4 md:grid-cols-3">
           {copy.scenicThemes.map((theme, index) => {
-            const Icon =
-              THEME_ICONS[theme.id] ?? Compass;
+            const Icon = THEME_ICONS[theme.id] ?? Compass;
 
             return (
               <motion.div
@@ -354,9 +353,7 @@ const copy = messages[appLanguage as keyof typeof messages].homePage;
             />
             <div className="grid gap-3 sm:grid-cols-3">
               {copy.brandHighlights.map((item) => {
-                const Icon =
-                  HIGHLIGHT_ICONS[item.id] ??
-                  Sparkles;
+                const Icon = HIGHLIGHT_ICONS[item.id] ?? Sparkles;
 
                 return (
                   <div
@@ -431,7 +428,6 @@ const copy = messages[appLanguage as keyof typeof messages].homePage;
           {copy.stickyMobileCta}
         </Button>
       </div>
-      <div className="bg-red-500 text-white p-4">Test Tailwind</div>
     </PageShell>
   );
 }

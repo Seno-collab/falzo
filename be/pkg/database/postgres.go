@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,18 +9,19 @@ import (
 
 	"falzo-be/pkg/config"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // Client defines the database client contract exposed to the application.
 type Client interface {
-	DB() *sql.DB
+	Pool() *pgxpool.Pool
 	Close() error
 }
 
-// postgresClient implements Client using a PostgreSQL-backed sql.DB connection.
+// postgresClient implements Client using a PostgreSQL-backed pgxpool.Pool connection.
 type postgresClient struct {
-	db *sql.DB
+	pool *pgxpool.Pool
 }
 
 func New(cfg config.PostgresConfig) (Client, error) {
@@ -43,38 +43,43 @@ func New(cfg config.PostgresConfig) (Client, error) {
 	dsnURL.RawQuery = query.Encode()
 	dsn := dsnURL.String()
 
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetMaxOpenConns(cfg.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-
-	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(pingCtx); err != nil {
-		_ = db.Close()
-		return nil, err
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PostgreSQL DSN: %w", err)
+	}
+	config.MaxConns = int32(cfg.MaxOpenConns)
+	config.MinConns = int32(cfg.MinOpenConns)
+	config.MaxConnIdleTime = cfg.ConnMaxIdleTime
+	config.MaxConnLifetime = cfg.ConnMaxLifetime
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
 	}
 
-	return &postgresClient{db: db}, nil
+	// Verify the connection by pinging the database.
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to ping PostgreSQL database: %w", err)
+	}
+	return &postgresClient{pool: pool}, nil
 }
 
-func (e *postgresClient) DB() *sql.DB {
+func (e *postgresClient) Pool() *pgxpool.Pool {
 	if e == nil {
 		return nil
 	}
 
-	return e.db
+	return e.pool
 }
 
 func (e *postgresClient) Close() error {
-	if e == nil || e.db == nil {
+	if e == nil || e.pool == nil {
 		return nil
 	}
 
-	return e.db.Close()
+	e.pool.Close()
+	return nil
 }

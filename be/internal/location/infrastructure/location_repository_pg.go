@@ -20,11 +20,11 @@ func NewLocationRepositoryPG(db database.Client) repository.LocationRepository {
 }
 
 func (r *LocationRepositoryPG) Search(ctx context.Context, query string) ([]entity.Location, error) {
-	if r.db == nil || r.db.DB() == nil {
+	if r.db == nil || r.db.Pool() == nil {
 		return nil, domain.ErrLocationDependencyUnavailable
 	}
 
-	rows, err := r.db.DB().QueryContext(ctx, `
+	rows, err := r.db.Pool().Query(ctx, `
 		SELECT id::text, name, address, latitude, longitude
 		FROM locations
 		WHERE name ILIKE '%' || $1 || '%'
@@ -60,11 +60,11 @@ func (r *LocationRepositoryPG) Search(ctx context.Context, query string) ([]enti
 }
 
 func (r *LocationRepositoryPG) Nearby(ctx context.Context, latitude, longitude, radiusMeters float64) ([]entity.NearbyLocation, error) {
-	if r.db == nil || r.db.DB() == nil {
+	if r.db == nil || r.db.Pool() == nil {
 		return nil, domain.ErrLocationDependencyUnavailable
 	}
 
-	rows, err := r.db.DB().QueryContext(ctx, `
+	rows, err := r.db.Pool().Query(ctx, `
 		SELECT
 			id::text,
 			name,
@@ -114,11 +114,11 @@ func (r *LocationRepositoryPG) Nearby(ctx context.Context, latitude, longitude, 
 }
 
 func (r *LocationRepositoryPG) GetPostsByLocationID(ctx context.Context, locationID string) ([]entity.LocationPost, error) {
-	if r.db == nil || r.db.DB() == nil {
+	if r.db == nil || r.db.Pool() == nil {
 		return nil, domain.ErrLocationDependencyUnavailable
 	}
 
-	rows, err := r.db.DB().QueryContext(ctx, `
+	rows, err := r.db.Pool().Query(ctx, `
 		SELECT
 			p.id::text,
 			p.user_id,

@@ -49,8 +49,10 @@ type PostgresConfig struct {
 	Password        string
 	SSLMode         string
 	MaxOpenConns    int
+	MinOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 type RedisConfig struct {
@@ -93,8 +95,10 @@ func Load() Config {
 			Password:        GetEnv("POSTGRES_PASSWORD", ""),
 			SSLMode:         GetEnv("POSTGRES_SSL_MODE", "disable"),
 			MaxOpenConns:    GetInt("POSTGRES_MAX_OPEN_CONNS", 25),
+			MinOpenConns:    GetInt("POSTGRES_MIN_OPEN_CONNS", 5),
 			MaxIdleConns:    GetInt("POSTGRES_MAX_IDLE_CONNS", 25),
 			ConnMaxLifetime: GetDuration("POSTGRES_CONN_MAX_LIFETIME", 5*time.Minute),
+			ConnMaxIdleTime: GetDuration("POSTGRES_CONN_MAX_IDLE_TIME", 30*time.Minute),
 		},
 		Redis: RedisConfig{
 			Addr:     GetEnv("REDIS_ADDR", "127.0.0.1:6379"),

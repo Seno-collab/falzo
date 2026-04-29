@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"falzo-be/internal/auth/domain"
 	"falzo-be/internal/auth/domain/aggregate"
@@ -11,6 +10,8 @@ import (
 	"falzo-be/internal/auth/domain/value_object"
 	"falzo-be/pkg/database"
 	"falzo-be/pkg/dberr"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type AccountRepository struct {
@@ -24,17 +25,17 @@ func NewAccountRepository(db database.Client) repository.AccountRepository {
 }
 
 func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account) error {
-	if r.db == nil || r.db.DB() == nil {
+	if r.db == nil || r.db.Pool() == nil {
 		return domain.ErrAuthDependencyUnavailable
 	}
 
-	tx, err := r.db.DB().BeginTx(ctx, nil)
+	tx, err := r.db.Pool().Begin(ctx)
 	if err != nil {
 		return mapDBError(ctx, accountRepoService, "accounts.begin_tx", err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
-	err = tx.QueryRowContext(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO users (user_name, email, password_hash)
 		VALUES ($1, $2, $3)
 		RETURNING id
@@ -49,15 +50,15 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 
 	for _, role := range account.Roles {
 		var roleID uint64
-		err := tx.QueryRowContext(ctx, `SELECT id FROM roles WHERE name = $1 LIMIT 1`, role).Scan(&roleID)
+		err := tx.QueryRow(ctx, `SELECT id FROM roles WHERE name = $1 LIMIT 1`, role).Scan(&roleID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, pgx.ErrNoRows) {
 				continue
 			}
 			return mapDBError(ctx, accountRepoService, "accounts.select_role", err)
 		}
 
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO user_roles (user_id, role_id)
 			VALUES ($1, $2)
 			ON CONFLICT (user_id, role_id) DO NOTHING
@@ -66,7 +67,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return mapDBError(ctx, accountRepoService, "accounts.commit_tx", err)
 	}
 
@@ -74,7 +75,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *aggregate.Account
 }
 
 func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email value_object.Email) (*aggregate.Account, error) {
-	if r.db == nil || r.db.DB() == nil {
+	if r.db == nil || r.db.Pool() == nil {
 		return nil, domain.ErrAuthDependencyUnavailable
 	}
 
@@ -85,7 +86,7 @@ func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email value_o
 		rawPasswordHash string
 	)
 
-	err := r.db.DB().QueryRowContext(ctx, `
+	err := r.db.Pool().QueryRow(ctx, `
 		SELECT id, user_name, email, password_hash, is_active, created_at, updated_at
 		FROM users
 		WHERE email = $1 AND is_active = TRUE
@@ -100,7 +101,7 @@ func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email value_o
 		&user.UpdatedAt,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrInvalidCredentials
 		}
 		return nil, mapDBError(ctx, accountRepoService, "accounts.find_active_by_email", err)
@@ -128,7 +129,7 @@ func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email value_o
 }
 
 func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]string, error) {
-	rows, err := r.db.DB().QueryContext(ctx, `
+	rows, err := r.db.Pool().Query(ctx, `
 		SELECT roles.name
 		FROM user_roles
 		JOIN roles ON roles.id = user_roles.role_id
