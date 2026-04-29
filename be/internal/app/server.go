@@ -2,18 +2,12 @@ package app
 
 import (
 	"context"
-	"falzo-be/internal/auth/application"
-	authCache "falzo-be/internal/auth/infrastructure/persistence/cache"
-	authPostgres "falzo-be/internal/auth/infrastructure/persistence/postgres"
-	"falzo-be/internal/auth/infrastructure/security/bcrypt"
-	"falzo-be/internal/auth/infrastructure/token"
-	authHTTP "falzo-be/internal/auth/interfaces/http"
-	locationApplication "falzo-be/internal/location/application"
-	locationInfra "falzo-be/internal/location/infrastructure"
-	locationHTTP "falzo-be/internal/location/interfaces/http"
-	postApplication "falzo-be/internal/post/application"
-	postInfra "falzo-be/internal/post/infrastructure/persistence/postgres"
-	postHTTP "falzo-be/internal/post/interfaces/http"
+	"falzo-be/internal/auth"
+	authInfra "falzo-be/internal/auth/infra"
+	"falzo-be/internal/location"
+	locationInfra "falzo-be/internal/location/infra"
+	"falzo-be/internal/post"
+	postInfra "falzo-be/internal/post/infra"
 	"falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
@@ -47,26 +41,26 @@ func Run() {
 		log.Fatal().Err(err).Msg("failed to connect postgres")
 	}
 
-	accounts := authPostgres.NewAccountRepository(db)
-	sessions := authPostgres.NewSessionRepository(db)
+	accounts := authInfra.NewAccountRepository(db)
+	var sessions auth.SessionRepository = authInfra.NewSessionRepository(db)
 	redisClient, err := cache.New(cfg.Redis)
 	if err != nil {
 		log.Warn().Err(err).Msg("redis unavailable, continuing without session cache")
 	} else {
-		sessions = authCache.NewSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
+		sessions = authInfra.NewCachedSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
 	}
-	passwords := bcrypt.NewPasswordHasher()
-	jwtManager := token.NewJWTManager(cfg.Auth)
-	authService := application.New(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
+	passwords := authInfra.NewPasswordHasher()
+	jwtManager := authInfra.NewJWTManager(cfg.Auth)
+	authService := auth.NewService(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
 	authRateLimit := httpMiddleware.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
-	authProtector := authHTTP.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCoolDown)
-	authHandler := authHTTP.New(authService, authProtector, authHTTP.WithPublicMiddlewares(authRateLimit))
-	locationRepository := locationInfra.NewLocationRepositoryPG(db)
-	locationService := locationApplication.New(locationRepository)
-	locationHandler := locationHTTP.New(locationService)
-	postRepository := postInfra.NewPostRepository(db)
-	postService := postApplication.New(postRepository)
-	postHandler := postHTTP.New(postService)
+	authProtector := auth.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCoolDown)
+	authHandler := auth.NewHandler(authService, authProtector, auth.WithPublicMiddlewares(authRateLimit))
+	locationRepository := locationInfra.NewPostgresRepository(db)
+	locationService := location.NewService(locationRepository)
+	locationHandler := location.NewHandler(locationService)
+	postRepository := postInfra.NewPostgresRepository(db)
+	postService := post.NewService(postRepository)
+	postHandler := post.NewHandler(postService)
 
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {

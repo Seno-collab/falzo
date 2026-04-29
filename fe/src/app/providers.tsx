@@ -6,7 +6,7 @@ import { Toaster } from "sonner";
 import { LanguageProvider } from "@/app/language-provider";
 import { initializeAuthHeader } from "@/api/auth.api";
 
-export function AppProviders({ children }: PropsWithChildren) {
+export function AppProviders({ children }: Readonly<PropsWithChildren>) {
   const [queryClient] = useState(
     () =>
       new QueryClient({

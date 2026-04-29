@@ -1,7 +1,6 @@
 package share
 
 const (
-	ValidationField     = "Validation field"
 	INVALID_FIELD       = "INVALID_FIELD"
 	REQUIRED_FIELD      = "REQUIRED_FIELD"
 	SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"

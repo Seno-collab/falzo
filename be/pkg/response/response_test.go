@@ -2,7 +2,6 @@ package response
 
 import (
 	"encoding/json"
-	"falzo-be/internal/share"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,7 +32,7 @@ func TestError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 
-	Error(rec, http.StatusBadRequest, share.ValidationField, req, ErrorDetail{
+	Error(rec, http.StatusBadRequest, "Validation field", req, ErrorDetail{
 		Code:    "INVALID_FORMAT",
 		Message: "Bad payload",
 	})
@@ -47,7 +46,7 @@ func TestError(t *testing.T) {
 		t.Fatalf("unexpected json error: %v", err)
 	}
 
-	if payload.Message != share.ValidationField {
+	if payload.Message != "Validation field" {
 		t.Fatalf("expected message to be set, got %q", payload.Message)
 	}
 

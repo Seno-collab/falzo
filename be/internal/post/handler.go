@@ -1,0 +1,229 @@
+package post
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"falzo-be/internal/share"
+	httpResponse "falzo-be/pkg/response"
+
+	"github.com/go-chi/chi/v5"
+)
+
+var (
+	errInvalidJSONPayload = errors.New("invalid JSON payload")
+	errInvalidPostIDParam = errors.New("invalid post id param")
+	errInvalidPageParam   = errors.New("invalid page param")
+	errInvalidLimitParam  = errors.New("invalid limit param")
+)
+
+type handlerService interface {
+	CreatePost(ctx context.Context, input CreatePostInput) (PostView, error)
+	LikePost(ctx context.Context, input PostActionInput) error
+	SavePost(ctx context.Context, input PostActionInput) error
+	GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error)
+	GetPostDetail(ctx context.Context, input GetPostDetailInput) (*PostView, error)
+	GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]PostView, error)
+}
+
+type Handler struct {
+	service handlerService
+}
+
+func NewHandler(service handlerService) *Handler {
+	return &Handler{service: service}
+}
+
+func (h *Handler) Routes() chi.Router {
+	r := chi.NewRouter()
+	r.Post("/", h.CreatePost)
+	r.Post("/{id}/like", h.LikePost)
+	r.Post("/{id}/save", h.SavePost)
+	r.Get("/", h.GetPosts)
+	r.Get("/location", h.GetPostsByLocation)
+	r.Get("/{id}", h.GetPostDetail)
+	return r
+}
+
+type CreatePostRequest struct {
+	UserID       uint64  `json:"user_id"`
+	ImageURL     string  `json:"image_url"`
+	Caption      string  `json:"caption"`
+	LocationName string  `json:"location_name"`
+	Latitude     float64 `json:"latitude"`
+	Longitude    float64 `json:"longitude"`
+}
+
+func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
+	var req CreatePostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "create_post", mapPostError)
+		return
+	}
+
+	post, err := h.service.CreatePost(r.Context(), CreatePostInput{
+		UserID:       req.UserID,
+		ImageURL:     req.ImageURL,
+		Caption:      req.Caption,
+		LocationName: req.LocationName,
+		Latitude:     req.Latitude,
+		Longitude:    req.Longitude,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "create_post", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusCreated, "Post created successfully", post, r)
+}
+
+func (h *Handler) GetPostDetail(w http.ResponseWriter, r *http.Request) {
+	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
+	if err != nil || postID == 0 {
+		share.WriteError(w, r, errInvalidPostIDParam, "get_post_detail", mapPostError)
+		return
+	}
+
+	post, err := h.service.GetPostDetail(r.Context(), GetPostDetailInput{PostID: postID})
+	if err != nil {
+		share.WriteError(w, r, err, "get_post_detail", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Post detail fetched successfully", post, r)
+}
+
+func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
+	page := 1
+	limit := 12
+
+	pageRaw := strings.TrimSpace(r.URL.Query().Get("page"))
+	if pageRaw != "" {
+		parsedPage, err := strconv.Atoi(pageRaw)
+		if err != nil {
+			share.WriteError(w, r, errInvalidPageParam, "get_posts", mapPostError)
+			return
+		}
+		page = parsedPage
+	}
+
+	limitRaw := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if limitRaw != "" {
+		parsedLimit, err := strconv.Atoi(limitRaw)
+		if err != nil {
+			share.WriteError(w, r, errInvalidLimitParam, "get_posts", mapPostError)
+			return
+		}
+		limit = parsedLimit
+	}
+
+	posts, err := h.service.GetPosts(r.Context(), ListPostsInput{Page: page, Limit: limit})
+	if err != nil {
+		share.WriteError(w, r, err, "get_posts", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Posts fetched successfully", posts, r)
+}
+
+func (h *Handler) GetPostsByLocation(w http.ResponseWriter, r *http.Request) {
+	locationName := strings.TrimSpace(r.URL.Query().Get("location_name"))
+
+	posts, err := h.service.GetPostsByLocation(r.Context(), GetPostsByLocationInput{LocationName: locationName})
+	if err != nil {
+		share.WriteError(w, r, err, "get_posts_by_location", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Posts by location fetched successfully", posts, r)
+}
+
+type postActionRequest struct {
+	UserID uint64 `json:"user_id"`
+}
+
+func (h *Handler) LikePost(w http.ResponseWriter, r *http.Request) {
+	h.handlePostAction(w, r, "like_post", "Post liked successfully", "post liked", h.service.LikePost)
+}
+
+func (h *Handler) SavePost(w http.ResponseWriter, r *http.Request) {
+	h.handlePostAction(w, r, "save_post", "Post saved successfully", "post saved", h.service.SavePost)
+}
+
+func (h *Handler) handlePostAction(
+	w http.ResponseWriter,
+	r *http.Request,
+	operation string,
+	successMessage string,
+	payloadMessage string,
+	action func(context.Context, PostActionInput) error,
+) {
+	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
+	if err != nil || postID == 0 {
+		share.WriteError(w, r, errInvalidPostIDParam, operation, mapPostError)
+		return
+	}
+
+	var req postActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, operation, mapPostError)
+		return
+	}
+
+	if err := action(r.Context(), PostActionInput{PostID: postID, UserID: req.UserID}); err != nil {
+		share.WriteError(w, r, err, operation, mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, successMessage, map[string]string{"message": payloadMessage}, r)
+}
+
+func mapPostError(err error) share.ApiError {
+	switch {
+	case errors.Is(err, errInvalidJSONPayload):
+		return share.ApiError{
+			Status:  http.StatusBadRequest,
+			Message: share.ValidationField,
+			Code:    share.INVALID_FORMAT,
+			Detail:  "Invalid JSON payload",
+		}
+	case errors.Is(err, errInvalidPostIDParam):
+		return share.BadRequest("id", "id must be a valid positive integer")
+	case errors.Is(err, errInvalidPageParam):
+		return share.BadRequest("page", "page must be an integer")
+	case errors.Is(err, errInvalidLimitParam):
+		return share.BadRequest("limit", "limit must be an integer")
+	case errors.Is(err, ErrUserIDRequired):
+		return share.Required("user_id", "user_id is required")
+	case errors.Is(err, ErrPostIDRequired):
+		return share.Required("id", "post id is required")
+	case errors.Is(err, ErrPageMustBePositive):
+		return share.BadRequest("page", "page must be greater than 0")
+	case errors.Is(err, ErrLimitMustBePositive):
+		return share.BadRequest("limit", "limit must be greater than 0")
+	case errors.Is(err, ErrLocationNameRequired):
+		return share.Required("location_name", "location_name is required")
+	case errors.Is(err, ErrLatitudeOutOfRange):
+		return share.BadRequest("latitude", "latitude must be between -90 and 90")
+	case errors.Is(err, ErrLongitudeOutOfRange):
+		return share.BadRequest("longitude", "longitude must be between -180 and 180")
+	case errors.Is(err, ErrImageURLRequired):
+		return share.Required("image_url", "image_url is required")
+	case errors.Is(err, ErrInvalidImageURL):
+		return share.BadRequest("image_url", "image_url must be a valid URL")
+	case errors.Is(err, ErrCaptionTooLong):
+		return share.BadRequest("caption", "caption exceeds max length")
+	case errors.Is(err, ErrLocationNameTooLong):
+		return share.BadRequest("location_name", "location_name exceeds max length")
+	case errors.Is(err, ErrNotFound):
+		return share.NotFound("Post not found", "Requested post does not exist")
+	case errors.Is(err, ErrDependencyUnavailable):
+		return share.ServiceUnavailable("Post service unavailable", "Post service is temporarily unavailable")
+	default:
+		return share.Internal()
+	}
+}
