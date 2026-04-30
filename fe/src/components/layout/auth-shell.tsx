@@ -1,7 +1,6 @@
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { Camera, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { PageShell } from "@/components/layout/page-shell";
+import { ScenicImage } from "@/components/scenic-image";
 
 export function AuthShell({
   topbar,
@@ -23,48 +22,52 @@ export function AuthShell({
   footer?: ReactNode;
 }>) {
   return (
-    <PageShell contentClassName="pb-12 md:pb-16" topbar={topbar}>
-      <div className="grid gap-5 lg:grid-cols-[1.02fr_0.98fr]">
-        <section className="app-panel app-hover relative hidden overflow-hidden p-8 text-white shadow-[0_40px_90px_-48px_rgb(11_28_49/0.86)] lg:block">
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(140deg,#0f2a49_0%,#1d4a7b_56%,#2d6daf_100%)]" />
-          <div className="absolute -top-8 right-2 -z-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
-          <div className="absolute -bottom-12 left-8 -z-10 h-36 w-36 rounded-full bg-[#f3c782]/30 blur-3xl" />
+    <main className="relative min-h-screen overflow-hidden bg-[#090908] text-white">
+      <ScenicImage
+        alt={title}
+        className="absolute inset-0 h-full w-full scale-[1.02] object-cover"
+        fetchPriority="high"
+        id="patagonia-trail"
+        loading="eager"
+        sizes="100vw"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.28)_0%,rgb(0_0_0/0.58)_52%,rgb(0_0_0/0.78)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,transparent_0%,rgb(0_0_0/0.36)_72%)]" />
 
-          <p className="app-kicker text-[#d6e7f9]">{label}</p>
-          <h1 className="falzo-display mt-2 text-4xl leading-tight font-semibold">
-            {title}
-          </h1>
-          <p className="mt-3 max-w-lg text-sm leading-7 text-[#d8e8f8]">
-            {subtitle}
-          </p>
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <header className="px-4 py-4 sm:px-6 lg:px-8">{topbar}</header>
 
-          <div className="mt-7 space-y-3">
-            {points.map((point) => (
-              <div
-                className="flex items-start gap-2.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 backdrop-blur"
-                key={point}
-              >
-                <span className="mt-0.5 inline-flex size-5 items-center justify-center rounded-full bg-white/16">
-                  <ShieldCheck className="size-3.5" />
-                </span>
-                <p className="text-sm text-[#ecf4fd]">{point}</p>
+        <section className="flex flex-1 items-center justify-center px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+          <div className="w-full max-w-[440px]">
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3 inline-flex size-11 items-center justify-center rounded-full border border-white/18 bg-white/12 shadow-[0_18px_42px_-28px_rgb(0_0_0/0.9)] backdrop-blur-2xl">
+                <Camera className="size-5" />
               </div>
-            ))}
-          </div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/58">
+                {label}
+              </p>
+              <h1 className="mt-2 text-4xl font-semibold tracking-normal text-white">
+                {title}
+              </h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-white/68">
+                {subtitle}
+              </p>
+            </div>
 
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/24 bg-white/12 px-3 py-1.5 text-xs font-medium text-[#eef6ff]">
-            <Sparkles className="size-3.5" />
-            {note}
+            <div className="rounded-[32px] border border-white/14 bg-[#111111]/58 p-5 shadow-[0_34px_100px_-46px_rgb(0_0_0/0.96)] backdrop-blur-2xl sm:p-6">
+              <div className="space-y-6">
+                {children}
+                {footer ? <div>{footer}</div> : null}
+              </div>
+            </div>
+
+            <div className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-xl">
+              <Sparkles className="size-3.5 text-white/78" />
+              {note || "Explore first. Save when a place feels worth remembering."}
+            </div>
           </div>
         </section>
-
-        <Card className="app-panel app-hover border-[#d7e6f7] bg-white/94 py-0">
-          <CardContent className="space-y-6 p-6 sm:p-8">
-            {children}
-            {footer ? <div>{footer}</div> : null}
-          </CardContent>
-        </Card>
       </div>
-    </PageShell>
+    </main>
   );
 }

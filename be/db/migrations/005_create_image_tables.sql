@@ -1,9 +1,12 @@
-CREATE TABLE images (
-    id SERIAL PRIMARY KEY,
-    owner_id UUID,
-    object_key TEXT,
-    url TEXT,
-    mime_type TEXT,
-    size BIGINT,
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE IF NOT EXISTS images (
+    id BIGSERIAL PRIMARY KEY,
+    owner_id BIGINT NOT NULL,
+    object_key TEXT NOT NULL,
+    url TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size BIGINT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ready',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );

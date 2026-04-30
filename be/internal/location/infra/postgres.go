@@ -4,10 +4,8 @@ import (
 	"context"
 
 	"falzo-be/internal/location"
+	"falzo-be/internal/share"
 	"falzo-be/pkg/database"
-	"falzo-be/pkg/dberr"
-
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 const locationRepoService = "location"
@@ -159,14 +157,7 @@ func (r *PostgresRepository) GetPostsByLocationID(ctx context.Context, locationI
 }
 
 func mapDBError(ctx context.Context, service, operation string, err error) error {
-	return dberr.MapDependencyOrInternal(
-		err,
-		service,
-		operation,
-		chimiddleware.GetReqID(ctx),
-		location.ErrDependencyUnavailable,
-		location.ErrInternal,
-	)
+	return share.MapDBError(ctx, service, operation, err, location.ErrDependencyUnavailable, location.ErrInternal)
 }
 
 var _ location.Repository = (*PostgresRepository)(nil)

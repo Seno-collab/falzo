@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 
 	"falzo-be/internal/auth"
 	"falzo-be/internal/share"
@@ -18,6 +19,7 @@ var errInvalidMultipartPayload = errors.New("invalid multipart payload")
 
 type handlerService interface {
 	UploadImage(ctx context.Context, input UploadImageInput) (UploadImageResult, error)
+	UpdateImage(ctx context.Context, input UpdateImageInput) (UpdateImageResult, error)
 }
 
 type Handler struct {
@@ -40,7 +42,8 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
-		protected.Post("/images", h.UploadImage)
+		protected.Post("/images/upload", h.UploadImage)
+		protected.Put("/images/{id}", h.UpdateImage)
 	})
 	return r
 }
@@ -68,13 +71,18 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ownerID := r.FormValue("owner_id")
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrOwnerIDRequired, "upload_image", mapUploadError)
+		return
+	}
+
 	result, err := h.service.UploadImage(r.Context(), UploadImageInput{
 		File:     data,
 		FileName: header.Filename,
-		MimeType: header.Header.Get("Content-Type"),
+		MimeType: detectImageMimeType(data, header),
 		Size:     header.Size,
-		OwnerID:  ownerID,
+		OwnerID:  strconv.FormatUint(principal.UserID, 10),
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "upload_image", mapUploadError)
@@ -82,6 +90,62 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusCreated, "Image uploaded successfully", result, r)
+}
+
+func (h *Handler) UpdateImage(w http.ResponseWriter, r *http.Request) {
+	imageID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || imageID <= 0 {
+		share.WriteError(w, r, ErrImageIDRequired, "update_image", mapUploadError)
+		return
+	}
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		share.WriteError(w, r, errInvalidMultipartPayload, "update_image", mapUploadError)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		share.WriteError(w, r, ErrFileRequired, "update_image", mapUploadError)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		share.WriteError(w, r, ErrStorageFailed, "update_image", mapUploadError)
+		return
+	}
+
+	result, err := h.service.UpdateImage(r.Context(), UpdateImageInput{
+		ImageID:  imageID,
+		File:     data,
+		FileName: header.Filename,
+		MimeType: detectImageMimeType(data, header),
+		Size:     header.Size,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "update_image", mapUploadError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Image updated successfully", result, r)
+}
+
+func detectImageMimeType(data []byte, header *multipart.FileHeader) string {
+	headerType := ""
+	if header != nil {
+		headerType = header.Header.Get("Content-Type")
+	}
+	if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+		return "image/webp"
+	}
+	if len(data) > 0 {
+		detected := http.DetectContentType(data)
+		if detected != "application/octet-stream" {
+			return detected
+		}
+	}
+	return headerType
 }
 
 func mapUploadError(err error) share.ApiError {
@@ -107,7 +171,9 @@ func mapUploadError(err error) share.ApiError {
 		return share.BadRequest("url", "image URL is invalid")
 	case errors.Is(err, ErrImageNotFound):
 		return share.NotFound("Image not found", "Requested image does not exist")
-	case errors.Is(err, ErrStorageFailed), errors.Is(err, ErrMissingRepository):
+	case errors.Is(err, ErrImageIDRequired):
+		return share.BadRequest("id", "image id is required")
+	case errors.Is(err, ErrStorageFailed), errors.Is(err, ErrMissingRepository), errors.Is(err, ErrDependencyUnavailable):
 		return share.ServiceUnavailable("Image upload unavailable", "Image upload is temporarily unavailable")
 	default:
 		return share.Internal()

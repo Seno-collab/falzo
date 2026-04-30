@@ -8,6 +8,8 @@ import (
 	locationInfra "falzo-be/internal/location/infra"
 	"falzo-be/internal/post"
 	postInfra "falzo-be/internal/post/infra"
+	"falzo-be/internal/upload"
+	uploadInfra "falzo-be/internal/upload/infra"
 	"falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
 	"falzo-be/pkg/database"
@@ -61,6 +63,15 @@ func Run() {
 	postRepository := postInfra.NewPostgresRepository(db)
 	postService := post.NewService(postRepository)
 	postHandler := post.NewHandler(postService)
+	imageRepository := uploadInfra.NewPostgresRepository(db)
+	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
+	uploadService := upload.NewService(
+		imageRepository,
+		imageStorage,
+		upload.WithMaxSize(cfg.Upload.MaxSize),
+		upload.WithAllowedImageTypes(cfg.Upload.AllowedTypes),
+	)
+	uploadHandler := upload.NewHandler(uploadService, authService)
 
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {
@@ -82,6 +93,7 @@ func Run() {
 	r.Mount("/auth", authHandler.Routes())
 	r.Mount("/locations", locationHandler.Routes())
 	r.Mount("/posts", postHandler.Routes())
+	r.Mount("/", uploadHandler.Routes())
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}

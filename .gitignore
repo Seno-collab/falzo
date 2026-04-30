@@ -26,6 +26,11 @@ vendor/
 .vscode/
 .idea/
 
+# Frontend workspace settings required for Tailwind CSS v4 editor support.
+!fe/.vscode/
+!fe/.vscode/settings.json
+!fe/.vscode/tailwind-v4.css-data.json
+
 # OS files
 .DS_Store
 Thumbs.db

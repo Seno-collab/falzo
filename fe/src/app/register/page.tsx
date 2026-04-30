@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, House, UserPlus } from "lucide-react";
+import { Apple, ArrowRight, Compass, House, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -105,10 +105,10 @@ export default function RegisterRoutePage() {
   return (
     <AuthShell
       footer={
-        <p className="text-center text-sm text-[#5b7799]">
+        <p className="text-center text-sm text-white/62">
           {copy.hasAccountText}{" "}
           <Link
-            className="font-semibold text-[#2f5f95] hover:underline"
+            className="font-semibold text-white hover:underline"
             href={ROUTES.login}
           >
             {copy.loginCta}
@@ -116,7 +116,7 @@ export default function RegisterRoutePage() {
         </p>
       }
       label={homeCopy.brand}
-      note={""}
+      note="Create a place to collect every future journey."
       points={[]}
       subtitle={copy.subtitle}
       title={copy.title}
@@ -148,22 +148,53 @@ export default function RegisterRoutePage() {
     >
       <motion.div
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-6"
+        className="space-y-5"
         initial={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.24, ease: "easeOut" }}
       >
         <div className="space-y-2 text-center">
-          <Badge className="mx-auto">{copy.title}</Badge>
-          <h1 className="falzo-display text-3xl font-semibold tracking-tight text-[#19395d]">
-            {copy.title}
-          </h1>
-          <p className="text-sm text-[#5c7899]">{copy.subtitle}</p>
+          <Badge className="mx-auto border-white/14 bg-white/10 text-white">
+            Start your wishlist
+          </Badge>
+          <p className="text-sm leading-6 text-white/64">
+            Save places, revisit moments, and shape the trips you want next.
+          </p>
         </div>
 
-        <form className="app-form-grid" noValidate onSubmit={onSubmit}>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button
+            className="rounded-full border-white/14 bg-white/10 text-white hover:bg-white/16"
+            type="button"
+            variant="outline"
+          >
+            <span className="inline-flex size-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#171717]">
+              G
+            </span>
+            Google
+          </Button>
+          <Button
+            className="rounded-full border-white/14 bg-white/10 text-white hover:bg-white/16"
+            type="button"
+            variant="outline"
+          >
+            <Apple className="size-4" />
+            Apple
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs font-medium text-white/38">
+          <span className="h-px flex-1 bg-white/12" />
+          Email
+          <span className="h-px flex-1 bg-white/12" />
+        </div>
+
+        <form className="space-y-4" noValidate onSubmit={onSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="fullName">{copy.fullNameLabel}</Label>
+            <Label className="text-white/78" htmlFor="fullName">
+              {copy.fullNameLabel}
+            </Label>
             <Input
+              className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
               disabled={formState.isSubmitting}
               id="fullName"
               placeholder={copy.fullNamePlaceholder}
@@ -176,9 +207,12 @@ export default function RegisterRoutePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">{copy.emailLabel}</Label>
+            <Label className="text-white/78" htmlFor="email">
+              {copy.emailLabel}
+            </Label>
             <Input
               autoComplete="email"
+              className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
               disabled={formState.isSubmitting}
               id="email"
               placeholder={copy.emailPlaceholder}
@@ -192,9 +226,12 @@ export default function RegisterRoutePage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="password">{copy.passwordLabel}</Label>
+              <Label className="text-white/78" htmlFor="password">
+                {copy.passwordLabel}
+              </Label>
               <Input
                 autoComplete="new-password"
+                className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
                 disabled={formState.isSubmitting}
                 id="password"
                 placeholder={copy.passwordPlaceholder}
@@ -207,11 +244,12 @@ export default function RegisterRoutePage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">
+              <Label className="text-white/78" htmlFor="confirmPassword">
                 {copy.confirmPasswordLabel}
               </Label>
               <Input
                 autoComplete="new-password"
+                className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
                 disabled={formState.isSubmitting}
                 id="confirmPassword"
                 placeholder={copy.confirmPasswordPlaceholder}
@@ -227,15 +265,25 @@ export default function RegisterRoutePage() {
           </div>
 
           <Button
-            className="w-full"
+            className="w-full rounded-full bg-white text-[#171717] shadow-[0_18px_40px_-26px_rgb(255_255_255/0.6)] hover:bg-white/90"
             disabled={formState.isSubmitting}
             type="submit"
-            variant="gradient"
           >
             <UserPlus className="size-4" />
             {formState.isSubmitting ? copy.submitting : copy.submit}
           </Button>
         </form>
+
+        <Button
+          asChild
+          className="w-full rounded-full border-white/12 bg-transparent text-white/78 hover:bg-white/10 hover:text-white"
+          variant="outline"
+        >
+          <Link href={ROUTES.home}>
+            <Compass className="size-4" />
+            Explore before signing up
+          </Link>
+        </Button>
       </motion.div>
     </AuthShell>
   );

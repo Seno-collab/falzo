@@ -4,9 +4,13 @@ import { useLanguage } from "@/app/language-provider";
 
 export function UserPresenceBadge() {
   const { appLanguage } = useLanguage();
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
+  const [timezone, setTimezone] = useState("");
 
   useEffect(() => {
+    setNow(new Date());
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
     const timer = globalThis.setInterval(() => {
       setNow(new Date());
     }, 60_000);
@@ -16,16 +20,17 @@ export function UserPresenceBadge() {
     };
   }, []);
 
-  const timezone = useMemo(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-    [],
-  );
   const time = useMemo(
-    () =>
-      new Intl.DateTimeFormat(appLanguage === "vi" ? "vi-VN" : "en-US", {
+    () => {
+      if (!now) {
+        return "--:--";
+      }
+
+      return new Intl.DateTimeFormat(appLanguage === "vi" ? "vi-VN" : "en-US", {
         hour: "2-digit",
         minute: "2-digit",
-      }).format(now),
+      }).format(now);
+    },
     [appLanguage, now],
   );
 
@@ -39,9 +44,11 @@ export function UserPresenceBadge() {
         <Clock3 className="size-3" />
         {time}
       </span>
-      <span className="hidden text-[10px] font-medium tracking-[0.06em] text-[#6587b1] uppercase sm:inline">
-        {timezone.replaceAll("_", " ")}
-      </span>
+      {timezone ? (
+        <span className="hidden text-[10px] font-medium tracking-[0.06em] text-[#6587b1] uppercase sm:inline">
+          {timezone.replaceAll("_", " ")}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -14,6 +14,7 @@ type Config struct {
 	Auth     AuthConfig
 	Postgres PostgresConfig
 	Redis    RedisConfig
+	Upload   UploadConfig
 }
 
 type AppConfig struct {
@@ -61,6 +62,13 @@ type RedisConfig struct {
 	DB       int
 }
 
+type UploadConfig struct {
+	SeaweedFSBaseURL string
+	SeaweedFSTimeout time.Duration
+	MaxSize          int64
+	AllowedTypes     []string
+}
+
 func Load() Config {
 	loadDotEnvFromWorkingDir()
 
@@ -105,6 +113,12 @@ func Load() Config {
 			Password: GetEnv("REDIS_PASSWORD", ""),
 			DB:       GetInt("REDIS_DB", 0),
 		},
+		Upload: UploadConfig{
+			SeaweedFSBaseURL: GetEnv("SEAWEEDFS_BASE_URL", "http://127.0.0.1:8888"),
+			SeaweedFSTimeout: GetDuration("SEAWEEDFS_TIMEOUT", 10*time.Second),
+			MaxSize:          GetInt64("UPLOAD_MAX_SIZE", 10*1024*1024),
+			AllowedTypes:     getCSV("ALLOWED_IMAGE_TYPES", []string{"image/jpeg", "image/png", "image/webp"}),
+		},
 	}
 }
 
@@ -139,6 +153,20 @@ func GetInt(key string, fallback int) int {
 	}
 
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func GetInt64(key string, fallback int64) int64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return fallback
 	}

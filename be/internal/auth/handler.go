@@ -109,6 +109,10 @@ func authenticatedUserFromContext(ctx context.Context) (*AuthenticatedUser, bool
 	return principal, ok
 }
 
+func AuthenticatedUserFromContext(ctx context.Context) (*AuthenticatedUser, bool) {
+	return authenticatedUserFromContext(ctx)
+}
+
 func RequireAuth(service interface {
 	Authenticate(ctx context.Context, rawToken string) (*AuthenticatedUser, error)
 }) func(next http.Handler) http.Handler {

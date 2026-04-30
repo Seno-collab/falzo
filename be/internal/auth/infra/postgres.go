@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"falzo-be/internal/auth"
+	"falzo-be/internal/share"
 	"falzo-be/pkg/database"
 	"falzo-be/pkg/dberr"
 
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -29,7 +29,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *auth.Account) err
 
 	tx, err := r.db.Pool().Begin(ctx)
 	if err != nil {
-		return mapDBError(ctx, authRepoService, "accounts.begin_tx", err)
+		return share.MapDBError(ctx, authRepoService, "accounts.begin_tx", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 	defer tx.Rollback(ctx)
 
@@ -43,7 +43,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *auth.Account) err
 		if dberr.IsUniqueViolation(err) {
 			return auth.ErrUserExists
 		}
-		return mapDBError(ctx, authRepoService, "accounts.insert_user", err)
+		return share.MapDBError(ctx, authRepoService, "accounts.insert_user", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	for _, role := range account.Roles {
@@ -53,7 +53,7 @@ func (r *AccountRepository) Save(ctx context.Context, account *auth.Account) err
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue
 			}
-			return mapDBError(ctx, authRepoService, "accounts.select_role", err)
+			return share.MapDBError(ctx, authRepoService, "accounts.select_role", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 		}
 
 		if _, err := tx.Exec(ctx, `
@@ -61,12 +61,12 @@ func (r *AccountRepository) Save(ctx context.Context, account *auth.Account) err
 			VALUES ($1, $2)
 			ON CONFLICT (user_id, role_id) DO NOTHING
 		`, account.User.ID, roleID); err != nil {
-			return mapDBError(ctx, authRepoService, "accounts.insert_user_role", err)
+			return share.MapDBError(ctx, authRepoService, "accounts.insert_user_role", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return mapDBError(ctx, authRepoService, "accounts.commit_tx", err)
+		return share.MapDBError(ctx, authRepoService, "accounts.commit_tx", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	return nil
@@ -102,7 +102,7 @@ func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email auth.Em
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, auth.ErrInvalidCredentials
 		}
-		return nil, mapDBError(ctx, authRepoService, "accounts.find_active_by_email", err)
+		return nil, share.MapDBError(ctx, authRepoService, "accounts.find_active_by_email", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	user.Username, err = auth.NewUsername(rawUsername)
@@ -134,7 +134,7 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 		WHERE user_roles.user_id = $1
 	`, userID)
 	if err != nil {
-		return nil, mapDBError(ctx, authRepoService, "accounts.load_roles", err)
+		return nil, share.MapDBError(ctx, authRepoService, "accounts.load_roles", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 	defer rows.Close()
 
@@ -142,12 +142,12 @@ func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]str
 	for rows.Next() {
 		var role string
 		if err := rows.Scan(&role); err != nil {
-			return nil, mapDBError(ctx, authRepoService, "accounts.scan_role", err)
+			return nil, share.MapDBError(ctx, authRepoService, "accounts.scan_role", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 		}
 		roles = append(roles, role)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, mapDBError(ctx, authRepoService, "accounts.iterate_roles", err)
+		return nil, share.MapDBError(ctx, authRepoService, "accounts.iterate_roles", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	return roles, nil
@@ -168,7 +168,7 @@ func (r *SessionRepository) Create(ctx context.Context, session auth.Session) er
 
 	tx, err := r.db.Pool().Begin(ctx)
 	if err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.begin_tx", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.begin_tx", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 	defer tx.Rollback(ctx)
 
@@ -176,18 +176,18 @@ func (r *SessionRepository) Create(ctx context.Context, session auth.Session) er
 		INSERT INTO auth_sessions (session_id, user_id, user_name, subject)
 		VALUES ($1, $2, $3, $4)
 	`, session.SessionID, session.UserID, session.Username, session.Subject); err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.insert_auth_session", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.insert_auth_session", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO refresh_tokens (session_id, token_hash, expires_at)
 		VALUES ($1, $2, to_timestamp($3))
 	`, session.SessionID, session.RefreshTokenHash, session.RefreshExpiresAtUnix); err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.insert_refresh_token", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.insert_refresh_token", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.commit_tx", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.commit_tx", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	return nil
@@ -208,7 +208,7 @@ func (r *SessionRepository) IsSessionActive(ctx context.Context, sessionID strin
 		)
 	`, sessionID).Scan(&active)
 	if err != nil {
-		return false, mapDBError(ctx, authRepoService, "sessions.is_active", err)
+		return false, share.MapDBError(ctx, authRepoService, "sessions.is_active", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	return active, nil
@@ -241,7 +241,7 @@ func (r *SessionRepository) FindActiveByRefreshTokenHash(ctx context.Context, re
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, auth.ErrInvalidToken
 		}
-		return nil, mapDBError(ctx, authRepoService, "sessions.find_by_refresh_token_hash", err)
+		return nil, share.MapDBError(ctx, authRepoService, "sessions.find_by_refresh_token_hash", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	return &session, nil
@@ -262,7 +262,7 @@ func (r *SessionRepository) RotateRefreshToken(ctx context.Context, session auth
 			AND is_revoked = FALSE
 	`, session.SessionID, newRefreshTokenHash, expiresAtUnix, session.RefreshTokenHash)
 	if err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.rotate_refresh_token", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.rotate_refresh_token", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 	if result.RowsAffected() == 0 {
 		return auth.ErrInvalidToken
@@ -284,7 +284,7 @@ func (r *SessionRepository) RevokeBySessionID(ctx context.Context, sessionID str
 			AND is_revoked = FALSE
 	`, sessionID)
 	if err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.revoke_auth_session", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.revoke_auth_session", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 	if result.RowsAffected() == 0 {
 		return auth.ErrInvalidToken
@@ -297,21 +297,10 @@ func (r *SessionRepository) RevokeBySessionID(ctx context.Context, sessionID str
 		WHERE session_id = $1
 			AND is_revoked = FALSE
 	`, sessionID); err != nil {
-		return mapDBError(ctx, authRepoService, "sessions.revoke_refresh_tokens", err)
+		return share.MapDBError(ctx, authRepoService, "sessions.revoke_refresh_tokens", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
 	}
 
 	return nil
-}
-
-func mapDBError(ctx context.Context, service, operation string, err error) error {
-	return dberr.MapDependencyOrInternal(
-		err,
-		service,
-		operation,
-		chimiddleware.GetReqID(ctx),
-		auth.ErrDependencyUnavailable,
-		auth.ErrInternal,
-	)
 }
 
 var _ auth.AccountRepository = (*AccountRepository)(nil)

@@ -8,10 +8,8 @@ import (
 	"time"
 
 	"falzo-be/internal/post"
+	"falzo-be/internal/share"
 	"falzo-be/pkg/database"
-	"falzo-be/pkg/dberr"
-
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 type PostgresRepository struct {
@@ -45,7 +43,7 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 		item.Longitude,
 	).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
-		return mapDBError(ctx, postRepoService, "posts.insert", err)
+		return share.MapDBError(ctx, postRepoService, "posts.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return nil
@@ -64,7 +62,7 @@ func (r *PostgresRepository) Like(ctx context.Context, postID uint64, userID uin
 		VALUES ($1, $2)
 		ON CONFLICT (post_id, user_id) DO NOTHING
 	`, postID, userID); err != nil {
-		return mapDBError(ctx, postRepoService, "posts.like", err)
+		return share.MapDBError(ctx, postRepoService, "posts.like", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return nil
@@ -83,7 +81,7 @@ func (r *PostgresRepository) Save(ctx context.Context, postID uint64, userID uin
 		VALUES ($1, $2)
 		ON CONFLICT (post_id, user_id) DO NOTHING
 	`, postID, userID); err != nil {
-		return mapDBError(ctx, postRepoService, "posts.save", err)
+		return share.MapDBError(ctx, postRepoService, "posts.save", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return nil
@@ -104,7 +102,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int) 
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
 	if err != nil {
-		return nil, mapDBError(ctx, postRepoService, "posts.get_posts", err)
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 	defer rows.Close()
 
@@ -112,12 +110,12 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int) 
 	for rows.Next() {
 		item, err := scanPost(rows)
 		if err != nil {
-			return nil, mapDBError(ctx, postRepoService, "posts.get_posts.scan", err)
+			return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
 		}
 		posts = append(posts, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, mapDBError(ctx, postRepoService, "posts.get_posts.iterate", err)
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts.iterate", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return posts, nil
@@ -140,7 +138,7 @@ func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64) (
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, post.ErrNotFound
 		}
-		return nil, mapDBError(ctx, postRepoService, "posts.get_post_detail", err)
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_post_detail", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return &item, nil
@@ -162,7 +160,7 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 		LIMIT 100
 	`, pattern)
 	if err != nil {
-		return nil, mapDBError(ctx, postRepoService, "posts.get_posts_by_location", err)
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts_by_location", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 	defer rows.Close()
 
@@ -170,12 +168,12 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 	for rows.Next() {
 		item, err := scanPost(rows)
 		if err != nil {
-			return nil, mapDBError(ctx, postRepoService, "posts.get_posts_by_location.scan", err)
+			return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts_by_location.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
 		}
 		posts = append(posts, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, mapDBError(ctx, postRepoService, "posts.get_posts_by_location.iterate", err)
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts_by_location.iterate", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return posts, nil
@@ -191,7 +189,7 @@ func (r *PostgresRepository) ensurePostExists(ctx context.Context, postID uint64
 		)
 	`, postID).Scan(&exists)
 	if err != nil {
-		return mapDBError(ctx, postRepoService, "posts.exists", err)
+		return share.MapDBError(ctx, postRepoService, "posts.exists", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 	if !exists {
 		return post.ErrNotFound
@@ -244,17 +242,6 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 	}
 
 	return item, nil
-}
-
-func mapDBError(ctx context.Context, service, operation string, err error) error {
-	return dberr.MapDependencyOrInternal(
-		err,
-		service,
-		operation,
-		chimiddleware.GetReqID(ctx),
-		post.ErrDependencyUnavailable,
-		post.ErrInternal,
-	)
 }
 
 var _ post.Repository = (*PostgresRepository)(nil)

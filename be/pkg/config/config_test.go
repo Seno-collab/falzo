@@ -15,6 +15,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "")
 	t.Setenv("POSTGRES_SSL_MODE", "")
 	t.Setenv("REDIS_ADDR", "")
+	t.Setenv("SEAWEEDFS_BASE_URL", "")
+	t.Setenv("UPLOAD_MAX_SIZE", "")
+	t.Setenv("ALLOWED_IMAGE_TYPES", "")
 
 	cfg := Load()
 
@@ -53,6 +56,14 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.Postgres.SSLMode != "disable" {
 		t.Fatalf("expected default postgres ssl mode disable, got %q", cfg.Postgres.SSLMode)
 	}
+
+	if cfg.Upload.SeaweedFSBaseURL != "http://127.0.0.1:8888" {
+		t.Fatalf("expected default seaweedfs base url, got %q", cfg.Upload.SeaweedFSBaseURL)
+	}
+
+	if cfg.Upload.MaxSize != 10*1024*1024 {
+		t.Fatalf("expected default upload max size, got %d", cfg.Upload.MaxSize)
+	}
 }
 
 func TestLoadUsesEnvOverrides(t *testing.T) {
@@ -65,6 +76,9 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("AUTH_RATE_LIMIT_PER_MIN", "15")
 	t.Setenv("AUTH_DEPENDENCY_FAILURE_THRESHOLD", "7")
 	t.Setenv("AUTH_DEPENDENCY_COOLDOWN", "20s")
+	t.Setenv("SEAWEEDFS_BASE_URL", "http://seaweed:8888")
+	t.Setenv("UPLOAD_MAX_SIZE", "2048")
+	t.Setenv("ALLOWED_IMAGE_TYPES", "image/png,image/webp")
 
 	cfg := Load()
 
@@ -102,6 +116,18 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if cfg.Postgres.SSLMode != "require" {
 		t.Fatalf("expected env postgres ssl mode, got %q", cfg.Postgres.SSLMode)
+	}
+
+	if cfg.Upload.SeaweedFSBaseURL != "http://seaweed:8888" {
+		t.Fatalf("expected env seaweedfs base url, got %q", cfg.Upload.SeaweedFSBaseURL)
+	}
+
+	if cfg.Upload.MaxSize != 2048 {
+		t.Fatalf("expected env upload max size, got %d", cfg.Upload.MaxSize)
+	}
+
+	if len(cfg.Upload.AllowedTypes) != 2 || cfg.Upload.AllowedTypes[0] != "image/png" || cfg.Upload.AllowedTypes[1] != "image/webp" {
+		t.Fatalf("expected env upload allowed types, got %v", cfg.Upload.AllowedTypes)
 	}
 }
 
