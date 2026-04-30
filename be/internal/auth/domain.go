@@ -33,6 +33,9 @@ type SessionRepository interface {
 	FindActiveByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
 	RotateRefreshToken(ctx context.Context, session Session, newRefreshTokenHash string, expiresAtUnix int64) error
 	RevokeBySessionID(ctx context.Context, sessionID string) error
+	CleanupExpired(ctx context.Context, retention time.Duration) (int64, error)
+	SessionCleanupConfig(ctx context.Context) (SessionCleanupConfig, error)
+	WaitSessionCleanupConfigChange(ctx context.Context) error
 }
 
 type PasswordHasher interface {
@@ -164,6 +167,12 @@ type Session struct {
 	Subject              string
 	RefreshTokenHash     string
 	RefreshExpiresAtUnix int64
+}
+
+type SessionCleanupConfig struct {
+	Enabled   bool
+	Interval  time.Duration
+	Retention time.Duration
 }
 
 type TokenPair struct {

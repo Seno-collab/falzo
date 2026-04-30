@@ -96,51 +96,6 @@ func (h *Handler) Routes() chi.Router {
 	return r
 }
 
-type contextKey string
-
-const principalContextKey contextKey = "auth_principal"
-
-func withAuthenticatedUser(ctx context.Context, principal *AuthenticatedUser) context.Context {
-	return context.WithValue(ctx, principalContextKey, principal)
-}
-
-func authenticatedUserFromContext(ctx context.Context) (*AuthenticatedUser, bool) {
-	principal, ok := ctx.Value(principalContextKey).(*AuthenticatedUser)
-	return principal, ok
-}
-
-func AuthenticatedUserFromContext(ctx context.Context) (*AuthenticatedUser, bool) {
-	return authenticatedUserFromContext(ctx)
-}
-
-func RequireAuth(service interface {
-	Authenticate(ctx context.Context, rawToken string) (*AuthenticatedUser, error)
-}) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				share.WriteError(w, r, errMissingBearerToken, "authenticate", mapAuthError)
-				return
-			}
-
-			token, ok := strings.CutPrefix(authHeader, "Bearer ")
-			if !ok || token == "" {
-				share.WriteError(w, r, errInvalidAuthorizationHeader, "authenticate", mapAuthError)
-				return
-			}
-
-			principal, err := service.Authenticate(r.Context(), token)
-			if err != nil {
-				share.WriteError(w, r, err, "authenticate", mapAuthError)
-				return
-			}
-
-			next.ServeHTTP(w, r.WithContext(withAuthenticatedUser(r.Context(), principal)))
-		})
-	}
-}
-
 type RegisterRequest struct {
 	Username string `json:"user_name"`
 	Email    string `json:"email"`

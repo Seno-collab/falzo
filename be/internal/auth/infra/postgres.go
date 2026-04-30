@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"errors"
+	"time"
 
 	"falzo-be/internal/auth"
 	"falzo-be/internal/share"
@@ -13,6 +14,8 @@ import (
 )
 
 const authRepoService = "auth"
+const sessionCleanupJobName = "auth_session_cleanup"
+const jobConfigsChangedChannel = "job_configs_changed"
 
 type AccountRepository struct {
 	db database.Client
@@ -301,6 +304,87 @@ func (r *SessionRepository) RevokeBySessionID(ctx context.Context, sessionID str
 	}
 
 	return nil
+}
+
+func (r *SessionRepository) CleanupExpired(ctx context.Context, retention time.Duration) (int64, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return 0, auth.ErrDependencyUnavailable
+	}
+
+	if retention < 0 {
+		retention = 0
+	}
+
+	cutoff := time.Now().UTC().Add(-retention)
+	result, err := r.db.Pool().Exec(ctx, `
+		DELETE FROM auth_sessions s
+		WHERE EXISTS (
+			SELECT 1
+			FROM refresh_tokens rt
+			WHERE rt.session_id = s.session_id
+				AND (
+					rt.expires_at < $1
+					OR (rt.is_revoked = TRUE AND rt.updated_at < $1)
+					OR (s.is_revoked = TRUE AND s.updated_at < $1)
+				)
+		)
+	`, cutoff)
+	if err != nil {
+		return 0, share.MapDBError(ctx, authRepoService, "sessions.cleanup_expired", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+
+	return result.RowsAffected(), nil
+}
+
+func (r *SessionRepository) SessionCleanupConfig(ctx context.Context) (auth.SessionCleanupConfig, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return auth.SessionCleanupConfig{}, auth.ErrDependencyUnavailable
+	}
+
+	var (
+		cfg              auth.SessionCleanupConfig
+		intervalSeconds  int64
+		retentionSeconds int64
+	)
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT enabled, interval_seconds, retention_seconds
+		FROM job_configs
+		WHERE job_name = $1
+		LIMIT 1
+	`, sessionCleanupJobName).Scan(&cfg.Enabled, &intervalSeconds, &retentionSeconds)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return auth.SessionCleanupConfig{
+				Enabled:   false,
+				Interval:  time.Minute,
+				Retention: 0,
+			}, nil
+		}
+		return auth.SessionCleanupConfig{}, share.MapDBError(ctx, authRepoService, "sessions.cleanup_config", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+
+	cfg.Interval = time.Duration(intervalSeconds) * time.Second
+	cfg.Retention = time.Duration(retentionSeconds) * time.Second
+	return cfg, nil
+}
+
+func (r *SessionRepository) WaitSessionCleanupConfigChange(ctx context.Context) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return auth.ErrDependencyUnavailable
+	}
+
+	conn, err := r.db.Pool().Acquire(ctx)
+	if err != nil {
+		return share.MapDBError(ctx, authRepoService, "sessions.cleanup_config_listener.acquire", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, "LISTEN "+jobConfigsChangedChannel); err != nil {
+		return share.MapDBError(ctx, authRepoService, "sessions.cleanup_config_listener.listen", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+
+	_, err = conn.Conn().WaitForNotification(ctx)
+	return err
 }
 
 var _ auth.AccountRepository = (*AccountRepository)(nil)

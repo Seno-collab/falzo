@@ -54,6 +54,8 @@ func Run() {
 	passwords := authInfra.NewPasswordHasher()
 	jwtManager := authInfra.NewJWTManager(cfg.Auth)
 	authService := auth.NewService(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
+	sessionCleanupCtx, stopSessionCleanup := context.WithCancel(context.Background())
+	go auth.RunSessionCleanup(sessionCleanupCtx, sessions)
 	authRateLimit := httpMiddleware.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
 	authProtector := auth.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCoolDown)
 	authHandler := auth.NewHandler(authService, authProtector, auth.WithPublicMiddlewares(authRateLimit))
@@ -97,6 +99,10 @@ func Run() {
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}
+	sm.Register("auth-session-cleanup-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+		stopSessionCleanup()
+		return nil
+	})
 	sm.Register("http-stop-accepting", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		// Stop accepting new requests immediately
 		return srv.Shutdown(ctx)

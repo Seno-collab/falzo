@@ -136,6 +136,18 @@ func (r *CachedSessionRepository) RevokeBySessionID(ctx context.Context, session
 	return nil
 }
 
+func (r *CachedSessionRepository) CleanupExpired(ctx context.Context, retention time.Duration) (int64, error) {
+	return r.next.CleanupExpired(ctx, retention)
+}
+
+func (r *CachedSessionRepository) SessionCleanupConfig(ctx context.Context) (auth.SessionCleanupConfig, error) {
+	return r.next.SessionCleanupConfig(ctx)
+}
+
+func (r *CachedSessionRepository) WaitSessionCleanupConfigChange(ctx context.Context) error {
+	return r.next.WaitSessionCleanupConfigChange(ctx)
+}
+
 func (r *CachedSessionRepository) cacheSessionActive(ctx context.Context, sessionID string, active bool) {
 	cacheValue := sessionInactiveCacheValue
 	if active {

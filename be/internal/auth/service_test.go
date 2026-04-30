@@ -70,6 +70,19 @@ func (f *fakeSessionRepository) RevokeBySessionID(ctx context.Context, sessionID
 	return nil
 }
 
+func (f *fakeSessionRepository) CleanupExpired(ctx context.Context, retention time.Duration) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeSessionRepository) SessionCleanupConfig(ctx context.Context) (auth.SessionCleanupConfig, error) {
+	return auth.SessionCleanupConfig{}, nil
+}
+
+func (f *fakeSessionRepository) WaitSessionCleanupConfigChange(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 func TestLoginSuccess(t *testing.T) {
 	hasher := authInfra.NewPasswordHasher()
 	hash, err := hasher.Hash(auth.RawPassword("admin123"))
