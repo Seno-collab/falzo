@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "images:optimize": "node scripts/optimize-scenic-images.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "pnpm typecheck && pnpm build",
     "build": "next build",
     "start": "next start"
   },

@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	App      AppConfig
-	HTTP     HTTPConfig
-	Auth     AuthConfig
-	Postgres PostgresConfig
-	Redis    RedisConfig
-	Upload   UploadConfig
+	App        AppConfig
+	HTTP       HTTPConfig
+	Auth       AuthConfig
+	Postgres   PostgresConfig
+	Redis      RedisConfig
+	Engagement EngagementConfig
+	Upload     UploadConfig
 }
 
 type AppConfig struct {
@@ -60,6 +61,11 @@ type RedisConfig struct {
 	Addr     string
 	Password string
 	DB       int
+}
+
+type EngagementConfig struct {
+	ClaimMinIdle time.Duration
+	MaxRetries   int
 }
 
 type UploadConfig struct {
@@ -112,6 +118,10 @@ func Load() Config {
 			Addr:     GetEnv("REDIS_ADDR", "127.0.0.1:6379"),
 			Password: GetEnv("REDIS_PASSWORD", ""),
 			DB:       GetInt("REDIS_DB", 0),
+		},
+		Engagement: EngagementConfig{
+			ClaimMinIdle: GetDuration("ENGAGEMENT_CLAIM_MIN_IDLE", 30*time.Second),
+			MaxRetries:   GetInt("ENGAGEMENT_MAX_RETRIES", 10),
 		},
 		Upload: UploadConfig{
 			SeaweedFSBaseURL: GetEnv("SEAWEEDFS_BASE_URL", "http://127.0.0.1:8888"),

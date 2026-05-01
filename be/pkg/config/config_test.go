@@ -53,6 +53,14 @@ func TestLoadUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default dependency cooldown, got %v", cfg.Auth.DependencyCoolDown)
 	}
 
+	if cfg.Engagement.ClaimMinIdle != 30*time.Second {
+		t.Fatalf("expected default engagement claim min idle, got %v", cfg.Engagement.ClaimMinIdle)
+	}
+
+	if cfg.Engagement.MaxRetries != 10 {
+		t.Fatalf("expected default engagement max retries, got %d", cfg.Engagement.MaxRetries)
+	}
+
 	if cfg.Postgres.SSLMode != "disable" {
 		t.Fatalf("expected default postgres ssl mode disable, got %q", cfg.Postgres.SSLMode)
 	}
@@ -76,6 +84,8 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("AUTH_RATE_LIMIT_PER_MIN", "15")
 	t.Setenv("AUTH_DEPENDENCY_FAILURE_THRESHOLD", "7")
 	t.Setenv("AUTH_DEPENDENCY_COOLDOWN", "20s")
+	t.Setenv("ENGAGEMENT_CLAIM_MIN_IDLE", "45s")
+	t.Setenv("ENGAGEMENT_MAX_RETRIES", "5")
 	t.Setenv("SEAWEEDFS_BASE_URL", "http://seaweed:8888")
 	t.Setenv("UPLOAD_MAX_SIZE", "2048")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "image/png,image/webp")
@@ -112,6 +122,14 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if cfg.Auth.DependencyCoolDown != 20*time.Second {
 		t.Fatalf("expected env dependency cooldown, got %v", cfg.Auth.DependencyCoolDown)
+	}
+
+	if cfg.Engagement.ClaimMinIdle != 45*time.Second {
+		t.Fatalf("expected env engagement claim min idle, got %v", cfg.Engagement.ClaimMinIdle)
+	}
+
+	if cfg.Engagement.MaxRetries != 5 {
+		t.Fatalf("expected env engagement max retries, got %d", cfg.Engagement.MaxRetries)
 	}
 
 	if cfg.Postgres.SSLMode != "require" {

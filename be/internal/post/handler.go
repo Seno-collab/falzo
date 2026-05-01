@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"falzo-be/internal/auth"
 	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 
@@ -31,26 +32,36 @@ type handlerService interface {
 }
 
 type Handler struct {
-	service handlerService
+	service     handlerService
+	authService interface {
+		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
+	}
 }
 
-func NewHandler(service handlerService) *Handler {
-	return &Handler{service: service}
+func NewHandler(
+	service handlerService,
+	authService interface {
+		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
+	},
+) *Handler {
+	return &Handler{service: service, authService: authService}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/", h.CreatePost)
-	r.Post("/{id}/like", h.LikePost)
-	r.Post("/{id}/save", h.SavePost)
 	r.Get("/", h.GetPosts)
 	r.Get("/location", h.GetPostsByLocation)
 	r.Get("/{id}", h.GetPostDetail)
+	r.Group(func(protected chi.Router) {
+		protected.Use(auth.RequireAuth(h.authService))
+		protected.Post("/", h.CreatePost)
+		protected.Post("/{id}/like", h.LikePost)
+		protected.Post("/{id}/save", h.SavePost)
+	})
 	return r
 }
 
 type CreatePostRequest struct {
-	UserID       uint64  `json:"user_id"`
 	ImageURL     string  `json:"image_url"`
 	Caption      string  `json:"caption"`
 	LocationName string  `json:"location_name"`
@@ -65,8 +76,14 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "create_post", mapPostError)
+		return
+	}
+
 	post, err := h.service.CreatePost(r.Context(), CreatePostInput{
-		UserID:       req.UserID,
+		UserID:       principal.UserID,
 		ImageURL:     req.ImageURL,
 		Caption:      req.Caption,
 		LocationName: req.LocationName,
@@ -142,10 +159,6 @@ func (h *Handler) GetPostsByLocation(w http.ResponseWriter, r *http.Request) {
 	httpResponse.Success(w, http.StatusOK, "Posts by location fetched successfully", posts, r)
 }
 
-type postActionRequest struct {
-	UserID uint64 `json:"user_id"`
-}
-
 func (h *Handler) LikePost(w http.ResponseWriter, r *http.Request) {
 	h.handlePostAction(w, r, "like_post", "Post liked successfully", "post liked", h.service.LikePost)
 }
@@ -168,13 +181,13 @@ func (h *Handler) handlePostAction(
 		return
 	}
 
-	var req postActionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		share.WriteError(w, r, errInvalidJSONPayload, operation, mapPostError)
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, operation, mapPostError)
 		return
 	}
 
-	if err := action(r.Context(), PostActionInput{PostID: postID, UserID: req.UserID}); err != nil {
+	if err := action(r.Context(), PostActionInput{PostID: postID, UserID: principal.UserID}); err != nil {
 		share.WriteError(w, r, err, operation, mapPostError)
 		return
 	}

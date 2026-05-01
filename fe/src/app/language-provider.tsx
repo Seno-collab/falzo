@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  useCallback,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -38,7 +38,10 @@ function detectLanguageFromBrowser(): AppLanguage {
   }
 
   const browserLocales = Array.from(
-    new Set([...(globalThis.navigator.languages ?? []), globalThis.navigator.language]),
+    new Set([
+      ...(globalThis.navigator.languages ?? []),
+      globalThis.navigator.language,
+    ]),
   ).filter((value): value is string => Boolean(value));
 
   const hasVietnameseLocale = browserLocales.some(isVietnameseLocale);
@@ -64,7 +67,9 @@ function getStoredLanguage(): AppLanguage | null {
     return null;
   }
 
-  return normalizeLanguage(globalThis.window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
+  return normalizeLanguage(
+    globalThis.window.localStorage.getItem(LANGUAGE_STORAGE_KEY),
+  );
 }
 
 export function LanguageProvider({ children }: Readonly<PropsWithChildren>) {
@@ -77,9 +82,12 @@ export function LanguageProvider({ children }: Readonly<PropsWithChildren>) {
       return;
     }
 
-    globalThis.window.localStorage.setItem(LANGUAGE_STORAGE_KEY, appLanguageState);
+    globalThis.window.localStorage.setItem(
+      LANGUAGE_STORAGE_KEY,
+      appLanguageState,
+    );
     document.documentElement.lang = appLanguageState;
-  }, [  ]);
+  }, [appLanguageState]);
 
   const setAppLanguage = useCallback((nextLanguage: AppLanguage) => {
     setAppLanguageState(nextLanguage);

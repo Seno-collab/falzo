@@ -8,7 +8,7 @@ import type {
   AuthUser,
   LoginRequest,
   RegisterRequest,
-} from "@/types/api/auth";
+} from "@/features/auth/types";
 import type { ApiEnvelope } from "@/types/api/response";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";

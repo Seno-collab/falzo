@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type PropsWithChildren } from "react";
 import { Toaster } from "sonner";
 import { LanguageProvider } from "@/app/language-provider";
-import { initializeAuthHeader } from "@/api/auth.api";
+import { initializeAuthHeader } from "@/features/auth/api";
 
 export function AppProviders({ children }: Readonly<PropsWithChildren>) {
   const [queryClient] = useState(

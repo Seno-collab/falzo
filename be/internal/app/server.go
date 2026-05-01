@@ -62,9 +62,17 @@ func Run() {
 	locationRepository := locationInfra.NewPostgresRepository(db)
 	locationService := location.NewService(locationRepository)
 	locationHandler := location.NewHandler(locationService)
-	postRepository := postInfra.NewPostgresRepository(db)
+	postgresPostRepository := postInfra.NewPostgresRepository(db)
+	var postRepository post.Repository = postgresPostRepository
+	var stopEngagementWorker context.CancelFunc
+	if redisClient != nil {
+		postRepository = postInfra.NewEngagementStreamRepository(postRepository, redisClient)
+		engagementWorkerCtx, cancelEngagementWorker := context.WithCancel(context.Background())
+		stopEngagementWorker = cancelEngagementWorker
+		go postInfra.RunEngagementStreamWorker(engagementWorkerCtx, postgresPostRepository, redisClient, cfg.Engagement)
+	}
 	postService := post.NewService(postRepository)
-	postHandler := post.NewHandler(postService)
+	postHandler := post.NewHandler(postService, authService)
 	imageRepository := uploadInfra.NewPostgresRepository(db)
 	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
 	uploadService := upload.NewService(
@@ -103,6 +111,12 @@ func Run() {
 		stopSessionCleanup()
 		return nil
 	})
+	if stopEngagementWorker != nil {
+		sm.Register("post-engagement-worker-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+			stopEngagementWorker()
+			return nil
+		})
+	}
 	sm.Register("http-stop-accepting", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		// Stop accepting new requests immediately
 		return srv.Shutdown(ctx)

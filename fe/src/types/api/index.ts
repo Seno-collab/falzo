@@ -4,7 +4,7 @@ export type {
   AuthSession,
   LoginRequest,
   RegisterRequest,
-} from "@/types/api/auth";
+} from "@/features/auth/types";
 
 export type {
   ApiEnvelope,
