@@ -2,7 +2,6 @@ services:
   postgres:
     image: postgis/postgis:18-3.6-alpine
     restart: unless-stopped
-    env_file: ./be/.env
     environment:
       POSTGRES_DB: ${POSTGRES_DATABASE}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -14,7 +13,6 @@ services:
   mongodb:
     image: mongo:latest
     restart: unless-stopped
-    env_file: ./be/.env
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
@@ -26,7 +24,6 @@ services:
   redis:
     image: redis:latest
     restart: unless-stopped
-    env_file: ./be/.env
     command:
       - redis-server
       - --requirepass
@@ -36,7 +33,6 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/seaweedfs_s3.json
-    env_file: ./be/.env
     ports:
       - "8333:8333"
       - "9333:9333"
