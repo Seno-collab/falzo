@@ -9,7 +9,6 @@ import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { useLanguage } from "@/app/language-provider";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { AuthShell } from "@/components/layout/auth-shell";
 import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
@@ -28,11 +27,10 @@ type LoginFormValues = {
 };
 
 export function LoginScreen() {
-  const { appLanguage } = useLanguage();
   const router = useRouter();
-  const copy = messages[appLanguage].loginPage;
-  const commonCopy = messages[appLanguage].common;
-  const homeCopy = messages[appLanguage].homePage;
+  const copy = messages.en.loginPage;
+  const commonCopy = messages.en.common;
+  const homeCopy = messages.en.homePage;
 
   const loginSchema = useMemo(
     () =>
@@ -68,7 +66,7 @@ export function LoginScreen() {
       router.replace(ROUTES.dashboard);
     } catch (error) {
       toast.error(copy.errorTitle, {
-        description: getApiErrorMessage(error, appLanguage),
+        description: getApiErrorMessage(error),
       });
     }
   });
@@ -97,7 +95,7 @@ export function LoginScreen() {
             {
               id: "home",
               icon: <House className="size-4" />,
-              label: appLanguage === "vi" ? "Trang chủ" : "Home",
+              label: "Home",
               to: ROUTES.home,
               variant: "outline",
             },
@@ -113,7 +111,7 @@ export function LoginScreen() {
           brandIcon={<LogIn className="size-3.5" />}
           meta={<UserPresenceBadge />}
           mobileMenuTitle={copy.title}
-          subtitle={appLanguage === "vi" ? "Đăng nhập bảo mật" : "Secure login"}
+          subtitle="Secure login"
         />
       }
     >

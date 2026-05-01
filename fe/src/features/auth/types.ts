@@ -1,5 +1,3 @@
-export type ApiLanguage = "vi" | "en";
-
 export type LoginRequest = {
   email: string;
   password: string;

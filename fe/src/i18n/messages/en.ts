@@ -8,7 +8,8 @@ export const enMessages = {
     viewDetails: "View details",
   },
   home: {
-    heroTitle: "Pick destination fast, see pricing clearly, book without friction",
+    heroTitle:
+      "Pick destination fast, see pricing clearly, book without friction",
     heroCta: "Explore 3D tours",
     searchTitle: "Find your right tour now",
     featuredTitle: "Featured tours",
@@ -28,7 +29,8 @@ export const enMessages = {
     navRegister: "Register",
     navDashboard: "Dashboard",
     heroBadge: "Scenic promotion website",
-    heroTitle: "Showcase breathtaking landscapes with a visual-first and memorable interface",
+    heroTitle:
+      "Showcase breathtaking landscapes with a visual-first and memorable interface",
     heroDescription:
       "Falzo Scenery helps you present destination visuals by region, season, and mood. The layout prioritizes immersive imagery, concise copy, and strong visual storytelling.",
     heroPrimaryCta: "Explore collections",
@@ -36,17 +38,20 @@ export const enMessages = {
     heroStats: ["120+ spotlight destinations", "4 seasonal visual themes"],
     heroRegionLabel: "Featured regions",
     heroSideTitle: "Most viewed landscapes this week",
-    heroSideSubtitle: "Destinations with striking visuals and ideal light windows for photography.",
+    heroSideSubtitle:
+      "Destinations with striking visuals and ideal light windows for photography.",
     heroSideCta: "View all destinations",
     showcaseTitle: "Scenic image collections",
-    showcaseSubtitle: "Each card tells a visual story through color, light, and atmosphere.",
+    showcaseSubtitle:
+      "Each card tells a visual story through color, light, and atmosphere.",
     bestTimeLabel: "Best light",
     moodLabel: "Mood",
     viewCollectionCta: "View gallery",
     themeTitle: "Promotion themes",
     themeSubtitle: "Content groups you can use for seasonal image campaigns.",
     highlightsTitle: "Interface strengths",
-    highlightsSubtitle: "Bold visual impact with clear, readable content structure.",
+    highlightsSubtitle:
+      "Bold visual impact with clear, readable content structure.",
     regionTitle: "Explore by region",
     regionHint: "Pick a region to quickly filter visuals and campaign content.",
     regionTags: [
@@ -131,7 +136,8 @@ export const enMessages = {
       {
         id: "alpine-lines",
         title: "Highlands and mountain ranges",
-        description: "A campaign cluster focused on dramatic terrain, misty mornings, and wide views.",
+        description:
+          "A campaign cluster focused on dramatic terrain, misty mornings, and wide views.",
         points: [
           "Great for nature exploration campaigns",
           "Best with panoramic and aerial imagery",
@@ -140,7 +146,8 @@ export const enMessages = {
       {
         id: "golden-coast",
         title: "Blue coasts and golden light",
-        description: "Emphasizes vivid color, resort mood, and a bright summer atmosphere.",
+        description:
+          "Emphasizes vivid color, resort mood, and a bright summer atmosphere.",
         points: [
           "Boost appeal with golden-hour visuals",
           "Strong fit for resorts and coastal tourism",
@@ -149,7 +156,8 @@ export const enMessages = {
       {
         id: "heritage-streets",
         title: "Old streets and heritage",
-        description: "Highlights architecture, night lighting, and local cultural texture.",
+        description:
+          "Highlights architecture, night lighting, and local cultural texture.",
         points: [
           "Creates mood through layered lighting",
           "Ideal for cultural travel storytelling",
@@ -160,17 +168,20 @@ export const enMessages = {
       {
         id: "visual-first",
         title: "Visual-first hierarchy",
-        description: "Imagery leads the experience while concise copy supports fast scanning.",
+        description:
+          "Imagery leads the experience while concise copy supports fast scanning.",
       },
       {
         id: "region-story",
         title: "Region-based storytelling",
-        description: "Each region carries its own color mood for stronger campaign identity.",
+        description:
+          "Each region carries its own color mood for stronger campaign identity.",
       },
       {
         id: "promo-ready",
         title: "Ready for promo landing",
-        description: "Includes all key sections needed for destination and visual promotion campaigns.",
+        description:
+          "Includes all key sections needed for destination and visual promotion campaigns.",
       },
     ],
   },
@@ -184,7 +195,8 @@ export const enMessages = {
     homeCta: "Back home",
     boardBadge: "Interactive 3D-like Gallery",
     boardTitle: "Drag and arrange image cards",
-    boardHint: "Click/hold a card to drag it around. Pointer position controls the 3D tilt illusion.",
+    boardHint:
+      "Click/hold a card to drag it around. Pointer position controls the 3D tilt illusion.",
     resetCta: "Reset card positions",
     detailsBadge: "Selected frame",
     detailsTitle: "Image details",
@@ -208,7 +220,8 @@ export const enMessages = {
         id: "mu-cang-chai",
         title: "Terraced sunrise",
         location: "Mu Cang Chai, Vietnam",
-        description: "Layered yellow and green terraces create striking depth for scenic storytelling.",
+        description:
+          "Layered yellow and green terraces create striking depth for scenic storytelling.",
         mood: "Calm and crisp",
         bestTime: "05:30 - 06:30",
         tag: "Highland",
@@ -223,7 +236,8 @@ export const enMessages = {
         id: "ly-son",
         title: "Blue sea cliffs",
         location: "Ly Son, Vietnam",
-        description: "Emerald and ocean blue tones work well for summer travel promotions.",
+        description:
+          "Emerald and ocean blue tones work well for summer travel promotions.",
         mood: "Vivid and energetic",
         bestTime: "14:00 - 16:30",
         tag: "Island coast",
@@ -238,7 +252,8 @@ export const enMessages = {
         id: "kyoto",
         title: "Lantern old town",
         location: "Kyoto, Japan",
-        description: "Golden light and wooden textures create a nostalgic visual narrative.",
+        description:
+          "Golden light and wooden textures create a nostalgic visual narrative.",
         mood: "Nostalgic and warm",
         bestTime: "18:00 - 20:00",
         tag: "Old town",
@@ -253,7 +268,8 @@ export const enMessages = {
         id: "interlaken",
         title: "Alps emerald lake",
         location: "Interlaken, Switzerland",
-        description: "Emerald tones with light mist deliver a premium and refined scenic tone.",
+        description:
+          "Emerald tones with light mist deliver a premium and refined scenic tone.",
         mood: "Pure and fresh",
         bestTime: "06:00 - 08:00",
         tag: "Lake & mountain",
@@ -268,7 +284,8 @@ export const enMessages = {
         id: "istanbul",
         title: "Sunset domes",
         location: "Istanbul, Turkiye",
-        description: "Warm sunset tones and heritage silhouettes create strong brand recall.",
+        description:
+          "Warm sunset tones and heritage silhouettes create strong brand recall.",
         mood: "Deep and classic",
         bestTime: "17:30 - 18:45",
         tag: "Heritage",
@@ -283,7 +300,8 @@ export const enMessages = {
         id: "patagonia",
         title: "Patagonia trail",
         location: "Torres del Paine, Chile",
-        description: "Open sky and rugged terrain are ideal for large-format adventure visuals.",
+        description:
+          "Open sky and rugged terrain are ideal for large-format adventure visuals.",
         mood: "Majestic and open",
         bestTime: "10:00 - 12:00",
         tag: "Adventure",
@@ -305,6 +323,7 @@ export const enMessages = {
     open3DDemoCta: "Open scenic gallery",
     backToLandingCta: "Back to landing page",
     logoutCta: "Logout",
+    Profile: "Profiler",
   },
   loginPage: {
     documentTitle: "Login | Falzo",

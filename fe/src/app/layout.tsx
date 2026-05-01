@@ -4,7 +4,7 @@ import { AppProviders } from "@/app/providers";
 import "@/styles.css";
 
 const manrope = Manrope({
-  subsets: ["latin", "vietnamese"],
+  subsets: ["latin"],
   variable: "--font-manrope",
 });
 

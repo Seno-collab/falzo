@@ -2,34 +2,24 @@ import { Clock3, MapPinned, NotebookPen, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function ScenicFieldNote({
-  language,
   location,
   bestTime,
   mood,
   tag,
   className,
 }: Readonly<{
-  language: "vi" | "en"
   location: string
   bestTime: string
   mood: string
   tag: string
   className?: string
 }>) {
-  const copy =
-    language === "vi"
-      ? {
-          title: "Ghi chú hiện trường",
-          locationLabel: "Vị trí",
-          windowLabel: "Khung giờ",
-          moodLabel: "Mood",
-        }
-      : {
-          title: "Field note",
-          locationLabel: "Location",
-          windowLabel: "Light window",
-          moodLabel: "Mood",
-        }
+  const copy = {
+    title: "Field note",
+    locationLabel: "Location",
+    windowLabel: "Light window",
+    moodLabel: "Mood",
+  }
 
   return (
     <div className={cn("falzo-field-note", className)}>

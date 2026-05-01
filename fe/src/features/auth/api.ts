@@ -3,7 +3,6 @@ import type { AxiosRequestConfig } from "axios";
 import { messages } from "@/i18n/messages";
 import { http } from "@/lib/http";
 import type {
-  ApiLanguage,
   AuthSession,
   AuthUser,
   LoginRequest,
@@ -119,7 +118,7 @@ function readMessage(data: unknown): string | null {
 }
 
 function writeStorage(scope: StorageScope, key: string, value: string) {
-   if (globalThis.window === undefined) {
+  if (globalThis.window === undefined) {
     return;
   }
 
@@ -131,7 +130,7 @@ function writeStorage(scope: StorageScope, key: string, value: string) {
 }
 
 function clearStorageKey(key: string) {
-   if (globalThis.window === undefined) {
+  if (globalThis.window === undefined) {
     return;
   }
 
@@ -140,7 +139,7 @@ function clearStorageKey(key: string) {
 }
 
 function getStoredValue(key: string): string | null {
-   if (globalThis.window === undefined) {
+  if (globalThis.window === undefined) {
     return null;
   }
 
@@ -256,8 +255,8 @@ async function refreshTokenApi(): Promise<AuthSession> {
 
 function getRefreshPromise() {
   refreshInFlight ??= refreshTokenApi().finally(() => {
-      refreshInFlight = null;
-    });
+    refreshInFlight = null;
+  });
 
   return refreshInFlight;
 }
@@ -342,11 +341,8 @@ export function clearAuthSession() {
   delete http.defaults.headers.common.Authorization;
 }
 
-export function getApiErrorMessage(
-  error: unknown,
-  language: ApiLanguage = "en",
-): string {
-  const errorMessages = messages[language].apiErrors;
+export function getApiErrorMessage(error: unknown): string {
+  const errorMessages = messages.en.apiErrors;
 
   if (error instanceof AxiosError) {
     const serverMessage = readMessage(error.response?.data);
@@ -397,7 +393,7 @@ export async function registerApi(payload: RegisterRequest) {
   const endpoint = AUTH_ENDPOINTS.register;
 
   const response = await http.post(endpoint, {
-    fullName: payload.fullName,
+    user_name: payload.fullName,
     email: payload.email,
     password: payload.password,
   });

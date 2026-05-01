@@ -9,7 +9,6 @@ import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { useLanguage } from "@/app/language-provider";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { AuthShell } from "@/components/layout/auth-shell";
 import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
@@ -33,11 +32,10 @@ type RegisterFormValues = {
 };
 
 export function RegisterScreen() {
-  const { appLanguage } = useLanguage();
   const router = useRouter();
-  const copy = messages[appLanguage].registerPage;
-  const commonCopy = messages[appLanguage].common;
-  const homeCopy = messages[appLanguage].homePage;
+  const copy = messages.en.registerPage;
+  const commonCopy = messages.en.common;
+  const homeCopy = messages.en.homePage;
 
   const registerSchema = useMemo(
     () =>
@@ -97,7 +95,7 @@ export function RegisterScreen() {
       router.replace(ROUTES.login);
     } catch (error) {
       toast.error(copy.errorTitle, {
-        description: getApiErrorMessage(error, appLanguage),
+        description: getApiErrorMessage(error),
       });
     }
   });
@@ -126,7 +124,7 @@ export function RegisterScreen() {
             {
               id: "home",
               icon: <House className="size-4" />,
-              label: appLanguage === "vi" ? "Trang chủ" : "Home",
+              label: "Home",
               to: ROUTES.home,
               variant: "outline",
             },
@@ -142,7 +140,7 @@ export function RegisterScreen() {
           brandIcon={<UserPlus className="size-3.5" />}
           meta={<UserPresenceBadge />}
           mobileMenuTitle={copy.title}
-          subtitle={appLanguage === "vi" ? "Đăng ký tài khoản" : "Create account"}
+          subtitle="Create account"
         />
       }
     >
@@ -235,6 +233,7 @@ export function RegisterScreen() {
                 disabled={formState.isSubmitting}
                 id="password"
                 placeholder={copy.passwordPlaceholder}
+                aria-valuemin={8}
                 type="password"
                 {...register("password")}
               />
@@ -252,6 +251,7 @@ export function RegisterScreen() {
                 className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
                 disabled={formState.isSubmitting}
                 id="confirmPassword"
+                aria-valuemin={8}
                 placeholder={copy.confirmPasswordPlaceholder}
                 type="password"
                 {...register("confirmPassword")}

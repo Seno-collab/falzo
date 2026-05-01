@@ -194,7 +194,7 @@ export function ExploreScreen() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[1480px] px-4 pb-14 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
         <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
           {visiblePins.map((pin, index) => {
             const isSaved = savedPins.has(pin.id);

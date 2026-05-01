@@ -1,10 +1,16 @@
 "use client";
 
-import { BarChart3, Compass, House, LogOut, Sparkles } from "lucide-react";
+import {
+  BarChart3,
+  Compass,
+  House,
+  LogOut,
+  Sparkles,
+  User,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLanguage } from "@/app/language-provider";
 import { LoadingPanel } from "@/components/feedback/loading-panel";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { PageShell } from "@/components/layout/page-shell";
@@ -40,10 +46,9 @@ function resolveUserDisplayName(payload: unknown): string | null {
 }
 
 export function DashboardScreen() {
-  const { appLanguage } = useLanguage();
   const router = useRouter();
-  const copy = messages[appLanguage].dashboardPage;
-  const featuredFrame = messages[appLanguage].homePage.scenicGallery[0];
+  const copy = messages.en.dashboardPage;
+  const featuredFrame = messages.en.homePage.scenicGallery[0];
 
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -138,11 +143,7 @@ export function DashboardScreen() {
       {isSessionChecking ? (
         <LoadingPanel
           description={copy.subtitle}
-          title={
-            appLanguage === "vi"
-              ? "Đang kiểm tra phiên đăng nhập"
-              : "Verifying your session"
-          }
+          title="Verifying your session"
         />
       ) : (
         <motion.div
@@ -161,8 +162,7 @@ export function DashboardScreen() {
                 />
                 {userDisplayName ? (
                   <p className="text-sm text-[#527299]">
-                    {appLanguage === "vi" ? "Xin chào" : "Welcome"},{" "}
-                    {userDisplayName}
+                    Welcome, {userDisplayName}
                   </p>
                 ) : null}
               </div>
@@ -178,7 +178,7 @@ export function DashboardScreen() {
                     key={label}
                   >
                     <p className="text-xs font-semibold tracking-wide text-[#6988ae] uppercase">
-                      {appLanguage === "vi" ? "Tác vụ" : "Action"}
+                      Action
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[#1d3d64]">
                       {label}
@@ -189,7 +189,6 @@ export function DashboardScreen() {
 
               <ScenicFieldNote
                 bestTime={featuredFrame.bestTime}
-                language={appLanguage}
                 location={featuredFrame.location}
                 mood={featuredFrame.mood}
                 tag={featuredFrame.tag}

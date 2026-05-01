@@ -1,9 +1,7 @@
 import { Clock3, Globe } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useLanguage } from "@/app/language-provider";
 
 export function UserPresenceBadge() {
-  const { appLanguage } = useLanguage();
   const [now, setNow] = useState<Date | null>(null);
   const [timezone, setTimezone] = useState("");
 
@@ -26,19 +24,19 @@ export function UserPresenceBadge() {
         return "--:--";
       }
 
-      return new Intl.DateTimeFormat(appLanguage === "vi" ? "vi-VN" : "en-US", {
+      return new Intl.DateTimeFormat("en-US", {
         hour: "2-digit",
         minute: "2-digit",
       }).format(now);
     },
-    [appLanguage, now],
+    [now],
   );
 
   return (
     <div className="inline-flex flex-wrap items-center gap-1.5">
       <span className="inline-flex items-center gap-1 rounded-full border border-[#c9ddf0] bg-[#f5faff] px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[#446b96] uppercase">
         <Globe className="size-3" />
-        {appLanguage.toUpperCase()}
+        EN
       </span>
       <span className="inline-flex items-center gap-1 rounded-full border border-[#c9ddf0] bg-white px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[#446b96] uppercase">
         <Clock3 className="size-3" />
