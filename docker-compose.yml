@@ -1,31 +1,4 @@
 services:
-  api:
-    build:
-      context: ./be
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file: ./be/.env
-    depends_on:
-      - postgres
-      - redis
-      - mongodb
-      - seaweedfs
-    expose:
-      - "8000"
-  web:
-    build:
-      context: ./fe
-      dockerfile: Dockerfile
-      args:
-        API_BASE_URL: http://api:8000
-    environment:
-      API_BASE_URL: http://api:8000
-    restart: unless-stopped
-    env_file: ./fe/.env
-    ports:
-      - "3000:3000"
-    depends_on:
-      - api
   postgres:
     image: postgis/postgis:18-3.6-alpine
     restart: unless-stopped
@@ -67,6 +40,33 @@ services:
     volumes:
       - seaweedfs_data:/data
       - ./be/secretkey/seaweedfs_s3.json:/etc/seaweedfs/seaweedfs_s3.json:ro
+  api:
+    build:
+      context: ./be
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ./be/.env
+    depends_on:
+      - postgres
+      - redis
+      - mongodb
+      - seaweedfs
+    expose:
+      - "8000"
+  web:
+    build:
+      context: ./fe
+      dockerfile: Dockerfile
+      args:
+        API_BASE_URL: http://api:8000
+    environment:
+      API_BASE_URL: http://api:8000
+    restart: unless-stopped
+    env_file: ./fe/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
 volumes:
   postgres_data:
   redis:
