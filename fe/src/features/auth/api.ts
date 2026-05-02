@@ -30,7 +30,7 @@ const AUTH_ENDPOINTS = {
   refresh:
     process.env.NEXT_PUBLIC_AUTH_REFRESH_ENDPOINT ??
     process.env.VITE_AUTH_REFRESH_ENDPOINT ??
-    "/auth/refresh-token",
+    "/auth/refresh",
   logout:
     process.env.NEXT_PUBLIC_AUTH_LOGOUT_ENDPOINT ??
     process.env.VITE_AUTH_LOGOUT_ENDPOINT ??
@@ -236,7 +236,7 @@ async function refreshTokenApi(): Promise<AuthSession> {
 
   const response = await http.post(
     endpoint,
-    currentRefreshToken ? { refreshToken: currentRefreshToken } : {},
+    currentRefreshToken ? { refresh_token: currentRefreshToken } : {},
     { skipAuthRefresh: true } as RetryableRequestConfig,
   );
 

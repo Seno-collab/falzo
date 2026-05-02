@@ -18,6 +18,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("SEAWEEDFS_BASE_URL", "")
 	t.Setenv("UPLOAD_MAX_SIZE", "")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "")
+	t.Setenv("UPLOAD_RATE_LIMIT_PER_MIN", "")
 
 	cfg := Load()
 
@@ -72,6 +73,10 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.Upload.MaxSize != 10*1024*1024 {
 		t.Fatalf("expected default upload max size, got %d", cfg.Upload.MaxSize)
 	}
+
+	if cfg.Upload.RateLimitPerMin != 20 {
+		t.Fatalf("expected default upload rate limit, got %d", cfg.Upload.RateLimitPerMin)
+	}
 }
 
 func TestLoadUsesEnvOverrides(t *testing.T) {
@@ -89,6 +94,7 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("SEAWEEDFS_BASE_URL", "http://seaweed:8888")
 	t.Setenv("UPLOAD_MAX_SIZE", "2048")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "image/png,image/webp")
+	t.Setenv("UPLOAD_RATE_LIMIT_PER_MIN", "3")
 
 	cfg := Load()
 
@@ -146,6 +152,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if len(cfg.Upload.AllowedTypes) != 2 || cfg.Upload.AllowedTypes[0] != "image/png" || cfg.Upload.AllowedTypes[1] != "image/webp" {
 		t.Fatalf("expected env upload allowed types, got %v", cfg.Upload.AllowedTypes)
+	}
+
+	if cfg.Upload.RateLimitPerMin != 3 {
+		t.Fatalf("expected env upload rate limit, got %d", cfg.Upload.RateLimitPerMin)
 	}
 }
 

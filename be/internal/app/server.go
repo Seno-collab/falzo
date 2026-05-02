@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -81,7 +82,14 @@ func Run() {
 		upload.WithMaxSize(cfg.Upload.MaxSize),
 		upload.WithAllowedImageTypes(cfg.Upload.AllowedTypes),
 	)
-	uploadHandler := upload.NewHandler(uploadService, authService)
+	uploadRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Upload.RateLimitPerMin, time.Minute, func(r *http.Request) string {
+		principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+		if !ok || principal == nil || principal.UserID == 0 {
+			return ""
+		}
+		return strconv.FormatUint(principal.UserID, 10)
+	})
+	uploadHandler := upload.NewHandler(uploadService, authService, upload.WithProtectedMiddlewares(uploadRateLimit))
 
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {

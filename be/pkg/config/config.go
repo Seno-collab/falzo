@@ -73,6 +73,7 @@ type UploadConfig struct {
 	SeaweedFSTimeout time.Duration
 	MaxSize          int64
 	AllowedTypes     []string
+	RateLimitPerMin  int
 }
 
 func Load() Config {
@@ -128,6 +129,7 @@ func Load() Config {
 			SeaweedFSTimeout: GetDuration("SEAWEEDFS_TIMEOUT", 10*time.Second),
 			MaxSize:          GetInt64("UPLOAD_MAX_SIZE", 10*1024*1024),
 			AllowedTypes:     getCSV("ALLOWED_IMAGE_TYPES", []string{"image/jpeg", "image/png", "image/webp"}),
+			RateLimitPerMin:  GetInt("UPLOAD_RATE_LIMIT_PER_MIN", 20),
 		},
 	}
 }

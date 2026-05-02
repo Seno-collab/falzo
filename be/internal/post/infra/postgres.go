@@ -87,6 +87,29 @@ func (r *PostgresRepository) Save(ctx context.Context, postID uint64, userID uin
 	return nil
 }
 
+func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if comment == nil {
+		return post.ErrInternal
+	}
+	if err := r.ensurePostExists(ctx, comment.PostID); err != nil {
+		return err
+	}
+
+	err := r.db.Pool().QueryRow(ctx, `
+		INSERT INTO post_comments (post_id, user_id, content)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_at
+	`, comment.PostID, comment.UserID, comment.Content.String()).Scan(&comment.ID, &comment.CreatedAt)
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.comment", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int) ([]post.Post, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, post.ErrDependencyUnavailable
@@ -119,6 +142,50 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int) 
 	}
 
 	return posts, nil
+}
+
+func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, page int, limit int) ([]post.Comment, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return nil, post.ErrDependencyUnavailable
+	}
+	if err := r.ensurePostExists(ctx, postID); err != nil {
+		return nil, err
+	}
+
+	offset := (page - 1) * limit
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT id, post_id, user_id, content, created_at
+		FROM post_comments
+		WHERE post_id = $1
+		ORDER BY created_at ASC, id ASC
+		LIMIT $2 OFFSET $3
+	`, postID, limit, offset)
+	if err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_comments", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	defer rows.Close()
+
+	comments := make([]post.Comment, 0)
+	for rows.Next() {
+		var (
+			item       post.Comment
+			rawContent string
+		)
+		if err := rows.Scan(&item.ID, &item.PostID, &item.UserID, &rawContent, &item.CreatedAt); err != nil {
+			return nil, share.MapDBError(ctx, postRepoService, "posts.get_comments.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+		content, err := post.NewContent(rawContent)
+		if err != nil {
+			return nil, err
+		}
+		item.Content = content
+		comments = append(comments, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "posts.get_comments.iterate", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return comments, nil
 }
 
 func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64) (*post.Post, error) {

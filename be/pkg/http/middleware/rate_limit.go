@@ -27,12 +27,18 @@ type windowCounter struct {
 	expiresAt time.Time
 }
 
+type KeyFunc func(*http.Request) string
+
 const (
 	defaultLimiterMaxEntries      = 10000
 	defaultLimiterCleanupInterval = time.Minute
 )
 
 func NewIPRateLimiter(limit int, window time.Duration) func(http.Handler) http.Handler {
+	return NewKeyedRateLimiter(limit, window, clientIP)
+}
+
+func NewKeyedRateLimiter(limit int, window time.Duration, keyFunc KeyFunc) func(http.Handler) http.Handler {
 	limiter := &fixedWindowLimiter{
 		limit:           limit,
 		window:          window,
@@ -48,7 +54,13 @@ func NewIPRateLimiter(limit int, window time.Duration) func(http.Handler) http.H
 				return
 			}
 
-			key := clientIP(r)
+			key := ""
+			if keyFunc != nil {
+				key = strings.TrimSpace(keyFunc(r))
+			}
+			if key == "" {
+				key = clientIP(r)
+			}
 			if !limiter.allow(key, time.Now()) {
 				share.WriteError(w, r, errRateLimited, "rate_limit", mapRateLimitError)
 				return

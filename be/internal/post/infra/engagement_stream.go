@@ -57,6 +57,10 @@ func (r *EngagementStreamRepository) Save(ctx context.Context, postID uint64, us
 	return r.publishEngagement(ctx, engagementActionSave, postID, userID)
 }
 
+func (r *EngagementStreamRepository) Comment(ctx context.Context, comment *post.Comment) error {
+	return r.next.Comment(ctx, comment)
+}
+
 func (r *EngagementStreamRepository) GetPosts(ctx context.Context, page int, limit int) ([]post.Post, error) {
 	return r.next.GetPosts(ctx, page, limit)
 }
@@ -67,6 +71,10 @@ func (r *EngagementStreamRepository) GetPostDetail(ctx context.Context, postID u
 
 func (r *EngagementStreamRepository) GetPostsByLocation(ctx context.Context, locationName post.LocationName) ([]post.Post, error) {
 	return r.next.GetPostsByLocation(ctx, locationName)
+}
+
+func (r *EngagementStreamRepository) GetComments(ctx context.Context, postID uint64, page int, limit int) ([]post.Comment, error) {
+	return r.next.GetComments(ctx, postID, page, limit)
 }
 
 func (r *EngagementStreamRepository) publishEngagement(ctx context.Context, action string, postID uint64, userID uint64) error {

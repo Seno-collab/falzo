@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const maxPostListLimit = 50
+
 type Service struct {
 	posts Repository
 }
@@ -20,9 +22,17 @@ type PostActionInput struct {
 	UserID uint64
 }
 
+type CommentPostInput = NewCommentInput
+
 type ListPostsInput struct {
 	Page  int
 	Limit int
+}
+
+type ListCommentsInput struct {
+	PostID uint64
+	Page   int
+	Limit  int
 }
 
 type GetPostDetailInput struct {
@@ -78,6 +88,23 @@ func (s *Service) SavePost(ctx context.Context, input PostActionInput) error {
 	return s.posts.Save(ctx, input.PostID, input.UserID)
 }
 
+func (s *Service) CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error) {
+	if s.posts == nil {
+		return CommentView{}, ErrDependencyUnavailable
+	}
+
+	comment, err := NewComment(NewCommentInput(input))
+	if err != nil {
+		return CommentView{}, err
+	}
+
+	if err := s.posts.Comment(ctx, &comment); err != nil {
+		return CommentView{}, err
+	}
+
+	return comment.View(), nil
+}
+
 func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error) {
 	if s.posts == nil {
 		return nil, ErrDependencyUnavailable
@@ -87,6 +114,9 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 	}
 	if input.Limit <= 0 {
 		return nil, ErrLimitMustBePositive
+	}
+	if input.Limit > maxPostListLimit {
+		return nil, ErrLimitTooLarge
 	}
 
 	items, err := s.posts.GetPosts(ctx, input.Page, input.Limit)
@@ -117,6 +147,36 @@ func (s *Service) GetPostDetail(ctx context.Context, input GetPostDetailInput) (
 
 	mapped := item.View()
 	return &mapped, nil
+}
+
+func (s *Service) GetComments(ctx context.Context, input ListCommentsInput) ([]CommentView, error) {
+	if s.posts == nil {
+		return nil, ErrDependencyUnavailable
+	}
+	if input.PostID == 0 {
+		return nil, ErrPostIDRequired
+	}
+	if input.Page <= 0 {
+		return nil, ErrPageMustBePositive
+	}
+	if input.Limit <= 0 {
+		return nil, ErrLimitMustBePositive
+	}
+	if input.Limit > maxPostListLimit {
+		return nil, ErrLimitTooLarge
+	}
+
+	items, err := s.posts.GetComments(ctx, input.PostID, input.Page, input.Limit)
+	if err != nil {
+		return nil, err
+	}
+
+	comments := make([]CommentView, 0, len(items))
+	for _, item := range items {
+		comments = append(comments, item.View())
+	}
+
+	return comments, nil
 }
 
 func (s *Service) GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]PostView, error) {

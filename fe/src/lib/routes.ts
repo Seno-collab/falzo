@@ -4,6 +4,8 @@ export const ROUTES = {
   register: "/register",
   dashboard: "/dashboard",
   explore: "/explore",
+  locations: "/locations",
+  upload: "/upload",
   profile: "/profile",
 } as const;
 

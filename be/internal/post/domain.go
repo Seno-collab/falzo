@@ -16,6 +16,7 @@ var (
 	ErrPostIDRequired        = errors.New("post id is required")
 	ErrPageMustBePositive    = errors.New("page must be greater than 0")
 	ErrLimitMustBePositive   = errors.New("limit must be greater than 0")
+	ErrLimitTooLarge         = errors.New("limit exceeds maximum")
 	ErrLocationNameRequired  = errors.New("location name is required")
 	ErrLatitudeOutOfRange    = errors.New("latitude must be between -90 and 90")
 	ErrLongitudeOutOfRange   = errors.New("longitude must be between -180 and 180")
@@ -23,15 +24,19 @@ var (
 	ErrInvalidImageURL       = errors.New("invalid image url")
 	ErrCaptionTooLong        = errors.New("caption exceeds max length")
 	ErrLocationNameTooLong   = errors.New("location name exceeds max length")
+	ErrCommentRequired       = errors.New("comment content is required")
+	ErrCommentTooLong        = errors.New("comment content exceeds max length")
 )
 
 type Repository interface {
 	Create(ctx context.Context, post *Post) error
 	Like(ctx context.Context, postID uint64, userID uint64) error
 	Save(ctx context.Context, postID uint64, userID uint64) error
+	Comment(ctx context.Context, comment *Comment) error
 	GetPosts(ctx context.Context, page int, limit int) ([]Post, error)
 	GetPostDetail(ctx context.Context, postID uint64) (*Post, error)
 	GetPostsByLocation(ctx context.Context, locationName LocationName) ([]Post, error)
+	GetComments(ctx context.Context, postID uint64, page int, limit int) ([]Comment, error)
 }
 
 type Post struct {
@@ -77,6 +82,59 @@ type NewPostInput struct {
 	LocationName string
 	Latitude     float64
 	Longitude    float64
+}
+
+type Comment struct {
+	ID        uint64    `json:"id"`
+	PostID    uint64    `json:"post_id"`
+	UserID    uint64    `json:"user_id"`
+	Content   Content   `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CommentView struct {
+	ID        uint64    `json:"id"`
+	PostID    uint64    `json:"post_id"`
+	UserID    uint64    `json:"user_id"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (c Comment) View() CommentView {
+	return CommentView{
+		ID:        c.ID,
+		PostID:    c.PostID,
+		UserID:    c.UserID,
+		Content:   c.Content.String(),
+		CreatedAt: c.CreatedAt,
+	}
+}
+
+type NewCommentInput struct {
+	PostID  uint64
+	UserID  uint64
+	Content string
+}
+
+func NewComment(input NewCommentInput) (Comment, error) {
+	if input.PostID == 0 {
+		return Comment{}, ErrPostIDRequired
+	}
+	if input.UserID == 0 {
+		return Comment{}, ErrUserIDRequired
+	}
+
+	content, err := NewContent(input.Content)
+	if err != nil {
+		return Comment{}, err
+	}
+
+	return Comment{
+		PostID:    input.PostID,
+		UserID:    input.UserID,
+		Content:   content,
+		CreatedAt: time.Now().UTC(),
+	}, nil
 }
 
 func NewPost(input NewPostInput) (Post, error) {
@@ -164,4 +222,22 @@ func NewLocationName(raw string) (LocationName, error) {
 
 func (l LocationName) String() string {
 	return string(l)
+}
+
+type Content string
+
+func NewContent(raw string) (Content, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", ErrCommentRequired
+	}
+	if len(value) > 1000 {
+		return "", ErrCommentTooLong
+	}
+
+	return Content(value), nil
+}
+
+func (c Content) String() string {
+	return string(c)
 }

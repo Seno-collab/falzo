@@ -26,9 +26,11 @@ type handlerService interface {
 	CreatePost(ctx context.Context, input CreatePostInput) (PostView, error)
 	LikePost(ctx context.Context, input PostActionInput) error
 	SavePost(ctx context.Context, input PostActionInput) error
+	CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error)
 	GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error)
 	GetPostDetail(ctx context.Context, input GetPostDetailInput) (*PostView, error)
 	GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]PostView, error)
+	GetComments(ctx context.Context, input ListCommentsInput) ([]CommentView, error)
 }
 
 type Handler struct {
@@ -51,12 +53,14 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.GetPosts)
 	r.Get("/location", h.GetPostsByLocation)
+	r.Get("/{id}/comments", h.GetComments)
 	r.Get("/{id}", h.GetPostDetail)
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Post("/", h.CreatePost)
 		protected.Post("/{id}/like", h.LikePost)
 		protected.Post("/{id}/save", h.SavePost)
+		protected.Post("/{id}/comments", h.CommentPost)
 	})
 	return r
 }
@@ -67,6 +71,10 @@ type CreatePostRequest struct {
 	LocationName string  `json:"location_name"`
 	Latitude     float64 `json:"latitude"`
 	Longitude    float64 `json:"longitude"`
+}
+
+type CommentPostRequest struct {
+	Content string `json:"content"`
 }
 
 func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
@@ -114,28 +122,31 @@ func (h *Handler) GetPostDetail(w http.ResponseWriter, r *http.Request) {
 	httpResponse.Success(w, http.StatusOK, "Post detail fetched successfully", post, r)
 }
 
-func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
-	page := 1
-	limit := 12
-
-	pageRaw := strings.TrimSpace(r.URL.Query().Get("page"))
-	if pageRaw != "" {
-		parsedPage, err := strconv.Atoi(pageRaw)
-		if err != nil {
-			share.WriteError(w, r, errInvalidPageParam, "get_posts", mapPostError)
-			return
-		}
-		page = parsedPage
+func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
+	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
+	if err != nil || postID == 0 {
+		share.WriteError(w, r, errInvalidPostIDParam, "get_comments", mapPostError)
+		return
 	}
 
-	limitRaw := strings.TrimSpace(r.URL.Query().Get("limit"))
-	if limitRaw != "" {
-		parsedLimit, err := strconv.Atoi(limitRaw)
-		if err != nil {
-			share.WriteError(w, r, errInvalidLimitParam, "get_posts", mapPostError)
-			return
-		}
-		limit = parsedLimit
+	page, limit, ok := h.parsePageLimit(w, r, "get_comments")
+	if !ok {
+		return
+	}
+
+	comments, err := h.service.GetComments(r.Context(), ListCommentsInput{PostID: postID, Page: page, Limit: limit})
+	if err != nil {
+		share.WriteError(w, r, err, "get_comments", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Comments fetched successfully", comments, r)
+}
+
+func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
+	page, limit, ok := h.parsePageLimit(w, r, "get_posts")
+	if !ok {
+		return
 	}
 
 	posts, err := h.service.GetPosts(r.Context(), ListPostsInput{Page: page, Limit: limit})
@@ -145,6 +156,33 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Posts fetched successfully", posts, r)
+}
+
+func (h *Handler) parsePageLimit(w http.ResponseWriter, r *http.Request, operation string) (int, int, bool) {
+	page := 1
+	limit := 12
+
+	pageRaw := strings.TrimSpace(r.URL.Query().Get("page"))
+	if pageRaw != "" {
+		parsedPage, err := strconv.Atoi(pageRaw)
+		if err != nil {
+			share.WriteError(w, r, errInvalidPageParam, operation, mapPostError)
+			return 0, 0, false
+		}
+		page = parsedPage
+	}
+
+	limitRaw := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if limitRaw != "" {
+		parsedLimit, err := strconv.Atoi(limitRaw)
+		if err != nil {
+			share.WriteError(w, r, errInvalidLimitParam, operation, mapPostError)
+			return 0, 0, false
+		}
+		limit = parsedLimit
+	}
+
+	return page, limit, true
 }
 
 func (h *Handler) GetPostsByLocation(w http.ResponseWriter, r *http.Request) {
@@ -165,6 +203,38 @@ func (h *Handler) LikePost(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) SavePost(w http.ResponseWriter, r *http.Request) {
 	h.handlePostAction(w, r, "save_post", "Post saved successfully", "post saved", h.service.SavePost)
+}
+
+func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
+	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
+	if err != nil || postID == 0 {
+		share.WriteError(w, r, errInvalidPostIDParam, "comment_post", mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "comment_post", mapPostError)
+		return
+	}
+
+	var req CommentPostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "comment_post", mapPostError)
+		return
+	}
+
+	comment, err := h.service.CommentPost(r.Context(), CommentPostInput{
+		PostID:  postID,
+		UserID:  principal.UserID,
+		Content: req.Content,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "comment_post", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusCreated, "Comment created successfully", comment, r)
 }
 
 func (h *Handler) handlePostAction(
@@ -218,6 +288,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("page", "page must be greater than 0")
 	case errors.Is(err, ErrLimitMustBePositive):
 		return share.BadRequest("limit", "limit must be greater than 0")
+	case errors.Is(err, ErrLimitTooLarge):
+		return share.BadRequest("limit", "limit must not exceed 50")
 	case errors.Is(err, ErrLocationNameRequired):
 		return share.Required("location_name", "location_name is required")
 	case errors.Is(err, ErrLatitudeOutOfRange):
@@ -232,6 +304,10 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("caption", "caption exceeds max length")
 	case errors.Is(err, ErrLocationNameTooLong):
 		return share.BadRequest("location_name", "location_name exceeds max length")
+	case errors.Is(err, ErrCommentRequired):
+		return share.Required("content", "comment content is required")
+	case errors.Is(err, ErrCommentTooLong):
+		return share.BadRequest("content", "comment content exceeds max length")
 	case errors.Is(err, ErrNotFound):
 		return share.NotFound("Post not found", "Requested post does not exist")
 	case errors.Is(err, ErrDependencyUnavailable):

@@ -27,6 +27,15 @@ type Handler struct {
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	}
+	protectedMiddlewares []func(http.Handler) http.Handler
+}
+
+type HandlerOption func(*Handler)
+
+func WithProtectedMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.protectedMiddlewares = append(h.protectedMiddlewares, middlewares...)
+	}
 }
 
 func NewHandler(
@@ -34,14 +43,22 @@ func NewHandler(
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	},
+	options ...HandlerOption,
 ) *Handler {
-	return &Handler{service: service, authService: authService}
+	h := &Handler{service: service, authService: authService}
+	for _, option := range options {
+		option(h)
+	}
+	return h
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
+		for _, middleware := range h.protectedMiddlewares {
+			protected.Use(middleware)
+		}
 		protected.Post("/images/upload", h.UploadImage)
 		protected.Put("/images/{id}", h.UpdateImage)
 	})
