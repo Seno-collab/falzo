@@ -55,8 +55,8 @@ services:
       - redis
       - mongodb
       - seaweedfs
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
   web:
     build:
       context: ./fe
