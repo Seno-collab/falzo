@@ -44,15 +44,6 @@ services:
     volumes:
       - seaweedfs_data:/data
       - ./be/secretkey/seaweedfs_s3.json:/etc/seaweedfs/seaweedfs_s3.json:ro
-  nginx:
-    image: nginx:latest
-    ports:
-      - "8000:80"
-    volumes:
-      - ./be/nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - api
-      - web
   api:
     build:
       context: ./be
@@ -80,6 +71,15 @@ services:
       - "3000:3000"
     depends_on:
       - api
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8000:80"
+    volumes:
+      - ./be/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - api
+      - web
 volumes:
   postgres_data:
   redis:
