@@ -52,6 +52,7 @@ services:
       - ./be/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
       - api
+      - web
   api:
     build:
       context: ./be
