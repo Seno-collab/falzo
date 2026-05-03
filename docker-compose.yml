@@ -39,7 +39,7 @@ services:
       - "8888:8888"
     volumes:
       - seaweedfs_data:/data
-      - ./be/secretkey/seaweedfs_s3.json:/etc/seaweedfs/seaweedfs_s3.json:ro
+      - ./be/secret/seaweedfs_s3.json:/etc/seaweedfs/seaweedfs_s3.json:ro
   api:
     container_name: falzo-api
     build:
