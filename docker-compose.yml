@@ -31,7 +31,7 @@ services:
     image: chrislusf/seaweedfs:latest
     networks:
       - falzo
-    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/seaweedfs_s3.json
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs_s3.json
     env_file: ./be/.env
     ports:
       - "8333:8333"
@@ -39,7 +39,7 @@ services:
       - "8888:8888"
     volumes:
       - seaweedfs_data:/data
-      - ./be/secret/seaweedfs_s3.json:/etc/seaweedfs/seaweedfs_s3.json:ro
+      - ./be/secret/seaweedfs_s3.json:/etc/seaweedfs_s3.json:ro
   api:
     container_name: falzo-api
     build:
