@@ -105,7 +105,7 @@ func Load() Config {
 		Postgres: PostgresConfig{
 			Host:            GetEnv("POSTGRES_HOST", "127.0.0.1"),
 			Port:            GetEnv("POSTGRES_PORT", "5432"),
-			Database:        GetEnv("POSTGRES_DB", ""),
+			Database:        GetEnv("POSTGRES_DB", "falzo-db"),
 			User:            GetEnv("POSTGRES_USER", ""),
 			Password:        GetEnv("POSTGRES_PASSWORD", ""),
 			SSLMode:         GetEnv("POSTGRES_SSL_MODE", "disable"),
