@@ -6,8 +6,8 @@ import {
   Camera,
   ChevronDown,
   Heart,
-  Home,
   Map,
+  Maximize2,
   Menu,
   MessageCircle,
   Plus,
@@ -51,6 +51,7 @@ import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type ActiveCollection = ExploreCollection | "Community";
+type ExplorePin = (typeof explorePins)[number];
 const postsPageSize = 24;
 
 export function ExploreScreen() {
@@ -64,6 +65,7 @@ export function ExploreScreen() {
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [loadingComments, setLoadingComments] = useState<Set<number>>(new Set());
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
     Record<number, PostComment[]>
   >({});
@@ -165,6 +167,14 @@ export function ExploreScreen() {
       null
     );
   }, [postDetailQuery.data, selectedPostId, visiblePosts]);
+
+  const selectedPin = useMemo<ExplorePin | null>(() => {
+    if (selectedPinId === null) {
+      return null;
+    }
+
+    return explorePins.find((pin) => pin.id === selectedPinId) ?? null;
+  }, [selectedPinId]);
 
   const shouldLoadMorePosts =
     (activeCollection === "All" || activeCollection === "Community") &&
@@ -275,8 +285,14 @@ export function ExploreScreen() {
 
   function openPostDetail(postId: number) {
     setSelectedPostId(postId);
+    setSelectedPinId(null);
     setOpenComments((current) => new Set(current).add(postId));
     void loadComments(postId);
+  }
+
+  function openPinDetail(pinId: string) {
+    setSelectedPinId(pinId);
+    setSelectedPostId(null);
   }
 
   function submitComment(postId: number) {
@@ -307,20 +323,14 @@ export function ExploreScreen() {
       <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
         <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-3 py-3 sm:px-5 lg:px-8">
           <Link
-            aria-label="Home"
+            aria-label="Explore"
             className="inline-flex size-10 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03]"
-            href="/"
+            href={ROUTES.explore}
           >
             <Camera className="size-4" />
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
-            <Button asChild className="rounded-full" size="sm" variant="ghost">
-              <Link href="/">
-                <Home className="size-4" />
-                Home
-              </Link>
-            </Button>
             <Button
               className="rounded-full bg-[#111] text-white hover:bg-[#222]"
               size="sm"
@@ -493,26 +503,44 @@ export function ExploreScreen() {
                     <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
                       Community
                     </span>
-                    <Button
-                      aria-label={isLiked ? "Liked" : "Like"}
-                      className={cn(
-                        "rounded-full shadow-sm backdrop-blur-xl",
-                        isLiked
-                          ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
-                          : "bg-white/86 text-[#222] hover:bg-white",
-                      )}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleLikePost(post.id);
-                      }}
-                      size="icon-sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Heart
-                        className={cn("size-4", isLiked ? "fill-current" : "")}
-                      />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        aria-label="Open image"
+                        className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openPostDetail(post.id);
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Maximize2 className="size-4" />
+                      </Button>
+                      <Button
+                        aria-label={isLiked ? "Liked" : "Like"}
+                        className={cn(
+                          "rounded-full shadow-sm backdrop-blur-xl",
+                          isLiked
+                            ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
+                            : "bg-white/86 text-[#222] hover:bg-white",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleLikePost(post.id);
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Heart
+                          className={cn(
+                            "size-4",
+                            isLiked ? "fill-current" : "",
+                          )}
+                        />
+                      </Button>
+                    </div>
                   </div>
                   <div className="absolute inset-x-4 bottom-4 text-white">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
@@ -535,6 +563,16 @@ export function ExploreScreen() {
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        aria-label="Open image"
+                        className="rounded-full"
+                        onClick={() => openPostDetail(post.id)}
+                        size="icon-sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Maximize2 className="size-4" />
+                      </Button>
                       <Button
                         aria-label={isLiked ? "Liked" : "Like post"}
                         className={cn(
@@ -672,10 +710,19 @@ export function ExploreScreen() {
               >
                 <div
                   className={cn(
-                    "relative overflow-hidden",
+                    "relative cursor-zoom-in overflow-hidden",
                     pin.height,
                     pin.gradient,
                   )}
+                  onClick={() => openPinDetail(pin.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openPinDetail(pin.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
                   <ScenicImage
                     alt={pin.title}
@@ -688,23 +735,44 @@ export function ExploreScreen() {
                     <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
                       {pin.collection}
                     </span>
-                    <Button
-                      aria-label={isSaved ? "Remove save" : "Save"}
-                      className={cn(
-                        "rounded-full shadow-sm backdrop-blur-xl",
-                        isSaved
-                          ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
-                          : "bg-white/86 text-[#222] hover:bg-white",
-                      )}
-                      onClick={() => toggleSaved(pin.id)}
-                      size="icon-sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Heart
-                        className={cn("size-4", isSaved ? "fill-current" : "")}
-                      />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        aria-label="Open image"
+                        className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openPinDetail(pin.id);
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Maximize2 className="size-4" />
+                      </Button>
+                      <Button
+                        aria-label={isSaved ? "Remove save" : "Save"}
+                        className={cn(
+                          "rounded-full shadow-sm backdrop-blur-xl",
+                          isSaved
+                            ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
+                            : "bg-white/86 text-[#222] hover:bg-white",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleSaved(pin.id);
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Heart
+                          className={cn(
+                            "size-4",
+                            isSaved ? "fill-current" : "",
+                          )}
+                        />
+                      </Button>
+                    </div>
                   </div>
                   <div className="absolute inset-x-4 bottom-4 text-white">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
@@ -961,6 +1029,110 @@ export function ExploreScreen() {
                     <Send className="size-4" />
                   </Button>
                 </div>
+              </div>
+            </aside>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedPinId(null);
+          }
+        }}
+        open={selectedPinId !== null}
+      >
+        <DialogContent className="max-h-[92vh] w-[min(96vw,72rem)] overflow-hidden border-white/16 bg-[#101010] p-0 text-white">
+          <div className="grid max-h-[92vh] overflow-hidden lg:grid-cols-[minmax(0,1.2fr)_340px]">
+            <div
+              className={cn(
+                "min-h-[56vh] bg-black lg:min-h-[82vh]",
+                selectedPin?.gradient,
+              )}
+            >
+              {selectedPin ? (
+                <ScenicImage
+                  alt={selectedPin.title}
+                  className="h-full max-h-[82vh] w-full object-contain"
+                  id={selectedPin.imageId}
+                  sizes="96vw"
+                />
+              ) : null}
+            </div>
+            <aside className="flex flex-col bg-[#f7f7f5] p-5 text-[#1f1f1f]">
+              <DialogHeader>
+                <DialogTitle className="text-xl leading-7 text-[#111]">
+                  {selectedPin?.title || "Image"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-[#777]">
+                  {selectedPin?.city || "Explore"} - {selectedPin?.author || ""}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-4 flex items-center gap-2">
+                <Button
+                  aria-label={
+                    selectedPin && savedPins.has(selectedPin.id)
+                      ? "Saved image"
+                      : "Save image"
+                  }
+                  className={cn(
+                    "rounded-full",
+                    selectedPin && savedPins.has(selectedPin.id)
+                      ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
+                      : "",
+                  )}
+                  disabled={!selectedPin}
+                  onClick={() => {
+                    if (selectedPin) {
+                      toggleSaved(selectedPin.id);
+                    }
+                  }}
+                  size="icon-sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Bookmark
+                    className={cn(
+                      "size-4",
+                      selectedPin && savedPins.has(selectedPin.id)
+                        ? "fill-current"
+                        : "",
+                    )}
+                  />
+                </Button>
+                <Button
+                  aria-label="Save favorite"
+                  className={cn(
+                    "rounded-full",
+                    selectedPin && savedPins.has(selectedPin.id)
+                      ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
+                      : "",
+                  )}
+                  disabled={!selectedPin}
+                  onClick={() => {
+                    if (selectedPin) {
+                      toggleSaved(selectedPin.id);
+                    }
+                  }}
+                  size="icon-sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Heart
+                    className={cn(
+                      "size-4",
+                      selectedPin && savedPins.has(selectedPin.id)
+                        ? "fill-current"
+                        : "",
+                    )}
+                  />
+                </Button>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-black/[0.06] bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+                Comments are available on community posts from the backend feed.
               </div>
             </aside>
           </div>

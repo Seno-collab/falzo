@@ -212,10 +212,10 @@ export function UploadImageScreen() {
               variant: "outline",
             },
             {
-              id: "home",
+              id: "back",
               icon: <ArrowLeft className="size-4" />,
-              label: "Home",
-              to: ROUTES.home,
+              label: "Explore",
+              to: ROUTES.explore,
               variant: "outline",
             },
           ]}

@@ -3,10 +3,7 @@
 import {
   BarChart3,
   Compass,
-  House,
   LogOut,
-  Sparkles,
-  User,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -116,13 +113,6 @@ export function DashboardScreen() {
               variant: "outline",
             },
             {
-              id: "home",
-              icon: <House className="size-4" />,
-              label: copy.backToLandingCta,
-              to: ROUTES.home,
-              variant: "outline",
-            },
-            {
               id: "logout",
               icon: <LogOut className="size-4" />,
               label: copy.logoutCta,
@@ -167,12 +157,8 @@ export function DashboardScreen() {
                 ) : null}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  copy.open3DDemoCta,
-                  copy.backToLandingCta,
-                  copy.logoutCta,
-                ].map((label) => (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[copy.open3DDemoCta, copy.logoutCta].map((label) => (
                   <div
                     className="app-panel-soft rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3"
                     key={label}
@@ -197,20 +183,12 @@ export function DashboardScreen() {
               <div className="flex flex-wrap gap-2.5">
                 <Button
                   className="min-w-48"
-                  onClick={() => router.push(ROUTES.home)}
+                  onClick={() => router.push(ROUTES.explore)}
                   type="button"
                   variant="gradient"
                 >
-                  <Sparkles className="size-4" />
+                  <Compass className="size-4" />
                   {copy.open3DDemoCta}
-                </Button>
-                <Button
-                  onClick={() => router.push(ROUTES.home)}
-                  type="button"
-                  variant="outline"
-                >
-                  <House className="size-4" />
-                  {copy.backToLandingCta}
                 </Button>
                 <Button
                   disabled={isLoggingOut}

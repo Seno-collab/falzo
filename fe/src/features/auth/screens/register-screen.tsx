@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Apple, ArrowRight, Compass, House, UserPlus } from "lucide-react";
+import { Apple, ArrowRight, Compass, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -122,10 +122,10 @@ export function RegisterScreen() {
         <AppTopbar
           actions={[
             {
-              id: "home",
-              icon: <House className="size-4" />,
-              label: "Home",
-              to: ROUTES.home,
+              id: "explore",
+              icon: <Compass className="size-4" />,
+              label: "Explore",
+              to: ROUTES.explore,
               variant: "outline",
             },
             {
@@ -279,7 +279,7 @@ export function RegisterScreen() {
           className="w-full rounded-full border-white/12 bg-transparent text-white/78 hover:bg-white/10 hover:text-white"
           variant="outline"
         >
-          <Link href={ROUTES.home}>
+          <Link href={ROUTES.explore}>
             <Compass className="size-4" />
             Explore before signing up
           </Link>
