@@ -108,10 +108,12 @@ func Run() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello world!"))
 	})
-	r.Mount("/auth", authHandler.Routes())
-	r.Mount("/locations", locationHandler.Routes())
-	r.Mount("/posts", postHandler.Routes())
-	r.Mount("/", uploadHandler.Routes())
+	r.Route("/api", func(api chi.Router) {
+		api.Mount("/auth", authHandler.Routes())
+		api.Mount("/locations", locationHandler.Routes())
+		api.Mount("/posts", postHandler.Routes())
+		api.Mount("/", uploadHandler.Routes())
+	})
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}

@@ -1,15 +1,12 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
-const targetApiBase =
-  process.env.API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:8080";
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "export",
   outputFileTracingRoot: path.resolve(),
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
@@ -24,14 +21,6 @@ const nextConfig: NextConfig = {
         hostname: "*.googleusercontent.com",
       },
     ],
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${targetApiBase.replace(/\/$/, "")}/:path*`,
-      },
-    ];
   },
 };
 
