@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgis/postgis:18-3.6-alpine
+    container_name: falzo-postgresql
     restart: unless-stopped
     networks:
       - falzo
@@ -21,6 +22,7 @@ services:
       - mongo_data:/data/db
   redis:
     image: redis:latest
+    container_name: falzo-redis
     restart: unless-stopped
     networks:
       - falzo
@@ -29,6 +31,7 @@ services:
       - "6379:6379"
   seaweedfs:
     image: chrislusf/seaweedfs:latest
+    container_name: falzo-seaweedfs
     networks:
       - falzo
     command: server -dir=/data -s3 -s3.config=/etc/seaweedfs_s3.json
