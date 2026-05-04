@@ -1,0 +1,3 @@
+services:
+  api:
+    scale: ${API_REPLICAS:-3}

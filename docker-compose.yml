@@ -44,7 +44,6 @@ services:
       - seaweedfs_data:/data
       - ./be/secret/seaweedfs_s3.json:/etc/seaweedfs_s3.json:ro
   api:
-    container_name: falzo-api
     build:
       context: ./be
       dockerfile: Dockerfile
@@ -54,6 +53,12 @@ services:
     env_file: ./be/.env
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     depends_on:
       - postgres
       - redis
