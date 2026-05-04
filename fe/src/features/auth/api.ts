@@ -345,6 +345,15 @@ export function getApiErrorMessage(error: unknown): string {
   const errorMessages = messages.en.apiErrors;
 
   if (error instanceof AxiosError) {
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("API error response", {
+        method: error.config?.method,
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+
     const serverMessage = readMessage(error.response?.data);
     if (serverMessage) {
       return serverMessage;
