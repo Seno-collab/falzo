@@ -57,5 +57,6 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.scale.yml config >/dev/null
             docker compose -f docker-compose.yml -f docker-compose.scale.yml build api nginx
             docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --remove-orphans
+            docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --force-recreate nginx
             docker image prune -f
           EOF
