@@ -5,6 +5,7 @@ import { http } from "@/lib/http";
 import type {
   AuthSession,
   AuthUser,
+  ChangePasswordRequest,
   LoginRequest,
   RegisterRequest,
 } from "@/features/auth/types";
@@ -35,6 +36,10 @@ const AUTH_ENDPOINTS = {
     process.env.NEXT_PUBLIC_AUTH_LOGOUT_ENDPOINT ??
     process.env.VITE_AUTH_LOGOUT_ENDPOINT ??
     "/auth/logout",
+  changePassword:
+    process.env.NEXT_PUBLIC_AUTH_CHANGE_PASSWORD_ENDPOINT ??
+    process.env.VITE_AUTH_CHANGE_PASSWORD_ENDPOINT ??
+    "/auth/change-password",
 } as const;
 
 type StorageScope = "local" | "session";
@@ -418,6 +423,8 @@ export async function registerApi(payload: RegisterRequest) {
 export async function getMeApi<
   TUser extends AuthUser = AuthUser,
 >(): Promise<TUser> {
+  initializeAuthHeader();
+
   const endpoint = AUTH_ENDPOINTS.me;
   const response = await http.get<ApiEnvelope<TUser> | TUser>(endpoint);
   return unwrapResponseData(response.data);
@@ -434,4 +441,20 @@ export async function logoutApi(): Promise<void> {
   } finally {
     clearAuthSession();
   }
+}
+
+export async function changePasswordApi(
+  payload: ChangePasswordRequest,
+): Promise<void> {
+  initializeAuthHeader();
+
+  const endpoint = AUTH_ENDPOINTS.changePassword;
+  await http.post(
+    endpoint,
+    {
+      current_password: payload.currentPassword,
+      new_password: payload.newPassword,
+    },
+    { skipAuthRefresh: false } as RetryableRequestConfig,
+  );
 }

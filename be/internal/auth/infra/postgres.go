@@ -129,6 +129,82 @@ func (r *AccountRepository) FindActiveByEmail(ctx context.Context, email auth.Em
 	return auth.RehydrateAccount(user, roles), nil
 }
 
+func (r *AccountRepository) FindActiveByID(ctx context.Context, userID uint64) (*auth.Account, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return nil, auth.ErrDependencyUnavailable
+	}
+
+	var (
+		user            auth.User
+		rawUsername     string
+		rawEmail        string
+		rawPasswordHash string
+	)
+
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT id, user_name, email, password_hash, is_active, created_at, updated_at
+		FROM users
+		WHERE id = $1 AND is_active = TRUE
+		LIMIT 1
+	`, userID).Scan(
+		&user.ID,
+		&rawUsername,
+		&rawEmail,
+		&rawPasswordHash,
+		&user.IsActive,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, auth.ErrInvalidCredentials
+		}
+		return nil, share.MapDBError(ctx, authRepoService, "accounts.find_active_by_id", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+
+	user.Username, err = auth.NewUsername(rawUsername)
+	if err != nil {
+		return nil, err
+	}
+	user.Email, err = auth.NewEmail(rawEmail)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash, err = auth.NewPasswordHash(rawPasswordHash)
+	if err != nil {
+		return nil, err
+	}
+
+	roles, err := r.loadRoles(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return auth.RehydrateAccount(user, roles), nil
+}
+
+func (r *AccountRepository) UpdatePasswordHash(ctx context.Context, userID uint64, passwordHash auth.PasswordHash) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return auth.ErrDependencyUnavailable
+	}
+
+	result, err := r.db.Pool().Exec(ctx, `
+		UPDATE users
+		SET password_hash = $2,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+			AND is_active = TRUE
+	`, userID, passwordHash.String())
+	if err != nil {
+		return share.MapDBError(ctx, authRepoService, "accounts.update_password_hash", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+	if result.RowsAffected() == 0 {
+		return auth.ErrInvalidCredentials
+	}
+
+	return nil
+}
+
 func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]string, error) {
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT roles.name

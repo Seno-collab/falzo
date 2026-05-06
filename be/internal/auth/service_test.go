@@ -12,9 +12,11 @@ import (
 )
 
 type fakeAccountRepository struct {
-	account *auth.Account
-	saveErr error
-	findErr error
+	account            *auth.Account
+	saveErr            error
+	findErr            error
+	updatePasswordHash auth.PasswordHash
+	updatePasswordErr  error
 }
 
 func (f *fakeAccountRepository) Save(ctx context.Context, account *auth.Account) error {
@@ -27,6 +29,24 @@ func (f *fakeAccountRepository) FindActiveByEmail(ctx context.Context, email aut
 		return nil, f.findErr
 	}
 	return f.account, nil
+}
+
+func (f *fakeAccountRepository) FindActiveByID(ctx context.Context, userID uint64) (*auth.Account, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	if f.account == nil || f.account.User.ID != userID {
+		return nil, auth.ErrInvalidCredentials
+	}
+	return f.account, nil
+}
+
+func (f *fakeAccountRepository) UpdatePasswordHash(ctx context.Context, userID uint64, passwordHash auth.PasswordHash) error {
+	if f.updatePasswordErr != nil {
+		return f.updatePasswordErr
+	}
+	f.updatePasswordHash = passwordHash
+	return nil
 }
 
 type fakeSessionRepository struct {
@@ -156,5 +176,75 @@ func TestAuthenticateFailsForRevokedSession(t *testing.T) {
 	service := auth.NewService(nil, &fakeSessionRepository{active: map[string]bool{"session-1": false}}, authInfra.NewPasswordHasher(), jwtManager, jwtManager, 24*time.Hour)
 	if _, err := service.Authenticate(t.Context(), rawToken); !errors.Is(err, auth.ErrSessionRevoked) {
 		t.Fatalf("expected session revoked, got %v", err)
+	}
+}
+
+func TestChangePasswordSuccess(t *testing.T) {
+	hasher := authInfra.NewPasswordHasher()
+	hash, err := hasher.Hash(auth.RawPassword("admin123"))
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+
+	username, _ := auth.NewUsername("admin")
+	email, _ := auth.NewEmail("admin@example.com")
+	account := auth.RehydrateAccount(auth.User{
+		ID:           7,
+		Username:     username,
+		Email:        email,
+		PasswordHash: hash,
+		IsActive:     true,
+	}, []string{"user"})
+
+	accounts := &fakeAccountRepository{account: account}
+	service := auth.NewService(accounts, nil, hasher, nil, nil, 24*time.Hour)
+
+	err = service.ChangePassword(t.Context(), auth.ChangePasswordInput{
+		UserID:          7,
+		CurrentPassword: "admin123",
+		NewPassword:     "newpass123",
+	})
+	if err != nil {
+		t.Fatalf("unexpected change password error: %v", err)
+	}
+
+	if accounts.updatePasswordHash == "" {
+		t.Fatal("expected password hash to be updated")
+	}
+	if err := hasher.Compare(accounts.updatePasswordHash, auth.RawPassword("newpass123")); err != nil {
+		t.Fatalf("updated hash does not match new password: %v", err)
+	}
+}
+
+func TestChangePasswordRejectsInvalidCurrentPassword(t *testing.T) {
+	hasher := authInfra.NewPasswordHasher()
+	hash, err := hasher.Hash(auth.RawPassword("admin123"))
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+
+	username, _ := auth.NewUsername("admin")
+	email, _ := auth.NewEmail("admin@example.com")
+	account := auth.RehydrateAccount(auth.User{
+		ID:           7,
+		Username:     username,
+		Email:        email,
+		PasswordHash: hash,
+		IsActive:     true,
+	}, []string{"user"})
+
+	accounts := &fakeAccountRepository{account: account}
+	service := auth.NewService(accounts, nil, hasher, nil, nil, 24*time.Hour)
+
+	err = service.ChangePassword(t.Context(), auth.ChangePasswordInput{
+		UserID:          7,
+		CurrentPassword: "wrongpass123",
+		NewPassword:     "newpass123",
+	})
+	if !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("expected invalid credentials, got %v", err)
+	}
+	if accounts.updatePasswordHash != "" {
+		t.Fatal("expected password hash to remain unchanged")
 	}
 }

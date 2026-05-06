@@ -18,17 +18,18 @@ import (
 const Unauthorized = "Unauthorized"
 
 var (
-	errMissingBearerToken         = errors.New("missing bearer token")
-	errInvalidAuthorizationHeader = errors.New("invalid authorization header")
-	errInvalidJSONPayload         = errors.New("invalid JSON payload")
-	errRegisterFieldsRequired     = errors.New("register fields required")
-	errLoginFieldsRequired        = errors.New("login fields required")
-	errInvalidEmailField          = errors.New("invalid email field")
-	errRegisterRateLimited        = errors.New("register rate limited")
-	errLoginRateLimited           = errors.New("login rate limited")
-	errRefreshRateLimited         = errors.New("refresh rate limited")
-	errRefreshTokenRequired       = errors.New("refresh token required")
-	errMissingAuthContext         = errors.New("missing auth context")
+	errMissingBearerToken           = errors.New("missing bearer token")
+	errInvalidAuthorizationHeader   = errors.New("invalid authorization header")
+	errInvalidJSONPayload           = errors.New("invalid JSON payload")
+	errRegisterFieldsRequired       = errors.New("register fields required")
+	errLoginFieldsRequired          = errors.New("login fields required")
+	errInvalidEmailField            = errors.New("invalid email field")
+	errRegisterRateLimited          = errors.New("register rate limited")
+	errLoginRateLimited             = errors.New("login rate limited")
+	errRefreshRateLimited           = errors.New("refresh rate limited")
+	errRefreshTokenRequired         = errors.New("refresh token required")
+	errMissingAuthContext           = errors.New("missing auth context")
+	errChangePasswordFieldsRequired = errors.New("change password fields required")
 )
 
 type handlerService interface {
@@ -36,6 +37,7 @@ type handlerService interface {
 	Login(ctx context.Context, input LoginInput) (TokenPair, error)
 	Refresh(ctx context.Context, input RefreshInput) (TokenPair, error)
 	Logout(ctx context.Context, input LogoutInput) error
+	ChangePassword(ctx context.Context, input ChangePasswordInput) error
 	Authenticate(ctx context.Context, rawToken string) (*AuthenticatedUser, error)
 }
 
@@ -92,14 +94,24 @@ func (h *Handler) Routes() chi.Router {
 		protected.Use(RequireAuth(h.service))
 		protected.Get("/me", h.Me)
 		protected.Post("/logout", h.Logout)
+		protected.Post("/change-password", h.ChangePassword)
 	})
 	return r
 }
 
 type RegisterRequest struct {
-	Username string `json:"user_name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username      string `json:"user_name"`
+	UsernameAlias string `json:"userName"`
+	Email         string `json:"email"`
+	Password      string `json:"password"`
+}
+
+func (req RegisterRequest) normalizedUsername() string {
+	if req.Username != "" {
+		return req.Username
+	}
+
+	return req.UsernameAlias
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +127,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" || req.Email == "" || req.Password == "" {
+	username := req.normalizedUsername()
+	if username == "" || req.Email == "" || req.Password == "" {
 		share.WriteError(w, r, errRegisterFieldsRequired, "register", mapAuthError)
 		return
 	}
@@ -126,7 +139,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.service.Register(r.Context(), RegisterInput{
-		Username: req.Username,
+		Username: username,
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -240,6 +253,63 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	}, r)
 }
 
+type ChangePasswordRequest struct {
+	CurrentPassword      string `json:"current_password"`
+	CurrentPasswordAlias string `json:"currentPassword"`
+	NewPassword          string `json:"new_password"`
+	NewPasswordAlias     string `json:"newPassword"`
+}
+
+func (req ChangePasswordRequest) currentPassword() string {
+	if req.CurrentPassword != "" {
+		return req.CurrentPassword
+	}
+
+	return req.CurrentPasswordAlias
+}
+
+func (req ChangePasswordRequest) newPassword() string {
+	if req.NewPassword != "" {
+		return req.NewPassword
+	}
+
+	return req.NewPasswordAlias
+}
+
+func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, errMissingAuthContext, "change_password", mapAuthError)
+		return
+	}
+
+	var req ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "change_password", mapAuthError)
+		return
+	}
+
+	currentPassword := req.currentPassword()
+	newPassword := req.newPassword()
+	if currentPassword == "" || newPassword == "" {
+		share.WriteError(w, r, errChangePasswordFieldsRequired, "change_password", mapAuthError)
+		return
+	}
+
+	if err := h.service.ChangePassword(r.Context(), ChangePasswordInput{
+		UserID:          principal.UserID,
+		CurrentPassword: currentPassword,
+		NewPassword:     newPassword,
+	}); err != nil {
+		share.WriteError(w, r, err, "change_password", mapAuthError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Password changed successfully", map[string]string{
+		"message": "password changed",
+	}, r)
+}
+
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	claims, ok := authenticatedUserFromContext(r.Context())
 	if !ok {
@@ -248,7 +318,10 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Authenticated user fetched successfully", map[string]any{
+		"user_id":   claims.UserID,
+		"userId":    claims.UserID,
 		"user_name": claims.Username,
+		"userName":  claims.Username,
 		"subject":   claims.Subject,
 		"expires":   claims.ExpiresAt,
 	}, r)
@@ -283,6 +356,8 @@ func mapAuthError(err error) share.ApiError {
 		return share.Required("refresh_token", "Refresh token is required")
 	case errors.Is(err, errMissingAuthContext):
 		return share.UnauthorizedCredentials(share.Unauthorized, "Missing auth context")
+	case errors.Is(err, errChangePasswordFieldsRequired):
+		return share.Required("", "current_password and new_password are required")
 	case errors.Is(err, ErrInvalidCredentials):
 		return share.UnauthorizedCredentials("Invalid credentials", "Email or password is incorrect")
 	case errors.Is(err, ErrInvalidToken):
@@ -296,6 +371,8 @@ func mapAuthError(err error) share.ApiError {
 			Code:    "ALREADY_EXISTS",
 			Detail:  "Username or email is already in use",
 		}
+	case errors.Is(err, ErrInvalidPassword):
+		return share.BadRequest("new_password", "new_password must be at least 8 characters and contain letters and digits")
 	case errors.Is(err, ErrDependencyUnavailable) || errors.Is(err, ErrTemporarilyUnavailable):
 		return share.ServiceUnavailable("Authentication service unavailable", "Authentication service is temporarily unavailable")
 	default:

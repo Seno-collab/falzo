@@ -54,6 +54,12 @@ type LogoutInput struct {
 	Token string
 }
 
+type ChangePasswordInput struct {
+	UserID          uint64
+	CurrentPassword string
+	NewPassword     string
+}
+
 func (s *Service) Register(ctx context.Context, input RegisterInput) error {
 	if s.accounts == nil || s.passwords == nil {
 		return ErrDependencyUnavailable
@@ -137,7 +143,15 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (TokenPair, error
 		return TokenPair{}, err
 	}
 
-	return TokenPair{AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer"}, nil
+	return TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		UserID:       account.User.ID,
+		UserIDAlias:  account.User.ID,
+		Username:     account.User.Username.String(),
+		UserName:     account.User.Username.String(),
+	}, nil
 }
 
 func (s *Service) Refresh(ctx context.Context, input RefreshInput) (TokenPair, error) {
@@ -174,7 +188,15 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (TokenPair, e
 		return TokenPair{}, err
 	}
 
-	return TokenPair{AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer"}, nil
+	return TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		UserID:       session.UserID,
+		UserIDAlias:  session.UserID,
+		Username:     session.Username,
+		UserName:     session.Username,
+	}, nil
 }
 
 func (s *Service) Logout(ctx context.Context, input LogoutInput) error {
@@ -191,6 +213,39 @@ func (s *Service) Logout(ctx context.Context, input LogoutInput) error {
 	}
 
 	return s.sessions.RevokeBySessionID(ctx, principal.SessionID)
+}
+
+func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput) error {
+	if s.accounts == nil || s.passwords == nil {
+		return ErrDependencyUnavailable
+	}
+	if input.UserID == 0 {
+		return ErrInvalidCredentials
+	}
+
+	currentPassword, err := NewRawPassword(input.CurrentPassword)
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+	newPassword, err := NewRawPassword(input.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	account, err := s.accounts.FindActiveByID(ctx, input.UserID)
+	if err != nil {
+		return err
+	}
+	if err := s.passwords.Compare(account.User.PasswordHash, currentPassword); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	hash, err := s.passwords.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+
+	return s.accounts.UpdatePasswordHash(ctx, input.UserID, hash)
 }
 
 func (s *Service) Authenticate(ctx context.Context, rawToken string) (*AuthenticatedUser, error) {

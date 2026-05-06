@@ -10,6 +10,11 @@ export type RegisterRequest = {
   password: string;
 };
 
+export type ChangePasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+};
+
 export type AuthSession = {
   accessToken: string;
   refreshToken?: string;
@@ -20,4 +25,8 @@ export type AuthUser = {
   email?: string;
   fullName?: string;
   name?: string;
+  user_name?: string;
+  userName?: string;
+  subject?: string;
+  expires?: number | string | null;
 } & Record<string, unknown>;

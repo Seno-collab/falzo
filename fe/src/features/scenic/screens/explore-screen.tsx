@@ -387,6 +387,11 @@ export function ExploreScreen() {
             <Button
               aria-label="Profile"
               className="rounded-full"
+              onClick={() =>
+                router.push(
+                  hasAuthSession() ? ROUTES.profile : ROUTES.login,
+                )
+              }
               size="icon-sm"
               type="button"
               variant="outline"

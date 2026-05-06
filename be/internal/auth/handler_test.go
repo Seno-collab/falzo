@@ -10,10 +10,12 @@ import (
 )
 
 type fakeService struct {
-	registerErr   error
-	loginTokens   TokenPair
-	refreshTokens TokenPair
-	loginErr      error
+	registerErr         error
+	loginTokens         TokenPair
+	refreshTokens       TokenPair
+	loginErr            error
+	changePasswordInput ChangePasswordInput
+	changePasswordErr   error
 }
 
 func (f fakeService) Register(ctx context.Context, input RegisterInput) error {
@@ -32,7 +34,19 @@ func (f fakeService) Logout(ctx context.Context, input LogoutInput) error {
 	return nil
 }
 
+func (f fakeService) ChangePassword(ctx context.Context, input ChangePasswordInput) error {
+	return f.changePasswordErr
+}
+
 func (f fakeService) Authenticate(ctx context.Context, token string) (*AuthenticatedUser, error) {
+	if token == "signed-token" {
+		return &AuthenticatedUser{
+			UserID:    7,
+			Username:  "admin",
+			SessionID: "session-1",
+		}, nil
+	}
+
 	return nil, errors.New("not implemented")
 }
 
@@ -69,6 +83,21 @@ func TestRefreshHandler(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBufferString(`{"refresh_token":"refresh-token"}`))
 	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestChangePasswordHandler(t *testing.T) {
+	handler := NewHandler(fakeService{})
+
+	req := httptest.NewRequest(http.MethodPost, "/change-password", bytes.NewBufferString(`{"current_password":"admin123","new_password":"newpass123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer signed-token")
 	rec := httptest.NewRecorder()
 
 	handler.Routes().ServeHTTP(rec, req)
