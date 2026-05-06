@@ -2,6 +2,7 @@ import { AxiosError } from "axios";
 import type { AxiosRequestConfig } from "axios";
 import { messages } from "@/i18n/messages";
 import { http } from "@/lib/http";
+import { apiGet, apiPost, envEndpoint } from "@/lib/api-utils";
 import type {
   AuthSession,
   AuthUser,
@@ -9,37 +10,42 @@ import type {
   LoginRequest,
   RegisterRequest,
 } from "@/features/auth/types";
-import type { ApiEnvelope } from "@/types/api/response";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
 const AUTH_EXCLUDED_RETRY =
   /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
 const AUTH_ENDPOINTS = {
-  login:
-    process.env.NEXT_PUBLIC_AUTH_LOGIN_ENDPOINT ??
-    process.env.VITE_AUTH_LOGIN_ENDPOINT ??
+  login: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_LOGIN_ENDPOINT,
+    process.env.VITE_AUTH_LOGIN_ENDPOINT,
     "/auth/login",
-  register:
-    process.env.NEXT_PUBLIC_AUTH_REGISTER_ENDPOINT ??
-    process.env.VITE_AUTH_REGISTER_ENDPOINT ??
+  ),
+  register: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_REGISTER_ENDPOINT,
+    process.env.VITE_AUTH_REGISTER_ENDPOINT,
     "/auth/register",
-  me:
-    process.env.NEXT_PUBLIC_AUTH_ME_ENDPOINT ??
-    process.env.VITE_AUTH_ME_ENDPOINT ??
+  ),
+  me: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_ME_ENDPOINT,
+    process.env.VITE_AUTH_ME_ENDPOINT,
     "/auth/me",
-  refresh:
-    process.env.NEXT_PUBLIC_AUTH_REFRESH_ENDPOINT ??
-    process.env.VITE_AUTH_REFRESH_ENDPOINT ??
+  ),
+  refresh: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_REFRESH_ENDPOINT,
+    process.env.VITE_AUTH_REFRESH_ENDPOINT,
     "/auth/refresh",
-  logout:
-    process.env.NEXT_PUBLIC_AUTH_LOGOUT_ENDPOINT ??
-    process.env.VITE_AUTH_LOGOUT_ENDPOINT ??
+  ),
+  logout: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_LOGOUT_ENDPOINT,
+    process.env.VITE_AUTH_LOGOUT_ENDPOINT,
     "/auth/logout",
-  changePassword:
-    process.env.NEXT_PUBLIC_AUTH_CHANGE_PASSWORD_ENDPOINT ??
-    process.env.VITE_AUTH_CHANGE_PASSWORD_ENDPOINT ??
+  ),
+  changePassword: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_CHANGE_PASSWORD_ENDPOINT,
+    process.env.VITE_AUTH_CHANGE_PASSWORD_ENDPOINT,
     "/auth/change-password",
+  ),
 } as const;
 
 type StorageScope = "local" | "session";
@@ -97,15 +103,6 @@ function extractDataNode(value: unknown): unknown {
   }
 
   return node.data;
-}
-
-function unwrapResponseData<T>(value: ApiEnvelope<T> | T): T {
-  const node = asRecord(value);
-  if (!node || !("data" in node) || !("success" in node)) {
-    return value as T;
-  }
-
-  return node.data as T;
 }
 
 function readMessage(data: unknown): string | null {
@@ -426,18 +423,21 @@ export async function getMeApi<
   initializeAuthHeader();
 
   const endpoint = AUTH_ENDPOINTS.me;
-  const response = await http.get<ApiEnvelope<TUser> | TUser>(endpoint);
-  return unwrapResponseData(response.data);
+  return apiGet<TUser>(endpoint);
 }
 
 export async function logoutApi(): Promise<void> {
+  initializeAuthHeader();
+
   const endpoint = AUTH_ENDPOINTS.logout;
   const refreshToken = getStoredValue(REFRESH_TOKEN_KEY);
 
   try {
-    await http.post(endpoint, refreshToken ? { refreshToken } : {}, {
-      skipAuthRefresh: true,
-    } as RetryableRequestConfig);
+    await apiPost(
+      endpoint,
+      refreshToken ? { refresh_token: refreshToken } : {},
+      { skipAuthRefresh: true } as RetryableRequestConfig,
+    );
   } finally {
     clearAuthSession();
   }
@@ -449,7 +449,7 @@ export async function changePasswordApi(
   initializeAuthHeader();
 
   const endpoint = AUTH_ENDPOINTS.changePassword;
-  await http.post(
+  await apiPost(
     endpoint,
     {
       current_password: payload.currentPassword,

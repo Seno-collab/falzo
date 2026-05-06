@@ -131,7 +131,7 @@ function ProfileField({
         <p className="text-xs font-semibold tracking-wide text-[#7892ad] uppercase">
           {label}
         </p>
-        <p className="mt-1 break-words text-sm font-semibold text-[#1d3d64]">
+        <p className="mt-1 wrap-break-word text-sm font-semibold text-[#1d3d64]">
           {value}
         </p>
       </div>

@@ -63,13 +63,17 @@ export function ExploreScreen() {
   const [savedPosts, setSavedPosts] = useState<Set<number>>(new Set());
   const [savedPins, setSavedPins] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
-  const [loadingComments, setLoadingComments] = useState<Set<number>>(new Set());
+  const [loadingComments, setLoadingComments] = useState<Set<number>>(
+    new Set(),
+  );
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
     Record<number, PostComment[]>
   >({});
-  const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<number, string>>(
+    {},
+  );
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const postsQuery = useInfiniteQuery({
@@ -388,9 +392,7 @@ export function ExploreScreen() {
               aria-label="Profile"
               className="rounded-full"
               onClick={() =>
-                router.push(
-                  hasAuthSession() ? ROUTES.profile : ROUTES.login,
-                )
+                router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login)
               }
               size="icon-sm"
               type="button"
@@ -412,10 +414,10 @@ export function ExploreScreen() {
         </div>
       </header>
 
-      <section className="mx-auto w-full max-w-[1480px] px-4 pb-4 pt-6 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-370 px-4 pb-4 pt-6 sm:px-6 lg:px-8">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/[0.06] bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/6 bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
               <Sparkles className="size-3.5 text-[#ff385c]" />
               Curated today
             </div>
@@ -426,7 +428,7 @@ export function ExploreScreen() {
 
           <div className="flex items-center gap-2 lg:justify-end">
             <Button
-              className="rounded-full border-black/[0.08] bg-white"
+              className="rounded-full border-black/8 bg-white"
               type="button"
               variant="outline"
             >
@@ -450,7 +452,7 @@ export function ExploreScreen() {
                 "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
                 activeCollection === collection
                   ? "border-[#111] bg-[#111] text-white shadow-[0_16px_32px_-24px_rgb(0_0_0/0.75)]"
-                  : "border-black/[0.07] bg-white text-[#444] hover:border-black/15 hover:bg-[#fbfbfa]",
+                  : "border-black/7 bg-white text-[#444] hover:border-black/15 hover:bg-[#fbfbfa]",
               )}
               key={collection}
               onClick={() => setActiveCollection(collection)}
@@ -474,7 +476,7 @@ export function ExploreScreen() {
 
             return (
               <motion.article
-                className="group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/[0.05] bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]"
+                className="group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]"
                 initial={{ opacity: 0, y: 18 }}
                 key={id}
                 transition={{
@@ -637,7 +639,7 @@ export function ExploreScreen() {
                   </div>
 
                   {commentsOpen ? (
-                    <div className="rounded-2xl border border-black/[0.06] bg-[#f8f8f7] p-3">
+                    <div className="rounded-2xl border border-black/6 bg-[#f8f8f7] p-3">
                       <div className="space-y-2">
                         {isLoadingComments ? (
                           <p className="text-xs font-semibold text-[#555]">
@@ -663,8 +665,10 @@ export function ExploreScreen() {
                       </div>
                       <div className="mt-3 flex items-center gap-2">
                         <input
-                          className="h-9 min-w-0 flex-1 rounded-full border border-black/[0.08] bg-white px-3 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
-                          disabled={!isAuthenticated || commentMutation.isPending}
+                          className="h-9 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-3 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
+                          disabled={
+                            !isAuthenticated || commentMutation.isPending
+                          }
                           onChange={(event) =>
                             setCommentInputs((current) => ({
                               ...current,
@@ -672,13 +676,17 @@ export function ExploreScreen() {
                             }))
                           }
                           placeholder={
-                            isAuthenticated ? "Write a comment" : "Login to comment"
+                            isAuthenticated
+                              ? "Write a comment"
+                              : "Login to comment"
                           }
                           value={commentInputs[post.id] ?? ""}
                         />
                         <Button
                           aria-label={
-                            isAuthenticated ? "Submit comment" : "Login to comment"
+                            isAuthenticated
+                              ? "Submit comment"
+                              : "Login to comment"
                           }
                           className="rounded-full"
                           disabled={commentMutation.isPending}
@@ -702,7 +710,7 @@ export function ExploreScreen() {
 
             return (
               <motion.article
-                className="group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/[0.05] bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]"
+                className="group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]"
                 initial={{ opacity: 0, y: 18 }}
                 key={pin.id}
                 transition={{
@@ -827,7 +835,7 @@ export function ExploreScreen() {
             ref={loadMoreRef}
           >
             {postsQuery.isFetchingNextPage ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white px-4 py-2 text-sm font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
                 <span className="size-2 animate-pulse rounded-full bg-[#ff385c]" />
                 Loading more posts
               </div>
@@ -870,7 +878,7 @@ export function ExploreScreen() {
             </div>
 
             <aside className="flex max-h-[92vh] min-h-0 flex-col bg-[#f7f7f5] text-[#1f1f1f]">
-              <div className="border-b border-black/[0.06] p-5">
+              <div className="border-b border-black/6 p-5">
                 <DialogHeader>
                   <DialogTitle className="text-xl leading-7 text-[#111]">
                     {selectedPost?.caption || "Community post"}
@@ -966,13 +974,13 @@ export function ExploreScreen() {
                   ) : null}
                   {!isSelectedPostLoadingComments &&
                   selectedPostComments.length === 0 ? (
-                    <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+                    <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
                       No comments yet.
                     </div>
                   ) : null}
                   {selectedPostComments.map((comment) => (
                     <div
-                      className="rounded-2xl border border-black/[0.05] bg-white px-4 py-3 text-sm text-[#333]"
+                      className="rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm text-[#333]"
                       key={comment.id}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -989,10 +997,10 @@ export function ExploreScreen() {
                 </div>
               </div>
 
-              <div className="border-t border-black/[0.06] bg-white p-4">
+              <div className="border-t border-black/6 bg-white p-4">
                 <div className="flex items-center gap-2">
                   <input
-                    className="h-10 min-w-0 flex-1 rounded-full border border-black/[0.08] bg-white px-4 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
+                    className="h-10 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-4 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
                     disabled={
                       !isAuthenticated ||
                       commentMutation.isPending ||
@@ -1021,7 +1029,9 @@ export function ExploreScreen() {
                       isAuthenticated ? "Submit comment" : "Login to comment"
                     }
                     className="rounded-full"
-                    disabled={commentMutation.isPending || selectedPostId === null}
+                    disabled={
+                      commentMutation.isPending || selectedPostId === null
+                    }
                     onClick={() => {
                       if (selectedPostId !== null) {
                         submitComment(selectedPostId);
@@ -1136,7 +1146,7 @@ export function ExploreScreen() {
                 </Button>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-black/[0.06] bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+              <div className="mt-5 rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
                 Comments are available on community posts from the backend feed.
               </div>
             </aside>
