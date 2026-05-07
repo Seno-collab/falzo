@@ -5,60 +5,58 @@ import {
   Bookmark,
   Camera,
   ChevronDown,
-  Heart,
   Map,
-  Maximize2,
   Menu,
-  MessageCircle,
   Plus,
   Search,
-  Send,
   SlidersHorizontal,
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { motion } from "motion/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ScenicImage } from "@/components/scenic-image";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { getApiErrorMessage, hasAuthSession } from "@/features/auth/api";
+import { getCategoriesApi } from "@/features/categories/api";
 import {
   createPostCommentApi,
-  getPostDetailApi,
   getPostCommentsApi,
+  getPostDetailApi,
   getPostsApi,
   likePostApi,
   savePostApi,
 } from "@/features/posts/api";
-import type { Post, PostComment } from "@/features/posts/types";
+import type { PostComment } from "@/features/posts/types";
 import {
-  exploreCollections,
-  explorePins,
-  type ExploreCollection,
-} from "@/features/scenic/data";
+  ExplorePinCard,
+  ExplorePostCard,
+} from "@/features/scenic/components/explore-cards";
+import {
+  PinDetailDialog,
+  PostDetailDialog,
+} from "@/features/scenic/components/explore-detail-dialogs";
+import { explorePins } from "@/features/scenic/data";
+import {
+  getExploreCollections,
+  showsCommunityFeed,
+  toggleSetValue,
+} from "@/features/scenic/lib/explore-utils";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-type ActiveCollection = ExploreCollection | "Community";
 type ExplorePin = (typeof explorePins)[number];
+
 const postsPageSize = 24;
 
 export function ExploreScreen() {
   const router = useRouter();
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeCollection, setActiveCollection] =
-    useState<ActiveCollection>("All");
+  const [activeCollection, setActiveCollection] = useState("All");
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [savedPosts, setSavedPosts] = useState<Set<number>>(new Set());
   const [savedPins, setSavedPins] = useState<Set<string>>(new Set());
@@ -74,7 +72,6 @@ export function ExploreScreen() {
   const [commentInputs, setCommentInputs] = useState<Record<number, string>>(
     {},
   );
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const postsQuery = useInfiniteQuery({
     queryKey: ["posts", "explore"],
@@ -83,6 +80,11 @@ export function ExploreScreen() {
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.length < postsPageSize ? undefined : lastPageParam + 1,
     initialPageParam: 1,
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategoriesApi,
   });
 
   const postDetailQuery = useQuery({
@@ -98,9 +100,7 @@ export function ExploreScreen() {
 
   const likeMutation = useMutation({
     mutationFn: likePostApi,
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error));
-    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
     onSuccess: (_data, postId) => {
       setLikedPosts((current) => new Set(current).add(postId));
     },
@@ -108,9 +108,7 @@ export function ExploreScreen() {
 
   const saveMutation = useMutation({
     mutationFn: savePostApi,
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error));
-    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
     onSuccess: (_data, postId) => {
       setSavedPosts((current) => new Set(current).add(postId));
     },
@@ -118,9 +116,7 @@ export function ExploreScreen() {
 
   const commentMutation = useMutation({
     mutationFn: createPostCommentApi,
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error));
-    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
     onSuccess: (comment, variables) => {
       setCommentsByPost((current) => ({
         ...current,
@@ -131,14 +127,18 @@ export function ExploreScreen() {
     },
   });
 
-  const collections = useMemo<ActiveCollection[]>(
-    () => [
-      "All",
-      "Community",
-      ...exploreCollections.filter((item) => item !== "All"),
-    ],
-    [],
+  const collections = useMemo(
+    () => getExploreCollections(categoriesQuery.data, explorePins),
+    [categoriesQuery.data],
   );
+
+  const visiblePosts = useMemo(() => {
+    if (!showsCommunityFeed(activeCollection)) {
+      return [];
+    }
+
+    return postsQuery.data?.pages.flat() ?? [];
+  }, [activeCollection, postsQuery.data]);
 
   const visiblePins = useMemo(() => {
     if (activeCollection === "All") {
@@ -152,15 +152,7 @@ export function ExploreScreen() {
     return explorePins.filter((pin) => pin.collection === activeCollection);
   }, [activeCollection]);
 
-  const visiblePosts = useMemo(() => {
-    if (activeCollection !== "All" && activeCollection !== "Community") {
-      return [];
-    }
-
-    return postsQuery.data?.pages.flat() ?? [];
-  }, [activeCollection, postsQuery.data]);
-
-  const selectedPost = useMemo<Post | null>(() => {
+  const selectedPost = useMemo(() => {
     if (selectedPostId === null) {
       return null;
     }
@@ -173,17 +165,14 @@ export function ExploreScreen() {
   }, [postDetailQuery.data, selectedPostId, visiblePosts]);
 
   const selectedPin = useMemo<ExplorePin | null>(() => {
-    if (selectedPinId === null) {
-      return null;
-    }
-
     return explorePins.find((pin) => pin.id === selectedPinId) ?? null;
   }, [selectedPinId]);
 
   const shouldLoadMorePosts =
-    (activeCollection === "All" || activeCollection === "Community") &&
+    showsCommunityFeed(activeCollection) &&
     postsQuery.hasNextPage &&
     !postsQuery.isFetchingNextPage;
+  const fetchNextPostsPage = postsQuery.fetchNextPage;
 
   useEffect(() => {
     const node = loadMoreRef.current;
@@ -194,32 +183,15 @@ export function ExploreScreen() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          postsQuery.fetchNextPage();
+          void fetchNextPostsPage();
         }
       },
       { rootMargin: "700px 0px" },
     );
 
     observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [postsQuery.fetchNextPage, shouldLoadMorePosts]);
-
-  function toggleSaved(id: string) {
-    setSavedPins((current) => {
-      const next = new Set(current);
-
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-
-      return next;
-    });
-  }
+    return () => observer.disconnect();
+  }, [fetchNextPostsPage, shouldLoadMorePosts]);
 
   function requireAuth() {
     if (hasAuthSession()) {
@@ -233,20 +205,12 @@ export function ExploreScreen() {
     return false;
   }
 
-  function handleLikePost(postId: number) {
-    if (!requireAuth() || likedPosts.has(postId) || likeMutation.isPending) {
-      return;
-    }
-
-    likeMutation.mutate(postId);
+  function toggleSavedPin(pinId: string) {
+    setSavedPins((current) => toggleSetValue(current, pinId));
   }
 
-  function handleSavePost(postId: number) {
-    if (!requireAuth() || savedPosts.has(postId) || saveMutation.isPending) {
-      return;
-    }
-
-    saveMutation.mutate(postId);
+  function updateComment(postId: number, value: string) {
+    setCommentInputs((current) => ({ ...current, [postId]: value }));
   }
 
   async function loadComments(postId: number) {
@@ -272,15 +236,8 @@ export function ExploreScreen() {
 
   function toggleComments(postId: number) {
     const willOpen = !openComments.has(postId);
-    setOpenComments((current) => {
-      const next = new Set(current);
-      if (next.has(postId)) {
-        next.delete(postId);
-      } else {
-        next.add(postId);
-      }
-      return next;
-    });
+
+    setOpenComments((current) => toggleSetValue(current, postId));
 
     if (willOpen) {
       void loadComments(postId);
@@ -299,6 +256,22 @@ export function ExploreScreen() {
     setSelectedPostId(null);
   }
 
+  function handleLikePost(postId: number) {
+    if (!requireAuth() || likedPosts.has(postId) || likeMutation.isPending) {
+      return;
+    }
+
+    likeMutation.mutate(postId);
+  }
+
+  function handleSavePost(postId: number) {
+    if (!requireAuth() || savedPosts.has(postId) || saveMutation.isPending) {
+      return;
+    }
+
+    saveMutation.mutate(postId);
+  }
+
   function submitComment(postId: number) {
     if (!requireAuth()) {
       return;
@@ -315,844 +288,307 @@ export function ExploreScreen() {
 
   const selectedPostComments =
     selectedPostId === null ? [] : (commentsByPost[selectedPostId] ?? []);
+  const selectedPostCommentValue =
+    selectedPostId === null ? "" : (commentInputs[selectedPostId] ?? "");
   const isSelectedPostLoadingComments =
     selectedPostId !== null && loadingComments.has(selectedPostId);
   const isSelectedPostLiked =
     selectedPostId !== null && likedPosts.has(selectedPostId);
   const isSelectedPostSaved =
     selectedPostId !== null && savedPosts.has(selectedPostId);
+  const isSelectedPinSaved =
+    selectedPin !== null && savedPins.has(selectedPin.id);
 
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
-      <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
-        <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-3 py-3 sm:px-5 lg:px-8">
-          <Link
-            aria-label="Explore"
-            className="inline-flex size-10 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03]"
-            href={ROUTES.explore}
-          >
-            <Camera className="size-4" />
-          </Link>
+      <ExploreTopbar onProfileClick={() => {
+        router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login);
+      }} />
 
-          <nav className="hidden items-center gap-1 md:flex">
-            <Button
-              className="rounded-full bg-[#111] text-white hover:bg-[#222]"
-              size="sm"
-            >
-              Explore
-            </Button>
-            <Button asChild className="rounded-full" size="sm" variant="ghost">
-              <Link href={ROUTES.locations}>
-                <Map className="size-4" />
-                Locations
-              </Link>
-            </Button>
-          </nav>
+      <ExploreHero
+        activeCollection={activeCollection}
+        collections={collections}
+        onCollectionChange={setActiveCollection}
+      />
 
-          <div className="relative ml-1 flex-1">
-            <Search className="-translate-y-1/2 pointer-events-none absolute left-4 top-1/2 size-4 text-[#777]" />
-            <input
-              className="h-11 w-full rounded-full border border-black/6 bg-white px-11 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)]"
-              placeholder="Search places, rooms, tables, textures"
-              type="search"
+      <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
+        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
+          {visiblePosts.map((post, index) => (
+            <ExplorePostCard
+              commentValue={commentInputs[post.id] ?? ""}
+              comments={commentsByPost[post.id] ?? []}
+              commentsOpen={openComments.has(post.id)}
+              index={index}
+              isAuthenticated={isAuthenticated}
+              isLiked={likedPosts.has(post.id)}
+              isLoadingComments={loadingComments.has(post.id)}
+              isSaved={savedPosts.has(post.id)}
+              isSubmittingComment={commentMutation.isPending}
+              key={`post-${post.id}`}
+              onCommentChange={updateComment}
+              onLike={handleLikePost}
+              onOpen={openPostDetail}
+              onSave={handleSavePost}
+              onSubmitComment={submitComment}
+              onToggleComments={toggleComments}
+              post={post}
             />
-            <Button
-              aria-label="Search filters"
-              className="-translate-y-1/2 absolute right-1.5 top-1/2 rounded-full"
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <SlidersHorizontal className="size-4" />
-            </Button>
-          </div>
+          ))}
 
-          <div className="hidden items-center gap-1 sm:flex">
-            <Button
-              aria-label="Create"
-              asChild
-              className="rounded-full"
-              size="icon-sm"
-              variant="ghost"
-            >
-              <Link href={ROUTES.upload}>
-                <Plus className="size-4" />
-              </Link>
-            </Button>
-            <Button
-              aria-label="Notifications"
-              className="rounded-full"
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <Bell className="size-4" />
-            </Button>
-            <Button
-              aria-label="Profile"
-              className="rounded-full"
-              onClick={() =>
-                router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login)
-              }
-              size="icon-sm"
-              type="button"
-              variant="outline"
-            >
-              <UserRound className="size-4" />
-            </Button>
-          </div>
+          {visiblePins.map((pin, index) => (
+            <ExplorePinCard
+              index={index}
+              isSaved={savedPins.has(pin.id)}
+              key={pin.id}
+              onOpen={openPinDetail}
+              onToggleSaved={toggleSavedPin}
+              pin={pin}
+            />
+          ))}
+        </div>
 
+        {showsCommunityFeed(activeCollection) ? (
+          <LoadMorePosts
+            hasNextPage={Boolean(postsQuery.hasNextPage)}
+            isLoading={postsQuery.isFetchingNextPage}
+            refNode={loadMoreRef}
+            totalPosts={visiblePosts.length}
+          />
+        ) : null}
+      </section>
+
+      <PostDetailDialog
+        commentValue={selectedPostCommentValue}
+        comments={selectedPostComments}
+        isAuthenticated={isAuthenticated}
+        isCommentPending={commentMutation.isPending}
+        isLiked={isSelectedPostLiked}
+        isLoadingComments={isSelectedPostLoadingComments}
+        isSaved={isSelectedPostSaved}
+        onClose={() => setSelectedPostId(null)}
+        onCommentChange={(value) => {
+          if (selectedPostId !== null) {
+            updateComment(selectedPostId, value);
+          }
+        }}
+        onLike={() => {
+          if (selectedPostId !== null) {
+            handleLikePost(selectedPostId);
+          }
+        }}
+        onLoadComments={() => {
+          if (selectedPostId !== null) {
+            setOpenComments((current) => new Set(current).add(selectedPostId));
+            void loadComments(selectedPostId);
+          }
+        }}
+        onSave={() => {
+          if (selectedPostId !== null) {
+            handleSavePost(selectedPostId);
+          }
+        }}
+        onSubmitComment={() => {
+          if (selectedPostId !== null) {
+            submitComment(selectedPostId);
+          }
+        }}
+        open={selectedPostId !== null}
+        post={selectedPost}
+      />
+
+      <PinDetailDialog
+        isSaved={isSelectedPinSaved}
+        onClose={() => setSelectedPinId(null)}
+        onToggleSaved={() => {
+          if (selectedPin !== null) {
+            toggleSavedPin(selectedPin.id);
+          }
+        }}
+        open={selectedPinId !== null}
+        pin={selectedPin}
+      />
+    </main>
+  );
+}
+
+function ExploreTopbar({ onProfileClick }: Readonly<{ onProfileClick: () => void }>) {
+  return (
+    <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
+      <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-3 py-3 sm:px-5 lg:px-8">
+        <Link
+          aria-label="Explore"
+          className="inline-flex size-10 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03]"
+          href={ROUTES.explore}
+        >
+          <Camera className="size-4" />
+        </Link>
+
+        <nav className="hidden items-center gap-1 md:flex">
           <Button
-            aria-label="Menu"
-            className="rounded-full sm:hidden"
+            className="rounded-full bg-[#111] text-white hover:bg-[#222]"
+            size="sm"
+          >
+            Explore
+          </Button>
+          <Button asChild className="rounded-full" size="sm" variant="ghost">
+            <Link href={ROUTES.locations}>
+              <Map className="size-4" />
+              Locations
+            </Link>
+          </Button>
+        </nav>
+
+        <div className="relative ml-1 flex-1">
+          <Search className="-translate-y-1/2 pointer-events-none absolute left-4 top-1/2 size-4 text-[#777]" />
+          <input
+            className="h-11 w-full rounded-full border border-black/6 bg-white px-11 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)]"
+            placeholder="Search places, rooms, tables, textures"
+            type="search"
+          />
+          <Button
+            aria-label="Search filters"
+            className="-translate-y-1/2 absolute right-1.5 top-1/2 rounded-full"
             size="icon-sm"
             type="button"
             variant="ghost"
           >
-            <Menu className="size-4" />
+            <SlidersHorizontal className="size-4" />
           </Button>
         </div>
-      </header>
 
-      <section className="mx-auto w-full max-w-370 px-4 pb-4 pt-6 sm:px-6 lg:px-8">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/6 bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
-              <Sparkles className="size-3.5 text-[#ff385c]" />
-              Curated today
-            </div>
-            <h1 className="max-w-2xl text-4xl font-semibold tracking-normal text-[#111] sm:text-5xl lg:text-6xl">
-              Fresh visual ideas for beautiful stays and memorable travel.
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2 lg:justify-end">
-            <Button
-              className="rounded-full border-black/8 bg-white"
-              type="button"
-              variant="outline"
-            >
-              Trending
-              <ChevronDown className="size-4" />
-            </Button>
-            <Button
-              className="rounded-full bg-[#ff385c] text-white shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)] hover:bg-[#e93152]"
-              type="button"
-            >
-              <Bookmark className="size-4" />
-              Board
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-6 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {collections.map((collection) => (
-            <button
-              className={cn(
-                "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
-                activeCollection === collection
-                  ? "border-[#111] bg-[#111] text-white shadow-[0_16px_32px_-24px_rgb(0_0_0/0.75)]"
-                  : "border-black/7 bg-white text-[#444] hover:border-black/15 hover:bg-[#fbfbfa]",
-              )}
-              key={collection}
-              onClick={() => setActiveCollection(collection)}
-              type="button"
-            >
-              {collection}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
-        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
-          {visiblePosts.map((post, index) => {
-            const id = `post-${post.id}`;
-            const isLiked = likedPosts.has(post.id);
-            const isSaved = savedPosts.has(post.id);
-            const commentsOpen = openComments.has(post.id);
-            const comments = commentsByPost[post.id] ?? [];
-            const isLoadingComments = loadingComments.has(post.id);
-
-            return (
-              <motion.article
-                className="group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]"
-                initial={{ opacity: 0, y: 18 }}
-                key={id}
-                transition={{
-                  duration: 0.34,
-                  delay: Math.min(index * 0.035, 0.22),
-                  ease: "easeOut",
-                }}
-                viewport={{ amount: 0.12, once: true }}
-                whileInView={{ opacity: 1, y: 0 }}
-              >
-                <div
-                  className="relative h-96 cursor-zoom-in overflow-hidden bg-[#e9eef3]"
-                  onClick={() => openPostDetail(post.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openPostDetail(post.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <img
-                    alt={post.caption || post.location_name || "Uploaded post"}
-                    className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
-                    loading={index < 2 ? "eager" : "lazy"}
-                    src={post.image_url}
-                  />
-                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.02)_48%,rgb(0_0_0/0.44)_100%)] opacity-80 transition group-hover:opacity-100" />
-                  <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 opacity-0 transition duration-200 group-hover:opacity-100">
-                    <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
-                      Community
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        aria-label="Open image"
-                        className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openPostDetail(post.id);
-                        }}
-                        size="icon-sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Maximize2 className="size-4" />
-                      </Button>
-                      <Button
-                        aria-label={isLiked ? "Liked" : "Like"}
-                        className={cn(
-                          "rounded-full shadow-sm backdrop-blur-xl",
-                          isLiked
-                            ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
-                            : "bg-white/86 text-[#222] hover:bg-white",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleLikePost(post.id);
-                        }}
-                        size="icon-sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Heart
-                          className={cn(
-                            "size-4",
-                            isLiked ? "fill-current" : "",
-                          )}
-                        />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="absolute inset-x-4 bottom-4 text-white">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
-                      {post.location_name || "Uploaded"}
-                    </p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-normal">
-                      {post.caption || "Community post"}
-                    </h2>
-                  </div>
-                </div>
-
-                <div className="space-y-3 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[#202020]">
-                        User #{post.user_id}
-                      </p>
-                      <p className="mt-0.5 text-xs font-medium text-[#777]">
-                        {new Date(post.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        aria-label="Open image"
-                        className="rounded-full"
-                        onClick={() => openPostDetail(post.id)}
-                        size="icon-sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Maximize2 className="size-4" />
-                      </Button>
-                      <Button
-                        aria-label={isLiked ? "Liked" : "Like post"}
-                        className={cn(
-                          "rounded-full",
-                          isLiked
-                            ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
-                            : "",
-                        )}
-                        onClick={() => handleLikePost(post.id)}
-                        size="icon-sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Heart
-                          className={cn(
-                            "size-4",
-                            isLiked ? "fill-current" : "",
-                          )}
-                        />
-                      </Button>
-                      <Button
-                        aria-label="View comments"
-                        className={cn(
-                          "rounded-full",
-                          commentsOpen
-                            ? "border-[#b9d6f2] bg-[#f0f7ff] text-[#2f6fb8]"
-                            : "",
-                        )}
-                        onClick={() => toggleComments(post.id)}
-                        size="icon-sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <MessageCircle className="size-4" />
-                      </Button>
-                      <Button
-                        aria-label={isSaved ? "Saved" : "Save post"}
-                        className={cn(
-                          "rounded-full",
-                          isSaved
-                            ? "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]"
-                            : "",
-                        )}
-                        onClick={() => handleSavePost(post.id)}
-                        size="icon-sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Bookmark
-                          className={cn(
-                            "size-4",
-                            isSaved ? "fill-current" : "",
-                          )}
-                        />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {commentsOpen ? (
-                    <div className="rounded-2xl border border-black/6 bg-[#f8f8f7] p-3">
-                      <div className="space-y-2">
-                        {isLoadingComments ? (
-                          <p className="text-xs font-semibold text-[#555]">
-                            Loading comments
-                          </p>
-                        ) : null}
-                        {!isLoadingComments && comments.length === 0 ? (
-                          <p className="text-xs font-semibold text-[#555]">
-                            No comments yet.
-                          </p>
-                        ) : null}
-                        {comments.map((comment) => (
-                          <div
-                            className="rounded-xl bg-white px-3 py-2 text-sm text-[#333]"
-                            key={comment.id}
-                          >
-                            <p className="text-xs font-semibold text-[#777]">
-                              User #{comment.user_id}
-                            </p>
-                            <p className="mt-1 leading-5">{comment.content}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <input
-                          className="h-9 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-3 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
-                          disabled={
-                            !isAuthenticated || commentMutation.isPending
-                          }
-                          onChange={(event) =>
-                            setCommentInputs((current) => ({
-                              ...current,
-                              [post.id]: event.target.value,
-                            }))
-                          }
-                          placeholder={
-                            isAuthenticated
-                              ? "Write a comment"
-                              : "Login to comment"
-                          }
-                          value={commentInputs[post.id] ?? ""}
-                        />
-                        <Button
-                          aria-label={
-                            isAuthenticated
-                              ? "Submit comment"
-                              : "Login to comment"
-                          }
-                          className="rounded-full"
-                          disabled={commentMutation.isPending}
-                          onClick={() => submitComment(post.id)}
-                          size="icon-sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          <Send className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </motion.article>
-            );
-          })}
-
-          {visiblePins.map((pin, index) => {
-            const isSaved = savedPins.has(pin.id);
-
-            return (
-              <motion.article
-                className="group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]"
-                initial={{ opacity: 0, y: 18 }}
-                key={pin.id}
-                transition={{
-                  duration: 0.34,
-                  delay: Math.min(index * 0.035, 0.22),
-                  ease: "easeOut",
-                }}
-                viewport={{ amount: 0.12, once: true }}
-                whileInView={{ opacity: 1, y: 0 }}
-              >
-                <div
-                  className={cn(
-                    "relative cursor-zoom-in overflow-hidden",
-                    pin.height,
-                    pin.gradient,
-                  )}
-                  onClick={() => openPinDetail(pin.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openPinDetail(pin.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <ScenicImage
-                    alt={pin.title}
-                    className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
-                    id={pin.imageId}
-                    sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, (max-width: 1536px) 31vw, 23vw"
-                  />
-                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.02)_48%,rgb(0_0_0/0.44)_100%)] opacity-80 transition group-hover:opacity-100" />
-                  <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 opacity-0 transition duration-200 group-hover:opacity-100">
-                    <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
-                      {pin.collection}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        aria-label="Open image"
-                        className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openPinDetail(pin.id);
-                        }}
-                        size="icon-sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Maximize2 className="size-4" />
-                      </Button>
-                      <Button
-                        aria-label={isSaved ? "Remove save" : "Save"}
-                        className={cn(
-                          "rounded-full shadow-sm backdrop-blur-xl",
-                          isSaved
-                            ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
-                            : "bg-white/86 text-[#222] hover:bg-white",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleSaved(pin.id);
-                        }}
-                        size="icon-sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Heart
-                          className={cn(
-                            "size-4",
-                            isSaved ? "fill-current" : "",
-                          )}
-                        />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="absolute inset-x-4 bottom-4 text-white">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
-                      {pin.city}
-                    </p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-normal">
-                      {pin.title}
-                    </h2>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 p-4">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#202020]">
-                      {pin.author}
-                    </p>
-                    <p className="mt-0.5 text-xs font-medium text-[#777]">
-                      {pin.saves} saves
-                    </p>
-                  </div>
-                  <Button
-                    aria-label={isSaved ? "Saved" : "Save pin"}
-                    className={cn(
-                      "rounded-full",
-                      isSaved
-                        ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
-                        : "",
-                    )}
-                    onClick={() => toggleSaved(pin.id)}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Bookmark
-                      className={cn("size-4", isSaved ? "fill-current" : "")}
-                    />
-                  </Button>
-                </div>
-              </motion.article>
-            );
-          })}
-        </div>
-
-        {activeCollection === "All" || activeCollection === "Community" ? (
-          <div
-            className="flex min-h-20 items-center justify-center py-4"
-            ref={loadMoreRef}
+        <div className="hidden items-center gap-1 sm:flex">
+          <Button
+            aria-label="Create"
+            asChild
+            className="rounded-full"
+            size="icon-sm"
+            variant="ghost"
           >
-            {postsQuery.isFetchingNextPage ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
-                <span className="size-2 animate-pulse rounded-full bg-[#ff385c]" />
-                Loading more posts
-              </div>
-            ) : null}
-            {!postsQuery.hasNextPage && visiblePosts.length > 0 ? (
-              <p className="text-sm font-semibold text-[#777]">
-                You have reached the end.
-              </p>
-            ) : null}
+            <Link href={ROUTES.upload}>
+              <Plus className="size-4" />
+            </Link>
+          </Button>
+          <Button
+            aria-label="Notifications"
+            className="rounded-full"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <Bell className="size-4" />
+          </Button>
+          <Button
+            aria-label="Profile"
+            className="rounded-full"
+            onClick={onProfileClick}
+            size="icon-sm"
+            type="button"
+            variant="outline"
+          >
+            <UserRound className="size-4" />
+          </Button>
+        </div>
+
+        <Button
+          aria-label="Menu"
+          className="rounded-full sm:hidden"
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <Menu className="size-4" />
+        </Button>
+      </div>
+    </header>
+  );
+}
+
+function ExploreHero({
+  activeCollection,
+  collections,
+  onCollectionChange,
+}: Readonly<{
+  activeCollection: string;
+  collections: string[];
+  onCollectionChange: (collection: string) => void;
+}>) {
+  return (
+    <section className="mx-auto w-full max-w-370 px-4 pb-4 pt-6 sm:px-6 lg:px-8">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="max-w-3xl">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/6 bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
+            <Sparkles className="size-3.5 text-[#ff385c]" />
+            Curated today
           </div>
-        ) : null}
-      </section>
+          <h1 className="max-w-2xl text-4xl font-semibold tracking-normal text-[#111] sm:text-5xl lg:text-6xl">
+            Fresh visual ideas for beautiful stays and memorable travel.
+          </h1>
+        </div>
 
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedPostId(null);
-          }
-        }}
-        open={selectedPostId !== null}
-      >
-        <DialogContent className="max-h-[92vh] w-[min(96vw,76rem)] overflow-hidden border-white/16 bg-[#101010] p-0 text-white">
-          <div className="grid max-h-[92vh] overflow-hidden lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.72fr)]">
-            <div className="min-h-[56vh] bg-black lg:min-h-[82vh]">
-              {selectedPost ? (
-                <img
-                  alt={
-                    selectedPost.caption ||
-                    selectedPost.location_name ||
-                    "Post detail"
-                  }
-                  className="h-full max-h-[82vh] w-full object-contain"
-                  src={selectedPost.image_url}
-                />
-              ) : (
-                <div className="flex h-full min-h-[56vh] items-center justify-center text-sm font-semibold text-white/68">
-                  Loading post
-                </div>
-              )}
-            </div>
+        <div className="flex items-center gap-2 lg:justify-end">
+          <Button
+            className="rounded-full border-black/8 bg-white"
+            type="button"
+            variant="outline"
+          >
+            Trending
+            <ChevronDown className="size-4" />
+          </Button>
+          <Button
+            className="rounded-full bg-[#ff385c] text-white shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)] hover:bg-[#e93152]"
+            type="button"
+          >
+            <Bookmark className="size-4" />
+            Board
+          </Button>
+        </div>
+      </div>
 
-            <aside className="flex max-h-[92vh] min-h-0 flex-col bg-[#f7f7f5] text-[#1f1f1f]">
-              <div className="border-b border-black/6 p-5">
-                <DialogHeader>
-                  <DialogTitle className="text-xl leading-7 text-[#111]">
-                    {selectedPost?.caption || "Community post"}
-                  </DialogTitle>
-                  <DialogDescription className="text-sm text-[#777]">
-                    {selectedPost?.location_name || "Uploaded"} - User #
-                    {selectedPost?.user_id ?? ""}
-                  </DialogDescription>
-                </DialogHeader>
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {collections.map((collection) => (
+          <button
+            className={cn(
+              "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
+              activeCollection === collection
+                ? "border-[#111] bg-[#111] text-white shadow-[0_16px_32px_-24px_rgb(0_0_0/0.75)]"
+                : "border-black/7 bg-white text-[#444] hover:border-black/15 hover:bg-[#fbfbfa]",
+            )}
+            key={collection}
+            onClick={() => onCollectionChange(collection)}
+            type="button"
+          >
+            {collection}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-                <div className="mt-4 flex items-center gap-2">
-                  <Button
-                    aria-label={
-                      isSelectedPostLiked ? "Liked post" : "Like post"
-                    }
-                    className={cn(
-                      "rounded-full",
-                      isSelectedPostLiked
-                        ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
-                        : "",
-                    )}
-                    disabled={selectedPostId === null || likeMutation.isPending}
-                    onClick={() => {
-                      if (selectedPostId !== null) {
-                        handleLikePost(selectedPostId);
-                      }
-                    }}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Heart
-                      className={cn(
-                        "size-4",
-                        isSelectedPostLiked ? "fill-current" : "",
-                      )}
-                    />
-                  </Button>
-                  <Button
-                    aria-label={
-                      isSelectedPostSaved ? "Saved post" : "Save post"
-                    }
-                    className={cn(
-                      "rounded-full",
-                      isSelectedPostSaved
-                        ? "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]"
-                        : "",
-                    )}
-                    disabled={selectedPostId === null || saveMutation.isPending}
-                    onClick={() => {
-                      if (selectedPostId !== null) {
-                        handleSavePost(selectedPostId);
-                      }
-                    }}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Bookmark
-                      className={cn(
-                        "size-4",
-                        isSelectedPostSaved ? "fill-current" : "",
-                      )}
-                    />
-                  </Button>
-                  <Button
-                    aria-label="Focus comment input"
-                    className="rounded-full"
-                    disabled={selectedPostId === null}
-                    onClick={() => {
-                      if (selectedPostId !== null) {
-                        setOpenComments((current) =>
-                          new Set(current).add(selectedPostId),
-                        );
-                        void loadComments(selectedPostId);
-                      }
-                    }}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <MessageCircle className="size-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
-                <div className="space-y-3">
-                  {isSelectedPostLoadingComments ? (
-                    <p className="text-sm font-semibold text-[#555]">
-                      Loading comments
-                    </p>
-                  ) : null}
-                  {!isSelectedPostLoadingComments &&
-                  selectedPostComments.length === 0 ? (
-                    <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
-                      No comments yet.
-                    </div>
-                  ) : null}
-                  {selectedPostComments.map((comment) => (
-                    <div
-                      className="rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm text-[#333]"
-                      key={comment.id}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold text-[#777]">
-                          User #{comment.user_id}
-                        </p>
-                        <p className="text-xs font-medium text-[#999]">
-                          {new Date(comment.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <p className="mt-2 leading-6">{comment.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-black/6 bg-white p-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    className="h-10 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-4 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
-                    disabled={
-                      !isAuthenticated ||
-                      commentMutation.isPending ||
-                      selectedPostId === null
-                    }
-                    onChange={(event) => {
-                      if (selectedPostId === null) {
-                        return;
-                      }
-                      setCommentInputs((current) => ({
-                        ...current,
-                        [selectedPostId]: event.target.value,
-                      }));
-                    }}
-                    placeholder={
-                      isAuthenticated ? "Write a comment" : "Login to comment"
-                    }
-                    value={
-                      selectedPostId === null
-                        ? ""
-                        : (commentInputs[selectedPostId] ?? "")
-                    }
-                  />
-                  <Button
-                    aria-label={
-                      isAuthenticated ? "Submit comment" : "Login to comment"
-                    }
-                    className="rounded-full"
-                    disabled={
-                      commentMutation.isPending || selectedPostId === null
-                    }
-                    onClick={() => {
-                      if (selectedPostId !== null) {
-                        submitComment(selectedPostId);
-                      }
-                    }}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Send className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </aside>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedPinId(null);
-          }
-        }}
-        open={selectedPinId !== null}
-      >
-        <DialogContent className="max-h-[92vh] w-[min(96vw,72rem)] overflow-hidden border-white/16 bg-[#101010] p-0 text-white">
-          <div className="grid max-h-[92vh] overflow-hidden lg:grid-cols-[minmax(0,1.2fr)_340px]">
-            <div
-              className={cn(
-                "min-h-[56vh] bg-black lg:min-h-[82vh]",
-                selectedPin?.gradient,
-              )}
-            >
-              {selectedPin ? (
-                <ScenicImage
-                  alt={selectedPin.title}
-                  className="h-full max-h-[82vh] w-full object-contain"
-                  id={selectedPin.imageId}
-                  sizes="96vw"
-                />
-              ) : null}
-            </div>
-            <aside className="flex flex-col bg-[#f7f7f5] p-5 text-[#1f1f1f]">
-              <DialogHeader>
-                <DialogTitle className="text-xl leading-7 text-[#111]">
-                  {selectedPin?.title || "Image"}
-                </DialogTitle>
-                <DialogDescription className="text-sm text-[#777]">
-                  {selectedPin?.city || "Explore"} - {selectedPin?.author || ""}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="mt-4 flex items-center gap-2">
-                <Button
-                  aria-label={
-                    selectedPin && savedPins.has(selectedPin.id)
-                      ? "Saved image"
-                      : "Save image"
-                  }
-                  className={cn(
-                    "rounded-full",
-                    selectedPin && savedPins.has(selectedPin.id)
-                      ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
-                      : "",
-                  )}
-                  disabled={!selectedPin}
-                  onClick={() => {
-                    if (selectedPin) {
-                      toggleSaved(selectedPin.id);
-                    }
-                  }}
-                  size="icon-sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Bookmark
-                    className={cn(
-                      "size-4",
-                      selectedPin && savedPins.has(selectedPin.id)
-                        ? "fill-current"
-                        : "",
-                    )}
-                  />
-                </Button>
-                <Button
-                  aria-label="Save favorite"
-                  className={cn(
-                    "rounded-full",
-                    selectedPin && savedPins.has(selectedPin.id)
-                      ? "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]"
-                      : "",
-                  )}
-                  disabled={!selectedPin}
-                  onClick={() => {
-                    if (selectedPin) {
-                      toggleSaved(selectedPin.id);
-                    }
-                  }}
-                  size="icon-sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Heart
-                    className={cn(
-                      "size-4",
-                      selectedPin && savedPins.has(selectedPin.id)
-                        ? "fill-current"
-                        : "",
-                    )}
-                  />
-                </Button>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
-                Comments are available on community posts from the backend feed.
-              </div>
-            </aside>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </main>
+function LoadMorePosts({
+  hasNextPage,
+  isLoading,
+  refNode,
+  totalPosts,
+}: Readonly<{
+  hasNextPage: boolean;
+  isLoading: boolean;
+  refNode: React.RefObject<HTMLDivElement | null>;
+  totalPosts: number;
+}>) {
+  return (
+    <div className="flex min-h-20 items-center justify-center py-4" ref={refNode}>
+      {isLoading ? (
+        <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
+          <span className="size-2 animate-pulse rounded-full bg-[#ff385c]" />
+          Loading more posts
+        </div>
+      ) : null}
+      {!hasNextPage && totalPosts > 0 ? (
+        <p className="text-sm font-semibold text-[#777]">
+          You have reached the end.
+        </p>
+      ) : null}
+    </div>
   );
 }

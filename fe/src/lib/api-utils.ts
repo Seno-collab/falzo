@@ -17,7 +17,7 @@ export function trimTrailingSlashes(path: string) {
 export function endpointPath(base: string, ...segments: Array<number | string>) {
   const normalizedBase = trimTrailingSlashes(base);
   const suffix = segments
-    .map((segment) => String(segment).replace(/^\/+|\/+$/g, ""))
+    .map((segment) => String(segment).replaceAll(/^\/+|\/+$/g, ""))
     .filter(Boolean)
     .join("/");
 
@@ -32,10 +32,10 @@ export function unwrapApiData<T>(value: ApiEnvelope<T> | T): T {
     "success" in value &&
     "data" in value
   ) {
-    return (value as ApiEnvelope<T>).data;
+    return (value).data;
   }
 
-  return value as T;
+  return value;
 }
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig) {

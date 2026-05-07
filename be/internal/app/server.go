@@ -91,7 +91,12 @@ func Run() {
 		}
 		return strconv.FormatUint(principal.UserID, 10)
 	})
-	uploadHandler := upload.NewHandler(uploadService, authService, upload.WithProtectedMiddlewares(uploadRateLimit))
+	uploadHandler := upload.NewHandler(
+		uploadService,
+		authService,
+		upload.WithProtectedMiddlewares(uploadRateLimit),
+		upload.WithMaxBodyBytes(cfg.Upload.MaxSize+(1<<20)),
+	)
 	categoryRepository := categoryInfra.NewPostgresRepository(db)
 	categoryService := category.NewService(categoryRepository)
 	categoryHandler := category.NewHandler(categoryService, authService)

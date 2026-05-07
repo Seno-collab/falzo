@@ -6,12 +6,14 @@ import (
 )
 
 var (
-	ErrDependencyUnavailable = errors.New("Category dependency unavailable")
-	ErrInternal              = errors.New("Category internal error")
-	ErrNameRequired          = errors.New("Category name is required")
-	ErrSlugRequired          = errors.New("Category slug is required")
-	ErrNameTooLong           = errors.New("Category name cannot exceed 255 characters")
-	ErrSlugTooLong           = errors.New("Category slug cannot exceed 255 characters")
+	ErrDependencyUnavailable = errors.New("category dependency unavailable")
+	ErrInternal              = errors.New("category internal error")
+	ErrNotFound              = errors.New("category not found")
+	ErrAlreadyExists         = errors.New("category already exists")
+	ErrNameRequired          = errors.New("category name is required")
+	ErrSlugRequired          = errors.New("category slug is required")
+	ErrNameTooLong           = errors.New("category name cannot exceed 255 characters")
+	ErrSlugTooLong           = errors.New("category slug cannot exceed 255 characters")
 )
 
 type Repository interface {

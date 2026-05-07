@@ -111,19 +111,6 @@ export const travelPins = [
 
 export type TravelPin = (typeof travelPins)[number];
 
-export const exploreCollections = [
-  "All",
-  "Homes",
-  "Travel",
-  "Food",
-  "Style",
-  "Wellness",
-  "Architecture",
-  "Outdoors",
-] as const;
-
-export type ExploreCollection = (typeof exploreCollections)[number];
-
 export const explorePins = [
   {
     id: "rice-terrace-light",

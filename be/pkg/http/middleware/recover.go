@@ -1,15 +1,12 @@
 package middleware
 
 import (
-	"errors"
 	"net/http"
 
 	"falzo-be/internal/share"
 
 	"github.com/rs/zerolog/log"
 )
-
-var errRequestPanic = errors.New("request panicked")
 
 func Recover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,8 +23,4 @@ func Recover(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-func mapRecoverError(err error) share.ApiError {
-	return share.Internal()
 }

@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"errors"
 	"falzo-be/internal/share"
 	"net"
 	"net/http"
@@ -9,8 +8,6 @@ import (
 	"sync"
 	"time"
 )
-
-var errRateLimited = errors.New("rate limited")
 
 type fixedWindowLimiter struct {
 	mu              sync.Mutex
@@ -69,10 +66,6 @@ func NewKeyedRateLimiter(limit int, window time.Duration, keyFunc KeyFunc) func(
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func mapRateLimitError(err error) share.ApiError {
-	return share.TooManyRequests("Too many requests, please try again later")
 }
 
 func (l *fixedWindowLimiter) allow(key string, now time.Time) bool {

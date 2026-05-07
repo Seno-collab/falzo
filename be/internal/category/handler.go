@@ -3,21 +3,14 @@ package category
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"falzo-be/internal/auth"
 	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
-	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
-)
-
-var (
-	errorCategoryQueryParamsRequired = errors.New("category query params required")
-	errorInvalidCategoryIDParam      = errors.New("invalid category id param")
-	errorInvalidCategoryNameParam    = errors.New("invalid category name param")
-	errorInvalidCategorySlugParam    = errors.New("invalid category slug param")
 )
 
 type handlerService interface {
@@ -62,15 +55,14 @@ type createCategoryRequest struct {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	// Implementation for creating a category
 	var req createCategoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, errInvalidJSONPayload, "create_category", mapCategoryError)
 		return
 	}
 	err := h.service.Create(r.Context(), req.Name, req.Slug)
 	if err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, err, "create_category", mapCategoryError)
 		return
 	}
 	httpResponse.Success(w, http.StatusCreated, "Category created successfully", nil, r)
@@ -80,7 +72,7 @@ func (h *Handler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	category, err := h.service.GetBySlug(r.Context(), slug)
 	if err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, err, "get_category_by_slug", mapCategoryError)
 		return
 	}
 	httpResponse.Success(w, http.StatusOK, "Category fetched successfully", category, r)
@@ -89,7 +81,7 @@ func (h *Handler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	categories, err := h.service.List(r.Context())
 	if err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, err, "list_categories", mapCategoryError)
 		return
 	}
 	httpResponse.Success(w, http.StatusOK, "Categories fetched successfully", categories, r)
@@ -99,74 +91,56 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	idUint, err := parseID(id)
 	if err != nil {
-		mapCategoryError(errorInvalidCategoryIDParam)
+		share.WriteError(w, r, errorInvalidCategoryIDParam, "get_category_by_id", mapCategoryError)
 		return
 	}
 	category, err := h.service.GetByID(r.Context(), idUint)
 	if err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, err, "get_category_by_id", mapCategoryError)
 		return
 	}
 	httpResponse.Success(w, http.StatusOK, "Category fetched successfully", category, r)
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	// Implementation for updating a category
 	id := chi.URLParam(r, "id")
 	var req createCategoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, errInvalidJSONPayload, "update_category", mapCategoryError)
 		return
 	}
 	idUint, err := parseID(id)
 	if err != nil {
-		mapCategoryError(errorInvalidCategoryIDParam)
+		share.WriteError(w, r, errorInvalidCategoryIDParam, "update_category", mapCategoryError)
 		return
 	}
 	updatedCategory, err := h.service.Update(r.Context(), idUint, req.Name, req.Slug)
 	if err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, err, "update_category", mapCategoryError)
 		return
 	}
 	httpResponse.Success(w, http.StatusOK, "Category updated successfully", updatedCategory, r)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	// Implementation for deleting a category
 	id := chi.URLParam(r, "id")
 	idUint, err := parseID(id)
 	if err != nil {
-		mapCategoryError(errorInvalidCategoryIDParam)
+		share.WriteError(w, r, errorInvalidCategoryIDParam, "delete_category", mapCategoryError)
 		return
 	}
 	err = h.service.Delete(r.Context(), idUint)
 	if err != nil {
-		mapCategoryError(err)
+		share.WriteError(w, r, err, "delete_category", mapCategoryError)
 		return
 	}
 	httpResponse.Success(w, http.StatusOK, "Category deleted successfully", nil, r)
 }
 
 func parseID(idStr string) (uint64, error) {
-	var id uint64
-	_, err := fmt.Sscanf(idStr, "%d", &id)
-	if err != nil {
+	id, err := strconv.ParseUint(strings.TrimSpace(idStr), 10, 64)
+	if err != nil || id == 0 {
 		return 0, errorInvalidCategoryIDParam
 	}
 	return id, nil
-}
-
-func mapCategoryError(err error) share.ApiError {
-	switch {
-	case errors.Is(err, errorCategoryQueryParamsRequired):
-		return share.Required("", "name, slug are required")
-	case errors.Is(err, errorInvalidCategoryIDParam):
-		return share.BadRequest("id", "id must be a valid integer")
-	case errors.Is(err, errorInvalidCategoryNameParam):
-		return share.BadRequest("name", "name must be a valid string")
-	case errors.Is(err, errorInvalidCategorySlugParam):
-		return share.BadRequest("slug", "slug must be a valid string")
-	default:
-		return share.Internal()
-	}
 }
