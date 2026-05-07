@@ -24,6 +24,7 @@ type handlerService interface {
 	SavePost(ctx context.Context, input PostActionInput) error
 	UnsavePost(ctx context.Context, input PostActionInput) error
 	CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error)
+	UpdateComment(ctx context.Context, input UpdateCommentInput) (CommentView, error)
 	GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error)
 	GetPostDetail(ctx context.Context, input GetPostDetailInput) (*PostView, error)
 	GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]PostView, error)
@@ -90,6 +91,7 @@ func (h *Handler) Routes() chi.Router {
 		protected.Post("/{id}/save", h.SavePost)
 		protected.Delete("/{id}/save", h.UnsavePost)
 		protected.Post("/{id}/comments", h.CommentPost)
+		protected.Put("/{id}/comments/{commentID}", h.UpdateComment)
 	})
 	return r
 }
@@ -103,6 +105,11 @@ type CreatePostRequest struct {
 }
 
 type CommentPostRequest struct {
+	Content          string `json:"content"`
+	ReplyToCommentID uint64 `json:"reply_to_comment_id"`
+}
+
+type UpdateCommentRequest struct {
 	Content string `json:"content"`
 }
 
@@ -380,9 +387,10 @@ func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	comment, err := h.service.CommentPost(r.Context(), CommentPostInput{
-		PostID:  postID,
-		UserID:  principal.UserID,
-		Content: req.Content,
+		PostID:           postID,
+		UserID:           principal.UserID,
+		Content:          req.Content,
+		ReplyToCommentID: req.ReplyToCommentID,
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "comment_post", mapPostError)
@@ -396,6 +404,51 @@ func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusCreated, "Comment created successfully", comment, r)
+}
+
+func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
+	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
+	if err != nil || postID == 0 {
+		share.WriteError(w, r, errInvalidPostIDParam, "update_comment", mapPostError)
+		return
+	}
+
+	commentID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "commentID")), 10, 64)
+	if err != nil || commentID == 0 {
+		share.WriteError(w, r, ErrCommentNotFound, "update_comment", mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "update_comment", mapPostError)
+		return
+	}
+
+	var req UpdateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "update_comment", mapPostError)
+		return
+	}
+
+	comment, err := h.service.UpdateComment(r.Context(), UpdateCommentInput{
+		PostID:    postID,
+		CommentID: commentID,
+		UserID:    principal.UserID,
+		Content:   req.Content,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "update_comment", mapPostError)
+		return
+	}
+
+	if h.commentPublisher != nil {
+		if err := h.commentPublisher.PublishCommentCreated(r.Context(), comment); err != nil {
+			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
+		}
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Comment updated successfully", comment, r)
 }
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, event string, payload any) error {

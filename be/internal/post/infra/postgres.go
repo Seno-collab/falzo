@@ -133,17 +133,130 @@ func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment)
 	if err := r.ensurePostExists(ctx, comment.PostID); err != nil {
 		return err
 	}
+	if comment.ReplyToCommentID != 0 {
+		if err := r.ensureCommentBelongsToPost(ctx, comment.ReplyToCommentID, comment.PostID); err != nil {
+			return err
+		}
+	}
+
+	var (
+		rawContent          string
+		rawReplyToCommentID sql.NullInt64
+		rawReplyToUserID    sql.NullInt64
+		rawReplyToUserName  sql.NullString
+		rawReplyToContent   sql.NullString
+	)
 
 	err := r.db.Pool().QueryRow(ctx, `
-		INSERT INTO post_comments (post_id, user_id, content)
-		VALUES ($1, $2, $3)
-		RETURNING id, (SELECT user_name FROM users WHERE id = $2), created_at
-	`, comment.PostID, comment.UserID, comment.Content.String()).Scan(&comment.ID, &comment.UserName, &comment.CreatedAt)
+		WITH inserted AS (
+			INSERT INTO post_comments (post_id, user_id, content, parent_comment_id)
+			VALUES ($1, $2, $3, NULLIF($4, 0))
+			RETURNING id, post_id, user_id, content, parent_comment_id, created_at
+		)
+		SELECT inserted.id, inserted.post_id, inserted.user_id, users.user_name, inserted.content, inserted.created_at,
+			parent.id, parent.user_id, parent_user.user_name, parent.content
+		FROM inserted
+		INNER JOIN users ON users.id = inserted.user_id
+		LEFT JOIN post_comments parent ON parent.id = inserted.parent_comment_id
+		LEFT JOIN users parent_user ON parent_user.id = parent.user_id
+	`, comment.PostID, comment.UserID, comment.Content.String(), comment.ReplyToCommentID).Scan(
+		&comment.ID,
+		&comment.PostID,
+		&comment.UserID,
+		&comment.UserName,
+		&rawContent,
+		&comment.CreatedAt,
+		&rawReplyToCommentID,
+		&rawReplyToUserID,
+		&rawReplyToUserName,
+		&rawReplyToContent,
+	)
 	if err != nil {
 		return share.MapDBError(ctx, postRepoService, "posts.comment", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
+	if err := applyScannedCommentContent(comment, rawContent); err != nil {
+		return err
+	}
+	applyScannedReply(comment, rawReplyToCommentID, rawReplyToUserID, rawReplyToUserName, rawReplyToContent)
 
 	return nil
+}
+
+func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, commentID uint64, userID uint64, content post.Content) (post.Comment, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.Comment{}, post.ErrDependencyUnavailable
+	}
+	if err := r.ensurePostExists(ctx, postID); err != nil {
+		return post.Comment{}, err
+	}
+
+	var exists bool
+	var ownerUserID uint64
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM post_comments
+			WHERE id = $1 AND post_id = $2
+		),
+		COALESCE((
+			SELECT user_id
+			FROM post_comments
+			WHERE id = $1 AND post_id = $2
+			LIMIT 1
+		), 0)
+	`, commentID, postID).Scan(&exists, &ownerUserID)
+	if err != nil {
+		return post.Comment{}, share.MapDBError(ctx, postRepoService, "posts.comment_owner", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if !exists {
+		return post.Comment{}, post.ErrCommentNotFound
+	}
+	if ownerUserID != userID {
+		return post.Comment{}, post.ErrCommentUpdateForbidden
+	}
+
+	var (
+		comment             post.Comment
+		rawContent          string
+		rawReplyToCommentID sql.NullInt64
+		rawReplyToUserID    sql.NullInt64
+		rawReplyToUserName  sql.NullString
+		rawReplyToContent   sql.NullString
+	)
+	err = r.db.Pool().QueryRow(ctx, `
+		WITH updated AS (
+			UPDATE post_comments
+			SET content = $4, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND post_id = $2 AND user_id = $3
+			RETURNING id, post_id, user_id, content, parent_comment_id, created_at
+		)
+		SELECT updated.id, updated.post_id, updated.user_id, users.user_name, updated.content, updated.created_at,
+			parent.id, parent.user_id, parent_user.user_name, parent.content
+		FROM updated
+		INNER JOIN users ON users.id = updated.user_id
+		LEFT JOIN post_comments parent ON parent.id = updated.parent_comment_id
+		LEFT JOIN users parent_user ON parent_user.id = parent.user_id
+	`, commentID, postID, userID, content.String()).Scan(
+		&comment.ID,
+		&comment.PostID,
+		&comment.UserID,
+		&comment.UserName,
+		&rawContent,
+		&comment.CreatedAt,
+		&rawReplyToCommentID,
+		&rawReplyToUserID,
+		&rawReplyToUserName,
+		&rawReplyToContent,
+	)
+	if err != nil {
+		return post.Comment{}, share.MapDBError(ctx, postRepoService, "posts.update_comment", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if err := applyScannedCommentContent(&comment, rawContent); err != nil {
+		return post.Comment{}, err
+	}
+	applyScannedReply(&comment, rawReplyToCommentID, rawReplyToUserID, rawReplyToUserName, rawReplyToContent)
+
+	return comment, nil
 }
 
 func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]post.Post, error) {
@@ -201,9 +314,12 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 
 	offset := (page - 1) * limit
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT post_comments.id, post_comments.post_id, post_comments.user_id, users.user_name, post_comments.content, post_comments.created_at
+		SELECT post_comments.id, post_comments.post_id, post_comments.user_id, users.user_name, post_comments.content, post_comments.created_at,
+			parent.id, parent.user_id, parent_user.user_name, parent.content
 		FROM post_comments
 		INNER JOIN users ON users.id = post_comments.user_id
+		LEFT JOIN post_comments parent ON parent.id = post_comments.parent_comment_id
+		LEFT JOIN users parent_user ON parent_user.id = parent.user_id
 		WHERE post_comments.post_id = $1
 		ORDER BY post_comments.created_at ASC, post_comments.id ASC
 		LIMIT $2 OFFSET $3
@@ -216,17 +332,31 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 	comments := make([]post.Comment, 0)
 	for rows.Next() {
 		var (
-			item       post.Comment
-			rawContent string
+			item                post.Comment
+			rawContent          string
+			rawReplyToCommentID sql.NullInt64
+			rawReplyToUserID    sql.NullInt64
+			rawReplyToUserName  sql.NullString
+			rawReplyToContent   sql.NullString
 		)
-		if err := rows.Scan(&item.ID, &item.PostID, &item.UserID, &item.UserName, &rawContent, &item.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&item.ID,
+			&item.PostID,
+			&item.UserID,
+			&item.UserName,
+			&rawContent,
+			&item.CreatedAt,
+			&rawReplyToCommentID,
+			&rawReplyToUserID,
+			&rawReplyToUserName,
+			&rawReplyToContent,
+		); err != nil {
 			return nil, share.MapDBError(ctx, postRepoService, "posts.get_comments.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
 		}
-		content, err := post.NewContent(rawContent)
-		if err != nil {
+		if err := applyScannedCommentContent(&item, rawContent); err != nil {
 			return nil, err
 		}
-		item.Content = content
+		applyScannedReply(&item, rawReplyToCommentID, rawReplyToUserID, rawReplyToUserName, rawReplyToContent)
 		comments = append(comments, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -308,6 +438,25 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 	return posts, nil
 }
 
+func (r *PostgresRepository) ensureCommentBelongsToPost(ctx context.Context, commentID uint64, postID uint64) error {
+	var exists bool
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM post_comments
+			WHERE id = $1 AND post_id = $2
+		)
+	`, commentID, postID).Scan(&exists)
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.comment_reply_exists", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if !exists {
+		return post.ErrReplyCommentNotFound
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) ensurePostExists(ctx context.Context, postID uint64) error {
 	var exists bool
 	err := r.db.Pool().QueryRow(ctx, `
@@ -325,6 +474,37 @@ func (r *PostgresRepository) ensurePostExists(ctx context.Context, postID uint64
 	}
 
 	return nil
+}
+
+func applyScannedCommentContent(comment *post.Comment, rawContent string) error {
+	content, err := post.NewContent(rawContent)
+	if err != nil {
+		return err
+	}
+
+	comment.Content = content
+	return nil
+}
+
+func applyScannedReply(
+	comment *post.Comment,
+	rawReplyToCommentID sql.NullInt64,
+	rawReplyToUserID sql.NullInt64,
+	rawReplyToUserName sql.NullString,
+	rawReplyToContent sql.NullString,
+) {
+	if rawReplyToCommentID.Valid && rawReplyToCommentID.Int64 > 0 {
+		comment.ReplyToCommentID = uint64(rawReplyToCommentID.Int64)
+	}
+	if rawReplyToUserID.Valid && rawReplyToUserID.Int64 > 0 {
+		comment.ReplyToUserID = uint64(rawReplyToUserID.Int64)
+	}
+	if rawReplyToUserName.Valid {
+		comment.ReplyToUserName = rawReplyToUserName.String
+	}
+	if rawReplyToContent.Valid {
+		comment.ReplyToContent = rawReplyToContent.String
+	}
 }
 
 type rowScanner interface {

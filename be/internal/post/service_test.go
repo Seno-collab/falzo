@@ -3,11 +3,14 @@ package post
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 type fakePostRepository struct {
-	page  int
-	limit int
+	commentReplyToID uint64
+	updateUserID     uint64
+	page             int
+	limit            int
 }
 
 func (f *fakePostRepository) Create(context.Context, *Post) error { return nil }
@@ -21,14 +24,68 @@ func (f *fakePostRepository) Save(context.Context, uint64, uint64) error { retur
 func (f *fakePostRepository) Unsave(context.Context, uint64, uint64) error { return nil }
 
 func (f *fakePostRepository) Comment(_ context.Context, comment *Comment) error {
+	f.commentReplyToID = comment.ReplyToCommentID
 	comment.ID = 10
 	return nil
+}
+
+func (f *fakePostRepository) UpdateComment(_ context.Context, postID uint64, commentID uint64, userID uint64, content Content) (Comment, error) {
+	f.updateUserID = userID
+	return Comment{
+		ID:        commentID,
+		PostID:    postID,
+		UserID:    userID,
+		UserName:  "tester",
+		Content:   content,
+		CreatedAt: time.Now().UTC(),
+	}, nil
 }
 
 func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64) ([]Post, error) {
 	f.page = page
 	f.limit = limit
 	return nil, nil
+}
+
+func TestCommentPostPassesReplyTargetToRepository(t *testing.T) {
+	repo := &fakePostRepository{}
+	service := NewService(repo)
+
+	comment, err := service.CommentPost(t.Context(), CommentPostInput{
+		PostID:           1,
+		UserID:           2,
+		Content:          "Nice image",
+		ReplyToCommentID: 9,
+	})
+	if err != nil {
+		t.Fatalf("comment post reply: %v", err)
+	}
+
+	if comment.ReplyToCommentID != 9 || repo.commentReplyToID != 9 {
+		t.Fatalf("expected reply target 9, got view=%d repo=%d", comment.ReplyToCommentID, repo.commentReplyToID)
+	}
+}
+
+func TestUpdateComment(t *testing.T) {
+	repo := &fakePostRepository{}
+	service := NewService(repo)
+
+	comment, err := service.UpdateComment(t.Context(), UpdateCommentInput{
+		PostID:    1,
+		CommentID: 10,
+		UserID:    2,
+		Content:   "Updated message",
+	})
+	if err != nil {
+		t.Fatalf("update comment: %v", err)
+	}
+
+	if comment.ID != 10 || comment.Content != "Updated message" {
+		t.Fatalf("expected updated comment view, got %+v", comment)
+	}
+	if repo.updateUserID != 2 {
+		t.Fatalf("expected update to use authenticated user 2, got %d", repo.updateUserID)
+	}
 }
 
 func (f *fakePostRepository) GetPostDetail(context.Context, uint64, uint64) (*Post, error) {

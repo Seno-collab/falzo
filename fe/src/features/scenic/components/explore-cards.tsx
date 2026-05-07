@@ -5,7 +5,10 @@ import {
   Heart,
   Maximize2,
   MessageCircle,
+  Pencil,
+  Reply,
   Send,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import type { KeyboardEvent } from "react";
@@ -23,13 +26,24 @@ type PostCardProps = {
   comments: PostComment[];
   isLoadingComments: boolean;
   commentValue: string;
+  replyTarget: PostComment | null;
+  editingComment: PostComment | null;
+  currentUserId: number | null;
   isSubmittingComment: boolean;
   onOpen: (postId: number) => void;
   onLike: (postId: number) => void;
   onSave: (postId: number) => void;
   onToggleComments: (postId: number) => void;
   onCommentChange: (postId: number, value: string) => void;
+  onCancelReply: (postId: number) => void;
+  onCancelEdit: (postId: number) => void;
+  onEditComment: (postId: number, comment: PostComment) => void;
+  onReplyComment: (postId: number, comment: PostComment) => void;
   onSubmitComment: (postId: number) => void;
+  onRegisterCommentInput: (
+    postId: number,
+    node: HTMLInputElement | null,
+  ) => void;
 };
 
 const cardClass =
@@ -70,9 +84,19 @@ function activeClass(type: "heart" | "save" | "comment", active: boolean) {
 function Comments({
   comments,
   isLoading,
+  onReply,
+  onEdit,
+  selectedReplyTargetId,
+  editingCommentId,
+  currentUserId,
 }: {
   comments: PostComment[];
   isLoading: boolean;
+  onReply: (comment: PostComment) => void;
+  onEdit: (comment: PostComment) => void;
+  selectedReplyTargetId: number | null;
+  editingCommentId: number | null;
+  currentUserId: number | null;
 }) {
   if (isLoading) {
     return <p className="text-xs font-semibold text-[#555]">Loading comments</p>;
@@ -84,12 +108,50 @@ function Comments({
 
   return comments.map((comment) => (
     <div
-      className="rounded-xl bg-white px-3 py-2 text-sm text-[#333]"
+      className={cn(
+        "rounded-xl border px-3 py-2 text-sm text-[#333]",
+        editingCommentId === comment.id
+          ? "border-[#dec078] bg-[#fff8e6]"
+          : selectedReplyTargetId === comment.id
+          ? "border-[#8ebae6] bg-[#f2f7fd]"
+          : "border-transparent bg-white",
+      )}
       key={comment.id}
     >
-      <p className="text-xs font-semibold text-[#777]">
-        {comment.user_name || `User #${comment.user_id}`}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-xs font-semibold text-[#777]">
+          {comment.user_name || `User #${comment.user_id}`}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          {currentUserId === comment.user_id ? (
+            <button
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#8c6a1f] transition hover:text-[#5e430f]"
+              onClick={() => onEdit(comment)}
+              type="button"
+            >
+              <Pencil className="size-3" />
+              Edit
+            </button>
+          ) : null}
+          <button
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#5f7894] transition hover:text-[#244c78]"
+            onClick={() => onReply(comment)}
+            type="button"
+          >
+            <Reply className="size-3" />
+            Reply
+          </button>
+        </div>
+      </div>
+      {comment.reply_to_comment_id ? (
+        <div className="mt-2 rounded-lg border-l-2 border-[#7aa7d9] bg-[#f2f7fd] px-2 py-1.5 text-xs text-[#4b6682]">
+          <p className="font-semibold">
+            {comment.reply_to_user_name ||
+              `User #${comment.reply_to_user_id ?? ""}`}
+          </p>
+          <p className="mt-0.5 line-clamp-2">{comment.reply_to_content}</p>
+        </div>
+      ) : null}
       <p className="mt-1 leading-5">{comment.content}</p>
     </div>
   ));
@@ -99,37 +161,94 @@ function CommentInput({
   disabled,
   isAuthenticated,
   isSubmitting,
+  replyTarget,
+  editingComment,
   value,
+  onCancelEdit,
+  onCancelReply,
   onChange,
+  onInputMount,
   onSubmit,
 }: {
   disabled: boolean;
   isAuthenticated: boolean;
   isSubmitting: boolean;
+  replyTarget: PostComment | null;
+  editingComment: PostComment | null;
   value: string;
+  onCancelEdit: () => void;
+  onCancelReply: () => void;
   onChange: (value: string) => void;
+  onInputMount: (node: HTMLInputElement | null) => void;
   onSubmit: () => void;
 }) {
+  const placeholder = !isAuthenticated
+    ? "Login to comment"
+    : editingComment
+      ? "Edit comment"
+    : replyTarget
+      ? `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`
+      : "Write a comment";
+
   return (
-    <div className="mt-3 flex items-center gap-2">
-      <input
-        className="h-9 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-3 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={isAuthenticated ? "Write a comment" : "Login to comment"}
-        value={value}
-      />
-      <Button
-        aria-label={isAuthenticated ? "Submit comment" : "Login to comment"}
-        className="rounded-full"
-        disabled={isSubmitting}
-        onClick={onSubmit}
-        size="icon-sm"
-        type="button"
-        variant="outline"
-      >
-        <Send className="size-4" />
-      </Button>
+    <div className="mt-3 space-y-2">
+      {editingComment ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
+          <Pencil className="mt-0.5 size-3 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Editing comment</p>
+            <p className="mt-0.5 truncate">{editingComment.content}</p>
+          </div>
+          <button
+            aria-label="Cancel edit"
+            className="rounded-full p-0.5 text-[#8c6a1f] transition hover:bg-white hover:text-[#5e430f]"
+            onClick={onCancelEdit}
+            type="button"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ) : replyTarget ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-3 py-2 text-xs text-[#4b6682]">
+          <Reply className="mt-0.5 size-3 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">
+              Replying to{" "}
+              {replyTarget.user_name || `User #${replyTarget.user_id}`}
+            </p>
+            <p className="mt-0.5 truncate">{replyTarget.content}</p>
+          </div>
+          <button
+            aria-label="Cancel reply"
+            className="rounded-full p-0.5 text-[#5f7894] transition hover:bg-white hover:text-[#244c78]"
+            onClick={onCancelReply}
+            type="button"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <input
+          className="h-9 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-3 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          ref={onInputMount}
+          value={value}
+        />
+        <Button
+          aria-label={isAuthenticated ? "Submit comment" : "Login to comment"}
+          className="rounded-full"
+          disabled={isSubmitting}
+          onClick={onSubmit}
+          size="icon-sm"
+          type="button"
+          variant="outline"
+        >
+          <Send className="size-4" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -144,13 +263,21 @@ export function ExplorePostCard({
   comments,
   isLoadingComments,
   commentValue,
+  replyTarget,
+  editingComment,
+  currentUserId,
   isSubmittingComment,
   onOpen,
   onLike,
   onSave,
   onToggleComments,
   onCommentChange,
+  onCancelReply,
+  onCancelEdit,
+  onEditComment,
+  onReplyComment,
   onSubmitComment,
+  onRegisterCommentInput,
 }: PostCardProps) {
   const title = post.caption || "Community post";
   const location = post.location_name || "Uploaded";
@@ -285,14 +412,27 @@ export function ExplorePostCard({
         {commentsOpen ? (
           <div className="rounded-2xl border border-black/6 bg-[#f8f8f7] p-3">
             <div className="space-y-2">
-              <Comments comments={comments} isLoading={isLoadingComments} />
+              <Comments
+                comments={comments}
+                currentUserId={currentUserId}
+                editingCommentId={editingComment?.id ?? null}
+                isLoading={isLoadingComments}
+                onEdit={(comment) => onEditComment(post.id, comment)}
+                onReply={(comment) => onReplyComment(post.id, comment)}
+                selectedReplyTargetId={replyTarget?.id ?? null}
+              />
             </div>
             <CommentInput
               disabled={!isAuthenticated || isSubmittingComment}
+              editingComment={editingComment}
               isAuthenticated={isAuthenticated}
               isSubmitting={isSubmittingComment}
+              onCancelEdit={() => onCancelEdit(post.id)}
+              onCancelReply={() => onCancelReply(post.id)}
               onChange={(value) => onCommentChange(post.id, value)}
+              onInputMount={(node) => onRegisterCommentInput(post.id, node)}
               onSubmit={() => onSubmitComment(post.id)}
+              replyTarget={replyTarget}
               value={commentValue}
             />
           </div>

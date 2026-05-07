@@ -24,6 +24,13 @@ type PostActionInput struct {
 
 type CommentPostInput = NewCommentInput
 
+type UpdateCommentInput struct {
+	PostID    uint64
+	CommentID uint64
+	UserID    uint64
+	Content   string
+}
+
 type ListPostsInput struct {
 	Page         int
 	Limit        int
@@ -114,6 +121,33 @@ func (s *Service) CommentPost(ctx context.Context, input CommentPostInput) (Comm
 	}
 
 	if err := s.posts.Comment(ctx, &comment); err != nil {
+		return CommentView{}, err
+	}
+
+	return comment.View(), nil
+}
+
+func (s *Service) UpdateComment(ctx context.Context, input UpdateCommentInput) (CommentView, error) {
+	if s.posts == nil {
+		return CommentView{}, ErrDependencyUnavailable
+	}
+	if input.PostID == 0 {
+		return CommentView{}, ErrPostIDRequired
+	}
+	if input.CommentID == 0 {
+		return CommentView{}, ErrCommentNotFound
+	}
+	if input.UserID == 0 {
+		return CommentView{}, ErrUserIDRequired
+	}
+
+	content, err := NewContent(input.Content)
+	if err != nil {
+		return CommentView{}, err
+	}
+
+	comment, err := s.posts.UpdateComment(ctx, input.PostID, input.CommentID, input.UserID, content)
+	if err != nil {
 		return CommentView{}, err
 	}
 

@@ -71,6 +71,10 @@ func (r *EngagementStreamRepository) Comment(ctx context.Context, comment *post.
 	return r.next.Comment(ctx, comment)
 }
 
+func (r *EngagementStreamRepository) UpdateComment(ctx context.Context, postID uint64, commentID uint64, userID uint64, content post.Content) (post.Comment, error) {
+	return r.next.UpdateComment(ctx, postID, commentID, userID, content)
+}
+
 func (r *EngagementStreamRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]post.Post, error) {
 	return r.next.GetPosts(ctx, page, limit, viewerUserID)
 }

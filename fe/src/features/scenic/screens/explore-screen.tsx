@@ -46,6 +46,7 @@ import {
   savePostApi,
   unlikePostApi,
   unsavePostApi,
+  updatePostCommentApi,
 } from "@/features/posts/api";
 import type { Post, PostComment } from "@/features/posts/types";
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
@@ -121,10 +122,17 @@ function isPostSaved(post: Post | null, savedPosts: PostActionOverrides) {
   return Boolean(post && (savedPosts[post.id] ?? post.is_saved));
 }
 
+function readAuthUserId(user: AuthUser | null | undefined) {
+  const rawId = user?.id ?? user?.user_id ?? user?.userId ?? user?.subject;
+  const id = Number(rawId);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
 export function ExploreScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const commentInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeCollection, setActiveCollection] = useState("All");
@@ -144,6 +152,12 @@ export function ExploreScreen() {
   const [commentInputs, setCommentInputs] = useState<Record<number, string>>(
     {},
   );
+  const [replyTargets, setReplyTargets] = useState<
+    Record<number, PostComment | null>
+  >({});
+  const [editingComments, setEditingComments] = useState<
+    Record<number, PostComment | null>
+  >({});
 
   const postsQuery = useInfiniteQuery({
     queryKey: ["posts", "explore"],
@@ -275,7 +289,24 @@ export function ExploreScreen() {
         upsertPostComment(current, variables.postId, comment),
       );
       setCommentInputs((current) => ({ ...current, [variables.postId]: "" }));
+      setReplyTargets((current) => ({ ...current, [variables.postId]: null }));
       toast.success("Comment posted.");
+    },
+  });
+
+  const updateCommentMutation = useMutation({
+    mutationFn: updatePostCommentApi,
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onSuccess: (comment, variables) => {
+      setCommentsByPost((current) =>
+        upsertPostComment(current, variables.postId, comment),
+      );
+      setCommentInputs((current) => ({ ...current, [variables.postId]: "" }));
+      setEditingComments((current) => ({
+        ...current,
+        [variables.postId]: null,
+      }));
+      toast.success("Comment updated.");
     },
   });
 
@@ -387,6 +418,44 @@ export function ExploreScreen() {
     setCommentInputs((current) => ({ ...current, [postId]: value }));
   }
 
+  function replyToComment(postId: number, comment: PostComment) {
+    setReplyTargets((current) => ({ ...current, [postId]: comment }));
+    setEditingComments((current) => ({ ...current, [postId]: null }));
+    setOpenComments((current) => new Set(current).add(postId));
+    if (selectedPostId === postId) {
+      setSelectedChatPostId(postId);
+    }
+    window.setTimeout(() => {
+      commentInputRefs.current[postId]?.focus();
+    }, 0);
+  }
+
+  function cancelReply(postId: number) {
+    setReplyTargets((current) => ({ ...current, [postId]: null }));
+  }
+
+  function editComment(postId: number, comment: PostComment) {
+    if (!requireAuth()) {
+      return;
+    }
+
+    setEditingComments((current) => ({ ...current, [postId]: comment }));
+    setReplyTargets((current) => ({ ...current, [postId]: null }));
+    setCommentInputs((current) => ({ ...current, [postId]: comment.content }));
+    setOpenComments((current) => new Set(current).add(postId));
+    if (selectedPostId === postId) {
+      setSelectedChatPostId(postId);
+    }
+    window.setTimeout(() => {
+      commentInputRefs.current[postId]?.focus();
+    }, 0);
+  }
+
+  function cancelEdit(postId: number) {
+    setEditingComments((current) => ({ ...current, [postId]: null }));
+    setCommentInputs((current) => ({ ...current, [postId]: "" }));
+  }
+
   async function loadComments(postId: number) {
     if (commentsByPost[postId] || loadingComments.has(postId)) {
       return;
@@ -470,13 +539,31 @@ export function ExploreScreen() {
       return;
     }
 
-    commentMutation.mutate({ postId, content });
+    const editingComment = editingComments[postId];
+    if (editingComment) {
+      updateCommentMutation.mutate({
+        postId,
+        commentId: editingComment.id,
+        content,
+      });
+      return;
+    }
+
+    commentMutation.mutate({
+      postId,
+      content,
+      replyToCommentId: replyTargets[postId]?.id,
+    });
   }
 
   const selectedPostComments =
     selectedPostId === null ? [] : (commentsByPost[selectedPostId] ?? []);
   const selectedPostCommentValue =
     selectedPostId === null ? "" : (commentInputs[selectedPostId] ?? "");
+  const selectedPostReplyTarget =
+    selectedPostId === null ? null : (replyTargets[selectedPostId] ?? null);
+  const selectedPostEditingComment =
+    selectedPostId === null ? null : (editingComments[selectedPostId] ?? null);
   const isSelectedPostChatOpen =
     selectedPostId !== null && selectedChatPostId === selectedPostId;
   const isSelectedPostLoadingComments =
@@ -489,6 +576,7 @@ export function ExploreScreen() {
     profileQuery.data && !profileQuery.isFetching
       ? getAuthUserDisplayName(profileQuery.data, "") || null
       : null;
+  const currentUserId = readAuthUserId(profileQuery.data);
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
       <ExploreTopbar
@@ -512,20 +600,32 @@ export function ExploreScreen() {
               commentValue={commentInputs[post.id] ?? ""}
               comments={commentsByPost[post.id] ?? []}
               commentsOpen={openComments.has(post.id)}
+              currentUserId={currentUserId}
+              editingComment={editingComments[post.id] ?? null}
               index={index}
               isAuthenticated={isAuthenticated}
               isLiked={isPostLiked(post, likedPosts)}
               isLoadingComments={loadingComments.has(post.id)}
               isSaved={isPostSaved(post, savedPosts)}
-              isSubmittingComment={commentMutation.isPending}
+              isSubmittingComment={
+                commentMutation.isPending || updateCommentMutation.isPending
+              }
               key={`post-${post.id}`}
+              onCancelEdit={cancelEdit}
+              onCancelReply={cancelReply}
               onCommentChange={updateComment}
+              onEditComment={editComment}
               onLike={handleLikePost}
               onOpen={openPostDetail}
+              onRegisterCommentInput={(postId, node) => {
+                commentInputRefs.current[postId] = node;
+              }}
+              onReplyComment={replyToComment}
               onSave={handleSavePost}
               onSubmitComment={submitComment}
               onToggleComments={toggleComments}
               post={post}
+              replyTarget={replyTargets[post.id] ?? null}
             />
           ))}
 
@@ -543,18 +643,38 @@ export function ExploreScreen() {
       <PostDetailDialog
         commentValue={selectedPostCommentValue}
         comments={selectedPostComments}
+        currentUserId={currentUserId}
+        editingComment={selectedPostEditingComment}
         isAuthenticated={isAuthenticated}
         isChatOpen={isSelectedPostChatOpen}
-        isCommentPending={commentMutation.isPending}
+        isCommentPending={
+          commentMutation.isPending || updateCommentMutation.isPending
+        }
         isLiked={isSelectedPostLiked}
         isLoadingComments={isSelectedPostLoadingComments}
         isSaved={isSelectedPostSaved}
+        replyTarget={selectedPostReplyTarget}
         onClose={() => {
           setSelectedPostId(null);
+        }}
+        onCancelReply={() => {
+          if (selectedPostId !== null) {
+            cancelReply(selectedPostId);
+          }
+        }}
+        onCancelEdit={() => {
+          if (selectedPostId !== null) {
+            cancelEdit(selectedPostId);
+          }
         }}
         onCommentChange={(value) => {
           if (selectedPostId !== null) {
             updateComment(selectedPostId, value);
+          }
+        }}
+        onRegisterCommentInput={(node) => {
+          if (selectedPostId !== null) {
+            commentInputRefs.current[selectedPostId] = node;
           }
         }}
         onLike={() => {
@@ -563,6 +683,16 @@ export function ExploreScreen() {
           }
         }}
         onLoadComments={openSelectedPostChat}
+        onEditComment={(comment) => {
+          if (selectedPostId !== null) {
+            editComment(selectedPostId, comment);
+          }
+        }}
+        onReplyComment={(comment) => {
+          if (selectedPostId !== null) {
+            replyToComment(selectedPostId, comment);
+          }
+        }}
         onSave={() => {
           if (selectedPostId !== null) {
             handleSavePost(selectedPostId);

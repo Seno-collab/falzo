@@ -52,6 +52,15 @@ export async function apiPost<T>(
   return unwrapApiData(response.data);
 }
 
+export async function apiPut<T>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig,
+) {
+  const response = await http.put<ApiEnvelope<T> | T>(url, data, config);
+  return unwrapApiData(response.data);
+}
+
 export async function apiDelete<T>(url: string, config?: AxiosRequestConfig) {
   const response = await http.delete<ApiEnvelope<T> | T>(url, config);
   return unwrapApiData(response.data);

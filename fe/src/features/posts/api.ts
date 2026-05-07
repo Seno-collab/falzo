@@ -3,15 +3,18 @@ import {
   apiDelete,
   apiGet,
   apiPost,
+  apiPut,
   endpointPath,
   envEndpoint,
 } from "@/lib/api-utils";
 import type {
+  CreatePostCommentPayload,
   CreatePostPayload,
   Post,
   PostComment,
   PostCommentCreatedEvent,
   PostCreatedEvent,
+  UpdatePostCommentPayload,
   UploadedImage,
 } from "./types";
 
@@ -144,7 +147,25 @@ export function parsePostCommentCreatedEvent(
       return null;
     }
 
-    return payload as PostCommentCreatedEvent;
+    return {
+      ...payload,
+      reply_to_comment_id:
+        typeof payload.reply_to_comment_id === "number"
+          ? payload.reply_to_comment_id
+          : undefined,
+      reply_to_user_id:
+        typeof payload.reply_to_user_id === "number"
+          ? payload.reply_to_user_id
+          : undefined,
+      reply_to_user_name:
+        typeof payload.reply_to_user_name === "string"
+          ? payload.reply_to_user_name
+          : undefined,
+      reply_to_content:
+        typeof payload.reply_to_content === "string"
+          ? payload.reply_to_content
+          : undefined,
+    } as PostCommentCreatedEvent;
   } catch {
     return null;
   }
@@ -179,14 +200,30 @@ export function parsePostCreatedEvent(
   }
 }
 
-export async function createPostCommentApi(params: {
-  postId: number;
-  content: string;
-}): Promise<PostComment> {
+export async function createPostCommentApi(
+  params: CreatePostCommentPayload,
+): Promise<PostComment> {
   initializeAuthHeader();
+  const payload: { content: string; reply_to_comment_id?: number } = {
+    content: params.content,
+  };
+  if (params.replyToCommentId) {
+    payload.reply_to_comment_id = params.replyToCommentId;
+  }
 
   return apiPost<PostComment>(
     endpointPath(POSTS_ENDPOINT, params.postId, "comments"),
+    payload,
+  );
+}
+
+export async function updatePostCommentApi(
+  params: UpdatePostCommentPayload,
+): Promise<PostComment> {
+  initializeAuthHeader();
+
+  return apiPut<PostComment>(
+    endpointPath(POSTS_ENDPOINT, params.postId, "comments", params.commentId),
     {
       content: params.content,
     },

@@ -57,6 +57,17 @@ func mapPostError(err error) share.ApiError {
 		return share.Required("content", "comment content is required")
 	case errors.Is(err, ErrCommentTooLong):
 		return share.BadRequest("content", "comment content exceeds max length")
+	case errors.Is(err, ErrReplyCommentNotFound):
+		return share.BadRequest("reply_to_comment_id", "reply comment does not exist on this post")
+	case errors.Is(err, ErrCommentNotFound):
+		return share.NotFound("Comment not found", "Requested comment does not exist")
+	case errors.Is(err, ErrCommentUpdateForbidden):
+		return share.ApiError{
+			Status:  http.StatusForbidden,
+			Message: "Forbidden",
+			Code:    "FORBIDDEN",
+			Detail:  "You can only edit your own comments",
+		}
 	case errors.Is(err, ErrNotFound):
 		return share.NotFound("Post not found", "Requested post does not exist")
 	case errors.Is(err, ErrDependencyUnavailable):

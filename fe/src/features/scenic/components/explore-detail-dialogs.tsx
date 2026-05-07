@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Heart, MessageCircle, Send } from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Pencil, Reply, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,11 +23,19 @@ type PostDetailDialogProps = {
   isSaved: boolean;
   isCommentPending: boolean;
   commentValue: string;
+  replyTarget: PostComment | null;
+  editingComment: PostComment | null;
+  currentUserId: number | null;
   onClose: () => void;
   onLike: () => void;
   onSave: () => void;
   onLoadComments: () => void;
+  onCancelReply: () => void;
+  onCancelEdit: () => void;
   onCommentChange: (value: string) => void;
+  onEditComment: (comment: PostComment) => void;
+  onRegisterCommentInput: (node: HTMLInputElement | null) => void;
+  onReplyComment: (comment: PostComment) => void;
   onSubmitComment: () => void;
 };
 
@@ -47,10 +55,20 @@ function DetailComments({
   comments,
   isChatOpen,
   isLoading,
+  onReplyComment,
+  selectedReplyTargetId,
+  editingCommentId,
+  currentUserId,
+  onEditComment,
 }: Readonly<{
   comments: PostComment[];
   isChatOpen: boolean;
   isLoading: boolean;
+  onReplyComment: (comment: PostComment) => void;
+  selectedReplyTargetId: number | null;
+  editingCommentId: number | null;
+  currentUserId: number | null;
+  onEditComment: (comment: PostComment) => void;
 }>) {
   if (isLoading) {
     return (
@@ -76,17 +94,53 @@ function DetailComments({
 
   return comments.map((comment) => (
     <div
-      className="rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm text-[#333]"
+      className={cn(
+        "rounded-2xl border px-4 py-3 text-sm text-[#333]",
+        editingCommentId === comment.id
+          ? "border-[#dec078] bg-[#fff8e6]"
+          : selectedReplyTargetId === comment.id
+          ? "border-[#8ebae6] bg-[#f2f7fd]"
+          : "border-black/5 bg-white",
+      )}
       key={comment.id}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold text-[#777]">
+        <p className="min-w-0 truncate text-xs font-semibold text-[#777]">
           {comment.user_name || `User #${comment.user_id}`}
         </p>
-        <p className="text-xs font-medium text-[#999]">
-          {new Date(comment.created_at).toLocaleDateString()}
-        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="text-xs font-medium text-[#999]">
+            {new Date(comment.created_at).toLocaleDateString()}
+          </p>
+          {currentUserId === comment.user_id ? (
+            <button
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#8c6a1f] transition hover:text-[#5e430f]"
+              onClick={() => onEditComment(comment)}
+              type="button"
+            >
+              <Pencil className="size-3" />
+              Edit
+            </button>
+          ) : null}
+          <button
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#5f7894] transition hover:text-[#244c78]"
+            onClick={() => onReplyComment(comment)}
+            type="button"
+          >
+            <Reply className="size-3" />
+            Reply
+          </button>
+        </div>
       </div>
+      {comment.reply_to_comment_id ? (
+        <div className="mt-3 rounded-xl border-l-2 border-[#7aa7d9] bg-[#f2f7fd] px-3 py-2 text-xs text-[#4b6682]">
+          <p className="font-semibold">
+            {comment.reply_to_user_name ||
+              `User #${comment.reply_to_user_id ?? ""}`}
+          </p>
+          <p className="mt-1 line-clamp-2">{comment.reply_to_content}</p>
+        </div>
+      ) : null}
       <p className="mt-2 leading-6">{comment.content}</p>
     </div>
   ));
@@ -103,14 +157,31 @@ export function PostDetailDialog({
   isSaved,
   isCommentPending,
   commentValue,
+  replyTarget,
+  editingComment,
+  currentUserId,
   onClose,
   onLike,
   onSave,
   onLoadComments,
+  onCancelReply,
+  onCancelEdit,
   onCommentChange,
+  onEditComment,
+  onRegisterCommentInput,
+  onReplyComment,
   onSubmitComment,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
+  const commentPlaceholder = !isChatOpen
+    ? "Open chat"
+    : !isAuthenticated
+      ? "Login to comment"
+      : editingComment
+        ? "Edit comment"
+      : replyTarget
+        ? `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`
+        : "Write a comment";
 
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
@@ -194,11 +265,52 @@ export function PostDetailDialog({
                   comments={comments}
                   isChatOpen={isChatOpen}
                   isLoading={isLoadingComments}
+                  currentUserId={currentUserId}
+                  editingCommentId={editingComment?.id ?? null}
+                  onEditComment={onEditComment}
+                  onReplyComment={onReplyComment}
+                  selectedReplyTargetId={replyTarget?.id ?? null}
                 />
               </div>
             </div>
 
             <div className="border-t border-black/6 bg-white p-4">
+              {editingComment ? (
+                <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
+                  <Pencil className="mt-0.5 size-3 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">Editing comment</p>
+                    <p className="mt-0.5 truncate">{editingComment.content}</p>
+                  </div>
+                  <button
+                    aria-label="Cancel edit"
+                    className="rounded-full p-0.5 text-[#8c6a1f] transition hover:bg-white hover:text-[#5e430f]"
+                    onClick={onCancelEdit}
+                    type="button"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ) : replyTarget ? (
+                <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-3 py-2 text-xs text-[#4b6682]">
+                  <Reply className="mt-0.5 size-3 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">
+                      Replying to{" "}
+                      {replyTarget.user_name || `User #${replyTarget.user_id}`}
+                    </p>
+                    <p className="mt-0.5 truncate">{replyTarget.content}</p>
+                  </div>
+                  <button
+                    aria-label="Cancel reply"
+                    className="rounded-full p-0.5 text-[#5f7894] transition hover:bg-white hover:text-[#244c78]"
+                    onClick={onCancelReply}
+                    type="button"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ) : null}
               <div className="flex items-center gap-2">
                 <input
                   className="h-10 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-4 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
@@ -206,13 +318,8 @@ export function PostDetailDialog({
                     !isAuthenticated || !isChatOpen || isCommentPending || !post
                   }
                   onChange={(event) => onCommentChange(event.target.value)}
-                  placeholder={
-                    isChatOpen
-                      ? isAuthenticated
-                        ? "Write a comment"
-                        : "Login to comment"
-                      : "Open chat"
-                  }
+                  placeholder={commentPlaceholder}
+                  ref={onRegisterCommentInput}
                   value={commentValue}
                 />
                 <Button
