@@ -147,10 +147,6 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (TokenPair, error
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
-		UserID:       account.User.ID,
-		UserIDAlias:  account.User.ID,
-		Username:     account.User.Username.String(),
-		UserName:     account.User.Username.String(),
 	}, nil
 }
 
@@ -192,10 +188,6 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (TokenPair, e
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
-		UserID:       session.UserID,
-		UserIDAlias:  session.UserID,
-		Username:     session.Username,
-		UserName:     session.Username,
 	}, nil
 }
 

@@ -194,7 +194,7 @@ export function ExploreScreen() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          void postsQuery.fetchNextPage();
+          postsQuery.fetchNextPage();
         }
       },
       { rootMargin: "700px 0px" },

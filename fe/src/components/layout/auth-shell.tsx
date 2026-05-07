@@ -7,7 +7,6 @@ export function AuthShell({
   label,
   title,
   subtitle,
-  points,
   note,
   children,
   footer,

@@ -77,11 +77,11 @@ function LocationRow({
             {location.address}
           </p>
         </div>
-        {distanceMeters !== undefined ? (
+        {distanceMeters === undefined ? null : (
           <span className="shrink-0 rounded-full bg-[#f2f7fd] px-2.5 py-1 text-xs font-semibold text-[#356792]">
             {formatDistance(distanceMeters)}
           </span>
-        ) : null}
+        )}
       </div>
       <p className="mt-2 text-xs font-medium text-[#7b92ad]">
         {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}

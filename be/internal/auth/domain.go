@@ -181,8 +181,4 @@ type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
-	UserID       uint64 `json:"user_id,omitempty"`
-	UserIDAlias  uint64 `json:"userId,omitempty"`
-	Username     string `json:"user_name,omitempty"`
-	UserName     string `json:"userName,omitempty"`
 }

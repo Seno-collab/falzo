@@ -4,6 +4,8 @@ import (
 	"context"
 	"falzo-be/internal/auth"
 	authInfra "falzo-be/internal/auth/infra"
+	"falzo-be/internal/category"
+	categoryInfra "falzo-be/internal/category/infra"
 	"falzo-be/internal/location"
 	locationInfra "falzo-be/internal/location/infra"
 	"falzo-be/internal/post"
@@ -90,7 +92,9 @@ func Run() {
 		return strconv.FormatUint(principal.UserID, 10)
 	})
 	uploadHandler := upload.NewHandler(uploadService, authService, upload.WithProtectedMiddlewares(uploadRateLimit))
-
+	categoryRepository := categoryInfra.NewPostgresRepository(db)
+	categoryService := category.NewService(categoryRepository)
+	categoryHandler := category.NewHandler(categoryService, authService)
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {
 		r.Use(middleware.RealIP)
@@ -112,6 +116,7 @@ func Run() {
 		api.Mount("/auth", authHandler.Routes())
 		api.Mount("/locations", locationHandler.Routes())
 		api.Mount("/posts", postHandler.Routes())
+		api.Mount("/categories", categoryHandler.Routes())
 		api.Mount("/", uploadHandler.Routes())
 	})
 
