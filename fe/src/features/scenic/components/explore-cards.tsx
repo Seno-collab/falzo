@@ -81,6 +81,10 @@ function activeClass(type: "heart" | "save" | "comment", active: boolean) {
   return "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]";
 }
 
+function isCommentEdited(comment: PostComment) {
+  return comment.updated_at !== comment.created_at;
+}
+
 function Comments({
   comments,
   isLoading,
@@ -142,6 +146,14 @@ function Comments({
             Reply
           </button>
         </div>
+      </div>
+      <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-[#999]">
+        <span>{new Date(comment.created_at).toLocaleDateString()}</span>
+        {isCommentEdited(comment) ? (
+          <span className="rounded-full bg-[#f2f7fd] px-2 py-0.5 text-[#5f7894]">
+            edited
+          </span>
+        ) : null}
       </div>
       {comment.reply_to_comment_id ? (
         <div className="mt-2 rounded-lg border-l-2 border-[#7aa7d9] bg-[#f2f7fd] px-2 py-1.5 text-xs text-[#4b6682]">

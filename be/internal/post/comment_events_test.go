@@ -19,8 +19,8 @@ func TestCommentEventBrokerPublishesToMatchingPostSubscribers(t *testing.T) {
 
 	select {
 	case got := <-matching:
-		if got != comment {
-			t.Fatalf("expected matching subscriber to receive %+v, got %+v", comment, got)
+		if got.Type != "comment.created" || got.Comment != comment {
+			t.Fatalf("expected matching subscriber to receive created event %+v, got %+v", comment, got)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected matching subscriber to receive comment event")
@@ -45,17 +45,37 @@ func TestCommentEventBrokerPublishesToMultipleSubscribersForSamePost(t *testing.
 		t.Fatalf("publish comment created: %v", err)
 	}
 
-	for label, ch := range map[string]<-chan CommentView{
+	for label, ch := range map[string]<-chan CommentEvent{
 		"first":  first,
 		"second": second,
 	} {
 		select {
 		case got := <-ch:
-			if got != comment {
-				t.Fatalf("expected %s subscriber to receive %+v, got %+v", label, comment, got)
+			if got.Type != "comment.created" || got.Comment != comment {
+				t.Fatalf("expected %s subscriber to receive created event %+v, got %+v", label, comment, got)
 			}
 		case <-time.After(time.Second):
 			t.Fatalf("expected %s subscriber to receive comment event", label)
 		}
+	}
+}
+
+func TestCommentEventBrokerPublishesUpdatedEvents(t *testing.T) {
+	broker := NewCommentEventBroker()
+	subscriber, unsubscribe := broker.SubscribeComments(t.Context(), 11)
+	defer unsubscribe()
+
+	comment := CommentView{ID: 31, PostID: 11, UserID: 5, Content: "Updated comment"}
+	if err := broker.PublishCommentUpdated(t.Context(), comment); err != nil {
+		t.Fatalf("publish comment updated: %v", err)
+	}
+
+	select {
+	case got := <-subscriber:
+		if got.Type != "comment.updated" || got.Comment != comment {
+			t.Fatalf("expected updated event %+v, got %+v", comment, got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected subscriber to receive updated comment event")
 	}
 }

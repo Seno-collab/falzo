@@ -14,6 +14,7 @@ import (
 
 const (
 	commentCreatedChannel = "post:comments:created"
+	commentUpdatedChannel = "post:comments:updated"
 	postCreatedChannel    = "posts:created"
 )
 
@@ -56,12 +57,35 @@ func (p *RedisCommentEventPublisher) PublishCommentCreated(ctx context.Context, 
 	return nil
 }
 
+func (p *RedisCommentEventPublisher) PublishCommentUpdated(ctx context.Context, comment post.CommentView) error {
+	if p == nil || p.client == nil {
+		if p != nil && p.fallback != nil {
+			return p.fallback.PublishCommentUpdated(ctx, comment)
+		}
+		return nil
+	}
+
+	payload, err := json.Marshal(comment)
+	if err != nil {
+		return err
+	}
+
+	if err := p.client.Publish(ctx, commentUpdatedChannel, payload).Err(); err != nil {
+		if p.fallback != nil {
+			_ = p.fallback.PublishCommentUpdated(ctx, comment)
+		}
+		return err
+	}
+
+	return nil
+}
+
 func RunRedisCommentEventSubscriber(ctx context.Context, broker *post.CommentEventBroker, cache pkgcache.Client) {
 	if broker == nil || cache == nil || cache.Client() == nil {
 		return
 	}
 
-	pubsub := cache.Client().Subscribe(ctx, commentCreatedChannel)
+	pubsub := cache.Client().Subscribe(ctx, commentCreatedChannel, commentUpdatedChannel)
 	defer pubsub.Close()
 
 	if _, err := pubsub.Receive(ctx); err != nil {
@@ -91,7 +115,12 @@ func RunRedisCommentEventSubscriber(ctx context.Context, broker *post.CommentEve
 				continue
 			}
 
-			broker.BroadcastCommentCreated(comment)
+			switch message.Channel {
+			case commentUpdatedChannel:
+				broker.BroadcastCommentUpdated(comment)
+			default:
+				broker.BroadcastCommentCreated(comment)
+			}
 		}
 	}
 }

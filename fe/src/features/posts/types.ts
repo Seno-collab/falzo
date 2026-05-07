@@ -29,6 +29,7 @@ export type PostComment = {
   reply_to_user_name?: string;
   reply_to_content?: string;
   created_at: string;
+  updated_at: string;
 };
 
 export type PostCommentCreatedEvent = PostComment;

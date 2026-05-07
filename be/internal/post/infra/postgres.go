@@ -151,9 +151,9 @@ func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment)
 		WITH inserted AS (
 			INSERT INTO post_comments (post_id, user_id, content, parent_comment_id)
 			VALUES ($1, $2, $3, NULLIF($4, 0))
-			RETURNING id, post_id, user_id, content, parent_comment_id, created_at
+			RETURNING id, post_id, user_id, content, parent_comment_id, created_at, updated_at
 		)
-		SELECT inserted.id, inserted.post_id, inserted.user_id, users.user_name, inserted.content, inserted.created_at,
+		SELECT inserted.id, inserted.post_id, inserted.user_id, users.user_name, inserted.content, inserted.created_at, inserted.updated_at,
 			parent.id, parent.user_id, parent_user.user_name, parent.content
 		FROM inserted
 		INNER JOIN users ON users.id = inserted.user_id
@@ -166,6 +166,7 @@ func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment)
 		&comment.UserName,
 		&rawContent,
 		&comment.CreatedAt,
+		&comment.UpdatedAt,
 		&rawReplyToCommentID,
 		&rawReplyToUserID,
 		&rawReplyToUserName,
@@ -228,9 +229,9 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 			UPDATE post_comments
 			SET content = $4, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $1 AND post_id = $2 AND user_id = $3
-			RETURNING id, post_id, user_id, content, parent_comment_id, created_at
+			RETURNING id, post_id, user_id, content, parent_comment_id, created_at, updated_at
 		)
-		SELECT updated.id, updated.post_id, updated.user_id, users.user_name, updated.content, updated.created_at,
+		SELECT updated.id, updated.post_id, updated.user_id, users.user_name, updated.content, updated.created_at, updated.updated_at,
 			parent.id, parent.user_id, parent_user.user_name, parent.content
 		FROM updated
 		INNER JOIN users ON users.id = updated.user_id
@@ -243,6 +244,7 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 		&comment.UserName,
 		&rawContent,
 		&comment.CreatedAt,
+		&comment.UpdatedAt,
 		&rawReplyToCommentID,
 		&rawReplyToUserID,
 		&rawReplyToUserName,
@@ -315,6 +317,7 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 	offset := (page - 1) * limit
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT post_comments.id, post_comments.post_id, post_comments.user_id, users.user_name, post_comments.content, post_comments.created_at,
+			post_comments.updated_at,
 			parent.id, parent.user_id, parent_user.user_name, parent.content
 		FROM post_comments
 		INNER JOIN users ON users.id = post_comments.user_id
@@ -346,6 +349,7 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 			&item.UserName,
 			&rawContent,
 			&item.CreatedAt,
+			&item.UpdatedAt,
 			&rawReplyToCommentID,
 			&rawReplyToUserID,
 			&rawReplyToUserName,

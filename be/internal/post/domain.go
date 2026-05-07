@@ -110,6 +110,7 @@ type Comment struct {
 	ReplyToUserName  string    `json:"reply_to_user_name,omitempty"`
 	ReplyToContent   string    `json:"reply_to_content,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type CommentView struct {
@@ -123,6 +124,7 @@ type CommentView struct {
 	ReplyToUserName  string    `json:"reply_to_user_name,omitempty"`
 	ReplyToContent   string    `json:"reply_to_content,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 func (c Comment) View() CommentView {
@@ -137,6 +139,7 @@ func (c Comment) View() CommentView {
 		ReplyToUserName:  c.ReplyToUserName,
 		ReplyToContent:   c.ReplyToContent,
 		CreatedAt:        c.CreatedAt,
+		UpdatedAt:        c.UpdatedAt,
 	}
 }
 

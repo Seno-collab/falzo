@@ -7,10 +7,16 @@ import (
 
 type CommentEventPublisher interface {
 	PublishCommentCreated(ctx context.Context, comment CommentView) error
+	PublishCommentUpdated(ctx context.Context, comment CommentView) error
 }
 
 type CommentEventSubscriber interface {
-	SubscribeComments(ctx context.Context, postID uint64) (<-chan CommentView, func())
+	SubscribeComments(ctx context.Context, postID uint64) (<-chan CommentEvent, func())
+}
+
+type CommentEvent struct {
+	Type    string
+	Comment CommentView
 }
 
 type PostEventPublisher interface {
@@ -23,12 +29,12 @@ type PostEventSubscriber interface {
 
 type CommentEventBroker struct {
 	mu          sync.RWMutex
-	subscribers map[uint64]map[chan CommentView]struct{}
+	subscribers map[uint64]map[chan CommentEvent]struct{}
 }
 
 func NewCommentEventBroker() *CommentEventBroker {
 	return &CommentEventBroker{
-		subscribers: make(map[uint64]map[chan CommentView]struct{}),
+		subscribers: make(map[uint64]map[chan CommentEvent]struct{}),
 	}
 }
 
@@ -37,12 +43,17 @@ func (b *CommentEventBroker) PublishCommentCreated(_ context.Context, comment Co
 	return nil
 }
 
-func (b *CommentEventBroker) SubscribeComments(ctx context.Context, postID uint64) (<-chan CommentView, func()) {
-	ch := make(chan CommentView, 16)
+func (b *CommentEventBroker) PublishCommentUpdated(_ context.Context, comment CommentView) error {
+	b.BroadcastCommentUpdated(comment)
+	return nil
+}
+
+func (b *CommentEventBroker) SubscribeComments(ctx context.Context, postID uint64) (<-chan CommentEvent, func()) {
+	ch := make(chan CommentEvent, 16)
 
 	b.mu.Lock()
 	if b.subscribers[postID] == nil {
-		b.subscribers[postID] = make(map[chan CommentView]struct{})
+		b.subscribers[postID] = make(map[chan CommentEvent]struct{})
 	}
 	b.subscribers[postID][ch] = struct{}{}
 	b.mu.Unlock()
@@ -72,12 +83,21 @@ func (b *CommentEventBroker) SubscribeComments(ctx context.Context, postID uint6
 }
 
 func (b *CommentEventBroker) BroadcastCommentCreated(comment CommentView) {
+	b.broadcastCommentEvent("comment.created", comment)
+}
+
+func (b *CommentEventBroker) BroadcastCommentUpdated(comment CommentView) {
+	b.broadcastCommentEvent("comment.updated", comment)
+}
+
+func (b *CommentEventBroker) broadcastCommentEvent(eventType string, comment CommentView) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	for ch := range b.subscribers[comment.PostID] {
+		event := CommentEvent{Type: eventType, Comment: comment}
 		select {
-		case ch <- comment:
+		case ch <- event:
 		default:
 		}
 	}

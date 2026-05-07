@@ -142,7 +142,8 @@ export function parsePostCommentCreatedEvent(
       typeof payload.user_id !== "number" ||
       typeof payload.user_name !== "string" ||
       typeof payload.content !== "string" ||
-      typeof payload.created_at !== "string"
+      typeof payload.created_at !== "string" ||
+      typeof payload.updated_at !== "string"
     ) {
       return null;
     }

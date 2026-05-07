@@ -230,10 +230,10 @@ func (h *Handler) StreamComments(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if comment.PostID != postID {
+			if comment.Comment.PostID != postID {
 				continue
 			}
-			if err := writeSSE(w, flusher, "comment.created", comment); err != nil {
+			if err := writeSSE(w, flusher, comment.Type, comment.Comment); err != nil {
 				return
 			}
 		case <-heartbeat.C:
@@ -398,7 +398,7 @@ func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.commentPublisher != nil {
-		if err := h.commentPublisher.PublishCommentCreated(r.Context(), comment); err != nil {
+		if err := h.commentPublisher.PublishCommentUpdated(r.Context(), comment); err != nil {
 			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
 		}
 	}

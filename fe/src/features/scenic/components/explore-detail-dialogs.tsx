@@ -51,6 +51,10 @@ function selectedClass(type: "heart" | "save", active: boolean) {
   return "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]";
 }
 
+function isCommentEdited(comment: PostComment) {
+  return comment.updated_at !== comment.created_at;
+}
+
 function DetailComments({
   comments,
   isChatOpen,
@@ -112,6 +116,11 @@ function DetailComments({
           <p className="text-xs font-medium text-[#999]">
             {new Date(comment.created_at).toLocaleDateString()}
           </p>
+          {isCommentEdited(comment) ? (
+            <span className="rounded-full bg-[#f2f7fd] px-2 py-0.5 text-[11px] font-medium text-[#5f7894]">
+              edited
+            </span>
+          ) : null}
           {currentUserId === comment.user_id ? (
             <button
               className="inline-flex items-center gap-1 text-xs font-semibold text-[#8c6a1f] transition hover:text-[#5e430f]"

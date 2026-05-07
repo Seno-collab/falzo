@@ -391,8 +391,10 @@ export function ExploreScreen() {
       };
 
       source.addEventListener("comment.created", handleCommentCreated);
+      source.addEventListener("comment.updated", handleCommentCreated);
       return () => {
         source.removeEventListener("comment.created", handleCommentCreated);
+        source.removeEventListener("comment.updated", handleCommentCreated);
         source.close();
       };
     });
