@@ -5,7 +5,7 @@ import {
   Bookmark,
   Camera,
   ChevronDown,
-  Map,
+  MapIcon,
   Menu,
   Plus,
   Search,
@@ -19,14 +19,22 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { getApiErrorMessage, hasAuthSession } from "@/features/auth/api";
+import {
+  getApiErrorMessage,
+  getMeApi,
+  hasAuthSession,
+} from "@/features/auth/api";
+import type { AuthUser } from "@/features/auth/types";
+import { getAuthUserDisplayName } from "@/features/auth/user-display";
 import { getCategoriesApi } from "@/features/categories/api";
 import {
   createPostCommentApi,
+  getPostCommentEventsUrl,
   getPostCommentsApi,
   getPostDetailApi,
   getPostsApi,
   likePostApi,
+  parsePostCommentCreatedEvent,
   savePostApi,
 } from "@/features/posts/api";
 import type { PostComment } from "@/features/posts/types";
@@ -51,6 +59,55 @@ type ExplorePin = (typeof explorePins)[number];
 
 const postsPageSize = 24;
 
+function getCommentTime(comment: PostComment) {
+  const timestamp = new Date(comment.created_at).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortPostComments(comments: PostComment[]) {
+  return [...comments].sort(
+    (left, right) =>
+      getCommentTime(left) - getCommentTime(right) || left.id - right.id,
+  );
+}
+
+function upsertPostComment(
+  commentsByPost: Record<number, PostComment[]>,
+  postId: number,
+  comment: PostComment,
+) {
+  const comments = commentsByPost[postId] ?? [];
+  const existingIndex = comments.findIndex((item) => item.id === comment.id);
+  const nextComments =
+    existingIndex >= 0
+      ? comments.map((item) => (item.id === comment.id ? comment : item))
+      : [...comments, comment];
+
+  return {
+    ...commentsByPost,
+    [postId]: sortPostComments(nextComments),
+  };
+}
+
+function mergePostComments(
+  commentsByPost: Record<number, PostComment[]>,
+  postId: number,
+  comments: PostComment[],
+) {
+  const commentsById = new Map<number, PostComment>();
+  for (const comment of commentsByPost[postId] ?? []) {
+    commentsById.set(comment.id, comment);
+  }
+  for (const comment of comments) {
+    commentsById.set(comment.id, comment);
+  }
+
+  return {
+    ...commentsByPost,
+    [postId]: sortPostComments(Array.from(commentsById.values())),
+  };
+}
+
 export function ExploreScreen() {
   const router = useRouter();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -65,6 +122,9 @@ export function ExploreScreen() {
     new Set(),
   );
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+  const [selectedChatPostId, setSelectedChatPostId] = useState<number | null>(
+    null,
+  );
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
     Record<number, PostComment[]>
@@ -93,6 +153,15 @@ export function ExploreScreen() {
     queryFn: () => getPostDetailApi(selectedPostId ?? 0),
   });
 
+  const profileQuery = useQuery({
+    enabled: isAuthenticated,
+    queryKey: ["auth", "me", "explore"],
+    queryFn: () => getMeApi<AuthUser>(),
+    refetchOnMount: "always",
+    retry: false,
+    staleTime: 0,
+  });
+
   useEffect(() => {
     document.title = "Falzo Explore | Visual Inspiration";
     setIsAuthenticated(hasAuthSession());
@@ -118,10 +187,9 @@ export function ExploreScreen() {
     mutationFn: createPostCommentApi,
     onError: (error) => toast.error(getApiErrorMessage(error)),
     onSuccess: (comment, variables) => {
-      setCommentsByPost((current) => ({
-        ...current,
-        [variables.postId]: [...(current[variables.postId] ?? []), comment],
-      }));
+      setCommentsByPost((current) =>
+        upsertPostComment(current, variables.postId, comment),
+      );
       setCommentInputs((current) => ({ ...current, [variables.postId]: "" }));
       toast.success("Comment posted.");
     },
@@ -193,6 +261,48 @@ export function ExploreScreen() {
     return () => observer.disconnect();
   }, [fetchNextPostsPage, shouldLoadMorePosts]);
 
+  const commentEventPostIds = useMemo(() => {
+    const postIds = new Set(openComments);
+    if (selectedChatPostId !== null) {
+      postIds.add(selectedChatPostId);
+    }
+
+    return Array.from(postIds).sort((left, right) => left - right);
+  }, [openComments, selectedChatPostId]);
+  const commentEventPostIdsKey = commentEventPostIds.join(",");
+
+  useEffect(() => {
+    if (!commentEventPostIdsKey) {
+      return;
+    }
+
+    const eventSources = commentEventPostIds.map((postId) => {
+      const source = new EventSource(getPostCommentEventsUrl(postId));
+      const handleCommentCreated = (event: Event) => {
+        const comment = parsePostCommentCreatedEvent(
+          event as MessageEvent<string>,
+        );
+        if (!comment || comment.post_id !== postId) {
+          return;
+        }
+
+        setCommentsByPost((current) =>
+          upsertPostComment(current, postId, comment),
+        );
+      };
+
+      source.addEventListener("comment.created", handleCommentCreated);
+      return () => {
+        source.removeEventListener("comment.created", handleCommentCreated);
+        source.close();
+      };
+    });
+
+    return () => {
+      eventSources.forEach((closeEventSource) => closeEventSource());
+    };
+  }, [commentEventPostIds, commentEventPostIdsKey]);
+
   function requireAuth() {
     if (hasAuthSession()) {
       setIsAuthenticated(true);
@@ -222,7 +332,9 @@ export function ExploreScreen() {
 
     try {
       const comments = await getPostCommentsApi(postId);
-      setCommentsByPost((current) => ({ ...current, [postId]: comments }));
+      setCommentsByPost((current) =>
+        mergePostComments(current, postId, comments),
+      );
     } catch (error) {
       toast.error(getApiErrorMessage(error));
     } finally {
@@ -246,14 +358,23 @@ export function ExploreScreen() {
 
   function openPostDetail(postId: number) {
     setSelectedPostId(postId);
+    setSelectedChatPostId(null);
     setSelectedPinId(null);
-    setOpenComments((current) => new Set(current).add(postId));
-    void loadComments(postId);
+  }
+
+  function openSelectedPostChat() {
+    if (selectedPostId === null) {
+      return;
+    }
+
+    setSelectedChatPostId(selectedPostId);
+    void loadComments(selectedPostId);
   }
 
   function openPinDetail(pinId: string) {
     setSelectedPinId(pinId);
     setSelectedPostId(null);
+    setSelectedChatPostId(null);
   }
 
   function handleLikePost(postId: number) {
@@ -290,20 +411,31 @@ export function ExploreScreen() {
     selectedPostId === null ? [] : (commentsByPost[selectedPostId] ?? []);
   const selectedPostCommentValue =
     selectedPostId === null ? "" : (commentInputs[selectedPostId] ?? "");
+  const isSelectedPostChatOpen =
+    selectedPostId !== null && selectedChatPostId === selectedPostId;
   const isSelectedPostLoadingComments =
-    selectedPostId !== null && loadingComments.has(selectedPostId);
+    isSelectedPostChatOpen &&
+    selectedPostId !== null &&
+    loadingComments.has(selectedPostId);
   const isSelectedPostLiked =
     selectedPostId !== null && likedPosts.has(selectedPostId);
   const isSelectedPostSaved =
     selectedPostId !== null && savedPosts.has(selectedPostId);
   const isSelectedPinSaved =
     selectedPin !== null && savedPins.has(selectedPin.id);
+  const profileName = profileQuery.data && !profileQuery.isFetching
+    ? getAuthUserDisplayName(profileQuery.data, "") || null
+    : null;
 
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
-      <ExploreTopbar onProfileClick={() => {
-        router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login);
-      }} />
+      <ExploreTopbar
+        isAuthenticated={isAuthenticated}
+        onProfileClick={() => {
+          router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login);
+        }}
+        profileName={profileName}
+      />
 
       <ExploreHero
         activeCollection={activeCollection}
@@ -361,11 +493,15 @@ export function ExploreScreen() {
         commentValue={selectedPostCommentValue}
         comments={selectedPostComments}
         isAuthenticated={isAuthenticated}
+        isChatOpen={isSelectedPostChatOpen}
         isCommentPending={commentMutation.isPending}
         isLiked={isSelectedPostLiked}
         isLoadingComments={isSelectedPostLoadingComments}
         isSaved={isSelectedPostSaved}
-        onClose={() => setSelectedPostId(null)}
+        onClose={() => {
+          setSelectedPostId(null);
+          setSelectedChatPostId(null);
+        }}
         onCommentChange={(value) => {
           if (selectedPostId !== null) {
             updateComment(selectedPostId, value);
@@ -376,12 +512,7 @@ export function ExploreScreen() {
             handleLikePost(selectedPostId);
           }
         }}
-        onLoadComments={() => {
-          if (selectedPostId !== null) {
-            setOpenComments((current) => new Set(current).add(selectedPostId));
-            void loadComments(selectedPostId);
-          }
-        }}
+        onLoadComments={openSelectedPostChat}
         onSave={() => {
           if (selectedPostId !== null) {
             handleSavePost(selectedPostId);
@@ -411,7 +542,18 @@ export function ExploreScreen() {
   );
 }
 
-function ExploreTopbar({ onProfileClick }: Readonly<{ onProfileClick: () => void }>) {
+function ExploreTopbar({
+  isAuthenticated,
+  onProfileClick,
+  profileName,
+}: Readonly<{
+  isAuthenticated: boolean;
+  onProfileClick: () => void;
+  profileName: string | null;
+}>) {
+  const profileLabel =
+    isAuthenticated && profileName ? `Profile: ${profileName}` : "Profile";
+
   return (
     <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
       <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-3 py-3 sm:px-5 lg:px-8">
@@ -432,7 +574,7 @@ function ExploreTopbar({ onProfileClick }: Readonly<{ onProfileClick: () => void
           </Button>
           <Button asChild className="rounded-full" size="sm" variant="ghost">
             <Link href={ROUTES.locations}>
-              <Map className="size-4" />
+              <MapIcon className="size-4" />
               Locations
             </Link>
           </Button>
@@ -478,14 +620,20 @@ function ExploreTopbar({ onProfileClick }: Readonly<{ onProfileClick: () => void
             <Bell className="size-4" />
           </Button>
           <Button
-            aria-label="Profile"
-            className="rounded-full"
+            aria-label={profileLabel}
+            className={cn(
+              "rounded-full",
+              isAuthenticated && profileName ? "max-w-44 px-3" : "",
+            )}
             onClick={onProfileClick}
-            size="icon-sm"
+            size={isAuthenticated && profileName ? "sm" : "icon-sm"}
             type="button"
             variant="outline"
           >
             <UserRound className="size-4" />
+            {isAuthenticated && profileName ? (
+              <span className="max-w-28 truncate">{profileName}</span>
+            ) : null}
           </Button>
         </div>
 

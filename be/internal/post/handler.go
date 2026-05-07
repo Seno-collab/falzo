@@ -3,15 +3,18 @@ package post
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"falzo-be/internal/auth"
 	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog/log"
 )
 
 type handlerService interface {
@@ -30,6 +33,17 @@ type Handler struct {
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	}
+	commentEvents    CommentEventSubscriber
+	commentPublisher CommentEventPublisher
+}
+
+type HandlerOption func(*Handler)
+
+func WithCommentEvents(subscriber CommentEventSubscriber, publisher CommentEventPublisher) HandlerOption {
+	return func(h *Handler) {
+		h.commentEvents = subscriber
+		h.commentPublisher = publisher
+	}
 }
 
 func NewHandler(
@@ -37,14 +51,23 @@ func NewHandler(
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	},
+	options ...HandlerOption,
 ) *Handler {
-	return &Handler{service: service, authService: authService}
+	h := &Handler{service: service, authService: authService}
+	for _, option := range options {
+		if option != nil {
+			option(h)
+		}
+	}
+
+	return h
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.GetPosts)
 	r.Get("/location", h.GetPostsByLocation)
+	r.Get("/{id}/comments/events", h.StreamComments)
 	r.Get("/{id}/comments", h.GetComments)
 	r.Get("/{id}", h.GetPostDetail)
 	r.Group(func(protected chi.Router) {
@@ -133,6 +156,63 @@ func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Comments fetched successfully", comments, r)
+}
+
+func (h *Handler) StreamComments(w http.ResponseWriter, r *http.Request) {
+	if h.commentEvents == nil {
+		share.WriteError(w, r, ErrDependencyUnavailable, "stream_comments", mapPostError)
+		return
+	}
+
+	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
+	if err != nil || postID == 0 {
+		share.WriteError(w, r, errInvalidPostIDParam, "stream_comments", mapPostError)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	comments, unsubscribe := h.commentEvents.SubscribeComments(r.Context(), postID)
+	defer unsubscribe()
+
+	if _, err := w.Write([]byte(": connected\n\n")); err != nil {
+		return
+	}
+	flusher.Flush()
+
+	heartbeat := time.NewTicker(25 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case comment, ok := <-comments:
+			if !ok {
+				return
+			}
+			if comment.PostID != postID {
+				continue
+			}
+			if err := writeSSE(w, flusher, "comment.created", comment); err != nil {
+				return
+			}
+		case <-heartbeat.C:
+			if _, err := w.Write([]byte(": keep-alive\n\n")); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
 }
 
 func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +306,36 @@ func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.commentPublisher != nil {
+		if err := h.commentPublisher.PublishCommentCreated(r.Context(), comment); err != nil {
+			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
+		}
+	}
+
 	httpResponse.Success(w, http.StatusCreated, "Comment created successfully", comment, r)
+}
+
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, event string, payload any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintf(w, "event: %s\n", event); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte("data: ")); err != nil {
+		return err
+	}
+	if _, err := w.Write(data); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte("\n\n")); err != nil {
+		return err
+	}
+
+	flusher.Flush()
+	return nil
 }
 
 func (h *Handler) handlePostAction(

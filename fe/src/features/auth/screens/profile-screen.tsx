@@ -38,6 +38,11 @@ import {
   logoutApi,
 } from "@/features/auth/api";
 import type { AuthUser } from "@/features/auth/types";
+import {
+  getAuthUserDisplayName,
+  getAuthUserInitials,
+  readAuthUserText,
+} from "@/features/auth/user-display";
 import { ROUTES } from "@/lib/routes";
 
 type PasswordFormValues = {
@@ -60,38 +65,6 @@ const passwordSchema = z
     message: "New passwords do not match.",
     path: ["confirmPassword"],
   });
-
-function readString(user: AuthUser | null, keys: string[]) {
-  if (!user) {
-    return null;
-  }
-
-  for (const key of keys) {
-    const value = user[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
-}
-
-function getDisplayName(user: AuthUser | null) {
-  return (
-    readString(user, ["fullName", "name", "displayName", "user_name", "email"]) ??
-    "Falzo traveler"
-  );
-}
-
-function getInitials(name: string) {
-  const parts = name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2);
-
-  return parts.join("").toUpperCase() || "F";
-}
 
 function formatExpiry(expires?: AuthUser["expires"]) {
   if (!expires) {
@@ -187,15 +160,18 @@ export function ProfileScreen() {
     };
   }, [router]);
 
-  const displayName = useMemo(() => getDisplayName(profile), [profile]);
-  const email = readString(profile, ["email"]);
-  const username = readString(profile, [
+  const displayName = useMemo(
+    () => getAuthUserDisplayName(profile),
+    [profile],
+  );
+  const email = readAuthUserText(profile, ["email"]);
+  const username = readAuthUserText(profile, [
     "user_name",
     "userName",
     "username",
     "name",
   ]);
-  const subject = readString(profile, ["subject", "id"]);
+  const subject = readAuthUserText(profile, ["subject", "id"]);
 
   const handleChangePassword = passwordForm.handleSubmit(async (values) => {
     try {
@@ -283,7 +259,7 @@ export function ProfileScreen() {
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-4">
                     <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#17395c] text-lg font-semibold text-white shadow-[0_18px_40px_-28px_rgb(22_58_95/0.75)]">
-                      {getInitials(displayName)}
+                      {getAuthUserInitials(displayName)}
                     </div>
                     <div className="min-w-0">
                       <Badge>Signed in</Badge>

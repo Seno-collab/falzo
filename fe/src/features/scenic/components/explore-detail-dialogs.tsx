@@ -27,6 +27,7 @@ type PostDetailDialogProps = {
   post: Post | null;
   comments: PostComment[];
   isAuthenticated: boolean;
+  isChatOpen: boolean;
   isLoadingComments: boolean;
   isLiked: boolean;
   isSaved: boolean;
@@ -62,11 +63,21 @@ function selectedClass(type: "heart" | "save", active: boolean) {
 
 function DetailComments({
   comments,
+  isChatOpen,
   isLoading,
 }: Readonly<{
   comments: PostComment[];
+  isChatOpen: boolean;
   isLoading: boolean;
 }>) {
+  if (!isChatOpen) {
+    return (
+      <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+        Chat is closed.
+      </div>
+    );
+  }
+
   if (isLoading) {
     return <p className="text-sm font-semibold text-[#555]">Loading comments</p>;
   }
@@ -102,6 +113,7 @@ export function PostDetailDialog({
   post,
   comments,
   isAuthenticated,
+  isChatOpen,
   isLoadingComments,
   isLiked,
   isSaved,
@@ -173,7 +185,10 @@ export function PostDetailDialog({
                 </Button>
                 <Button
                   aria-label="Focus comment input"
-                  className="rounded-full"
+                  className={cn(
+                    "rounded-full",
+                    isChatOpen ? selectedClass("save", true) : "",
+                  )}
                   disabled={!post}
                   onClick={onLoadComments}
                   size="icon-sm"
@@ -189,6 +204,7 @@ export function PostDetailDialog({
               <div className="space-y-3">
                 <DetailComments
                   comments={comments}
+                  isChatOpen={isChatOpen}
                   isLoading={isLoadingComments}
                 />
               </div>
@@ -198,10 +214,16 @@ export function PostDetailDialog({
               <div className="flex items-center gap-2">
                 <input
                   className="h-10 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-4 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"
-                  disabled={!isAuthenticated || isCommentPending || !post}
+                  disabled={
+                    !isAuthenticated || !isChatOpen || isCommentPending || !post
+                  }
                   onChange={(event) => onCommentChange(event.target.value)}
                   placeholder={
-                    isAuthenticated ? "Write a comment" : "Login to comment"
+                    isChatOpen
+                      ? isAuthenticated
+                        ? "Write a comment"
+                        : "Login to comment"
+                      : "Open chat"
                   }
                   value={commentValue}
                 />
@@ -210,7 +232,7 @@ export function PostDetailDialog({
                     isAuthenticated ? "Submit comment" : "Login to comment"
                   }
                   className="rounded-full"
-                  disabled={isCommentPending || !post}
+                  disabled={!isChatOpen || isCommentPending || !post}
                   onClick={onSubmitComment}
                   size="icon-sm"
                   type="button"

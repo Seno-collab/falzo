@@ -4,9 +4,15 @@ import type {
   CreatePostPayload,
   Post,
   PostComment,
+  PostCommentCreatedEvent,
   UploadedImage,
 } from "./types";
 
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.VITE_API_BASE_URL ??
+  "/api"
+).trim();
 const POSTS_ENDPOINT = envEndpoint(
   process.env.NEXT_PUBLIC_POSTS_ENDPOINT,
   process.env.VITE_POSTS_ENDPOINT,
@@ -17,6 +23,20 @@ const IMAGE_UPLOAD_ENDPOINT = envEndpoint(
   process.env.VITE_IMAGE_UPLOAD_ENDPOINT,
   "/images/upload",
 );
+
+function buildEventSourceUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  const normalizedBase = API_BASE_URL.replace(/\/+$/, "");
+  const normalizedPath = path.replace(/^\/+/, "");
+  if (!normalizedBase || normalizedBase === "/") {
+    return `/${normalizedPath}`;
+  }
+
+  return `${normalizedBase}/${normalizedPath}`;
+}
 
 export async function getPostsApi(params?: {
   page?: number;
@@ -73,6 +93,33 @@ export async function getPostCommentsApi(postId: number): Promise<PostComment[]>
       },
     },
   );
+}
+
+export function getPostCommentEventsUrl(postId: number) {
+  return buildEventSourceUrl(
+    endpointPath(POSTS_ENDPOINT, postId, "comments", "events"),
+  );
+}
+
+export function parsePostCommentCreatedEvent(
+  event: MessageEvent<string>,
+): PostCommentCreatedEvent | null {
+  try {
+    const payload = JSON.parse(event.data) as Partial<PostCommentCreatedEvent>;
+    if (
+      typeof payload.id !== "number" ||
+      typeof payload.post_id !== "number" ||
+      typeof payload.user_id !== "number" ||
+      typeof payload.content !== "string" ||
+      typeof payload.created_at !== "string"
+    ) {
+      return null;
+    }
+
+    return payload as PostCommentCreatedEvent;
+  } catch {
+    return null;
+  }
 }
 
 export async function createPostCommentApi(params: {

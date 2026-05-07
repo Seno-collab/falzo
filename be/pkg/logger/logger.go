@@ -194,6 +194,20 @@ func (r *statusRecorder) Write(data []byte) (int, error) {
 	return n, err
 }
 
+func (r *statusRecorder) Flush() {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+
+	if flusher, ok := r.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 func RequestLogger(next http.Handler) http.Handler {
 	bodyCfg := loadBodyLogConfig()
 

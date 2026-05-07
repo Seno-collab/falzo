@@ -23,6 +23,8 @@ export type PostComment = {
   created_at: string;
 };
 
+export type PostCommentCreatedEvent = PostComment;
+
 export type CreatePostPayload = {
   image_url: string;
   caption: string;

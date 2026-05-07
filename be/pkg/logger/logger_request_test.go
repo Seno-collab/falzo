@@ -120,3 +120,25 @@ func TestRequestLoggerLogsSanitizedJSONBodies(t *testing.T) {
 		t.Fatalf("expected response token to be redacted, got %#v", responseBody["token"])
 	}
 }
+
+func TestStatusRecorderForwardsFlush(t *testing.T) {
+	rec := httptest.NewRecorder()
+	status := &statusRecorder{ResponseWriter: rec}
+
+	flusher, ok := any(status).(http.Flusher)
+	if !ok {
+		t.Fatal("expected status recorder to implement http.Flusher")
+	}
+
+	flusher.Flush()
+
+	if !rec.Flushed {
+		t.Fatal("expected flush to be forwarded to underlying response writer")
+	}
+	if status.status != http.StatusOK {
+		t.Fatalf("expected flush to mark status OK, got %d", status.status)
+	}
+	if status.Unwrap() != rec {
+		t.Fatal("expected unwrap to return underlying response writer")
+	}
+}

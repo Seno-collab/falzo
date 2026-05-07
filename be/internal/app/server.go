@@ -67,15 +67,26 @@ func Run() {
 	locationHandler := location.NewHandler(locationService)
 	postgresPostRepository := postInfra.NewPostgresRepository(db)
 	var postRepository post.Repository = postgresPostRepository
+	commentEventBroker := post.NewCommentEventBroker()
+	var commentEventPublisher post.CommentEventPublisher = commentEventBroker
 	var stopEngagementWorker context.CancelFunc
+	var stopCommentEventSubscriber context.CancelFunc
 	if redisClient != nil {
 		postRepository = postInfra.NewEngagementStreamRepository(postRepository, redisClient)
 		engagementWorkerCtx, cancelEngagementWorker := context.WithCancel(context.Background())
 		stopEngagementWorker = cancelEngagementWorker
 		go postInfra.RunEngagementStreamWorker(engagementWorkerCtx, postgresPostRepository, redisClient, cfg.Engagement)
+		commentEventPublisher = postInfra.NewRedisCommentEventPublisher(redisClient, commentEventBroker)
+		commentEventCtx, cancelCommentEventSubscriber := context.WithCancel(context.Background())
+		stopCommentEventSubscriber = cancelCommentEventSubscriber
+		go postInfra.RunRedisCommentEventSubscriber(commentEventCtx, commentEventBroker, redisClient)
 	}
 	postService := post.NewService(postRepository)
-	postHandler := post.NewHandler(postService, authService)
+	postHandler := post.NewHandler(
+		postService,
+		authService,
+		post.WithCommentEvents(commentEventBroker, commentEventPublisher),
+	)
 	imageRepository := uploadInfra.NewPostgresRepository(db)
 	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
 	uploadService := upload.NewService(
@@ -134,6 +145,12 @@ func Run() {
 	if stopEngagementWorker != nil {
 		sm.Register("post-engagement-worker-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 			stopEngagementWorker()
+			return nil
+		})
+	}
+	if stopCommentEventSubscriber != nil {
+		sm.Register("post-comment-event-subscriber-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+			stopCommentEventSubscriber()
 			return nil
 		})
 	}
