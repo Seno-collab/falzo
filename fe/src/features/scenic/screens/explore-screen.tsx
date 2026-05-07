@@ -13,7 +13,13 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import type { InfiniteData } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -32,21 +38,18 @@ import {
   getPostCommentEventsUrl,
   getPostCommentsApi,
   getPostDetailApi,
+  getPostEventsUrl,
   getPostsApi,
   likePostApi,
   parsePostCommentCreatedEvent,
+  parsePostCreatedEvent,
   savePostApi,
+  unlikePostApi,
+  unsavePostApi,
 } from "@/features/posts/api";
-import type { PostComment } from "@/features/posts/types";
-import {
-  ExplorePinCard,
-  ExplorePostCard,
-} from "@/features/scenic/components/explore-cards";
-import {
-  PinDetailDialog,
-  PostDetailDialog,
-} from "@/features/scenic/components/explore-detail-dialogs";
-import { explorePins } from "@/features/scenic/data";
+import type { Post, PostComment } from "@/features/posts/types";
+import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
+import { PostDetailDialog } from "@/features/scenic/components/explore-detail-dialogs";
 import {
   getExploreCollections,
   showsCommunityFeed,
@@ -55,7 +58,7 @@ import {
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-type ExplorePin = (typeof explorePins)[number];
+type PostsInfiniteData = InfiniteData<Post[], number>;
 
 const postsPageSize = 24;
 
@@ -108,15 +111,25 @@ function mergePostComments(
   };
 }
 
+type PostActionOverrides = Record<number, boolean>;
+
+function isPostLiked(post: Post | null, likedPosts: PostActionOverrides) {
+  return Boolean(post && (likedPosts[post.id] ?? post.is_liked));
+}
+
+function isPostSaved(post: Post | null, savedPosts: PostActionOverrides) {
+  return Boolean(post && (savedPosts[post.id] ?? post.is_saved));
+}
+
 export function ExploreScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeCollection, setActiveCollection] = useState("All");
-  const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
-  const [savedPosts, setSavedPosts] = useState<Set<number>>(new Set());
-  const [savedPins, setSavedPins] = useState<Set<string>>(new Set());
+  const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
+  const [savedPosts, setSavedPosts] = useState<PostActionOverrides>({});
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [loadingComments, setLoadingComments] = useState<Set<number>>(
     new Set(),
@@ -125,7 +138,6 @@ export function ExploreScreen() {
   const [selectedChatPostId, setSelectedChatPostId] = useState<number | null>(
     null,
   );
-  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [commentsByPost, setCommentsByPost] = useState<
     Record<number, PostComment[]>
   >({});
@@ -167,19 +179,91 @@ export function ExploreScreen() {
     setIsAuthenticated(hasAuthSession());
   }, []);
 
+  useEffect(() => {
+    const source = new EventSource(getPostEventsUrl());
+    const handlePostCreated = (event: Event) => {
+      const post = parsePostCreatedEvent(event as MessageEvent<string>);
+      if (!post) {
+        return;
+      }
+
+      queryClient.setQueryData<PostsInfiniteData>(
+        ["posts", "explore"],
+        (current) => {
+          if (!current) {
+            return {
+              pageParams: [1],
+              pages: [[post]],
+            };
+          }
+
+          if (current.pages.some((page) => page.some((item) => item.id === post.id))) {
+            return current;
+          }
+
+          const [firstPage = [], ...restPages] = current.pages;
+          return {
+            ...current,
+            pages: [[post, ...firstPage], ...restPages],
+          };
+        },
+      );
+    };
+
+    source.addEventListener("post.created", handlePostCreated);
+    return () => {
+      source.removeEventListener("post.created", handlePostCreated);
+      source.close();
+    };
+  }, [queryClient]);
+
   const likeMutation = useMutation({
-    mutationFn: likePostApi,
+    mutationFn: async ({
+      isLiked,
+      postId,
+    }: {
+      isLiked: boolean;
+      postId: number;
+    }) => {
+      if (isLiked) {
+        await unlikePostApi(postId);
+        return false;
+      }
+
+      await likePostApi(postId);
+      return true;
+    },
     onError: (error) => toast.error(getApiErrorMessage(error)),
-    onSuccess: (_data, postId) => {
-      setLikedPosts((current) => new Set(current).add(postId));
+    onSuccess: (nextIsLiked, variables) => {
+      setLikedPosts((current) => ({
+        ...current,
+        [variables.postId]: nextIsLiked,
+      }));
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: savePostApi,
+    mutationFn: async ({
+      isSaved,
+      postId,
+    }: {
+      isSaved: boolean;
+      postId: number;
+    }) => {
+      if (isSaved) {
+        await unsavePostApi(postId);
+        return false;
+      }
+
+      await savePostApi(postId);
+      return true;
+    },
     onError: (error) => toast.error(getApiErrorMessage(error)),
-    onSuccess: (_data, postId) => {
-      setSavedPosts((current) => new Set(current).add(postId));
+    onSuccess: (nextIsSaved, variables) => {
+      setSavedPosts((current) => ({
+        ...current,
+        [variables.postId]: nextIsSaved,
+      }));
     },
   });
 
@@ -196,7 +280,7 @@ export function ExploreScreen() {
   });
 
   const collections = useMemo(
-    () => getExploreCollections(categoriesQuery.data, explorePins),
+    () => getExploreCollections(categoriesQuery.data),
     [categoriesQuery.data],
   );
 
@@ -207,18 +291,6 @@ export function ExploreScreen() {
 
     return postsQuery.data?.pages.flat() ?? [];
   }, [activeCollection, postsQuery.data]);
-
-  const visiblePins = useMemo(() => {
-    if (activeCollection === "All") {
-      return explorePins;
-    }
-
-    if (activeCollection === "Community") {
-      return [];
-    }
-
-    return explorePins.filter((pin) => pin.collection === activeCollection);
-  }, [activeCollection]);
 
   const selectedPost = useMemo(() => {
     if (selectedPostId === null) {
@@ -231,10 +303,6 @@ export function ExploreScreen() {
       null
     );
   }, [postDetailQuery.data, selectedPostId, visiblePosts]);
-
-  const selectedPin = useMemo<ExplorePin | null>(() => {
-    return explorePins.find((pin) => pin.id === selectedPinId) ?? null;
-  }, [selectedPinId]);
 
   const shouldLoadMorePosts =
     showsCommunityFeed(activeCollection) &&
@@ -315,10 +383,6 @@ export function ExploreScreen() {
     return false;
   }
 
-  function toggleSavedPin(pinId: string) {
-    setSavedPins((current) => toggleSetValue(current, pinId));
-  }
-
   function updateComment(postId: number, value: string) {
     setCommentInputs((current) => ({ ...current, [postId]: value }));
   }
@@ -358,8 +422,8 @@ export function ExploreScreen() {
 
   function openPostDetail(postId: number) {
     setSelectedPostId(postId);
-    setSelectedChatPostId(null);
-    setSelectedPinId(null);
+    setSelectedChatPostId(postId);
+    void loadComments(postId);
   }
 
   function openSelectedPostChat() {
@@ -371,26 +435,28 @@ export function ExploreScreen() {
     void loadComments(selectedPostId);
   }
 
-  function openPinDetail(pinId: string) {
-    setSelectedPinId(pinId);
-    setSelectedPostId(null);
-    setSelectedChatPostId(null);
-  }
-
   function handleLikePost(postId: number) {
-    if (!requireAuth() || likedPosts.has(postId) || likeMutation.isPending) {
+    const post =
+      selectedPost?.id === postId
+        ? selectedPost
+        : visiblePosts.find((item) => item.id === postId) ?? null;
+    if (!requireAuth() || !post || likeMutation.isPending) {
       return;
     }
 
-    likeMutation.mutate(postId);
+    likeMutation.mutate({ isLiked: isPostLiked(post, likedPosts), postId });
   }
 
   function handleSavePost(postId: number) {
-    if (!requireAuth() || savedPosts.has(postId) || saveMutation.isPending) {
+    const post =
+      selectedPost?.id === postId
+        ? selectedPost
+        : visiblePosts.find((item) => item.id === postId) ?? null;
+    if (!requireAuth() || !post || saveMutation.isPending) {
       return;
     }
 
-    saveMutation.mutate(postId);
+    saveMutation.mutate({ isSaved: isPostSaved(post, savedPosts), postId });
   }
 
   function submitComment(postId: number) {
@@ -417,16 +483,12 @@ export function ExploreScreen() {
     isSelectedPostChatOpen &&
     selectedPostId !== null &&
     loadingComments.has(selectedPostId);
-  const isSelectedPostLiked =
-    selectedPostId !== null && likedPosts.has(selectedPostId);
-  const isSelectedPostSaved =
-    selectedPostId !== null && savedPosts.has(selectedPostId);
-  const isSelectedPinSaved =
-    selectedPin !== null && savedPins.has(selectedPin.id);
-  const profileName = profileQuery.data && !profileQuery.isFetching
-    ? getAuthUserDisplayName(profileQuery.data, "") || null
-    : null;
-
+  const isSelectedPostLiked = isPostLiked(selectedPost, likedPosts);
+  const isSelectedPostSaved = isPostSaved(selectedPost, savedPosts);
+  const profileName =
+    profileQuery.data && !profileQuery.isFetching
+      ? getAuthUserDisplayName(profileQuery.data, "") || null
+      : null;
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
       <ExploreTopbar
@@ -452,9 +514,9 @@ export function ExploreScreen() {
               commentsOpen={openComments.has(post.id)}
               index={index}
               isAuthenticated={isAuthenticated}
-              isLiked={likedPosts.has(post.id)}
+              isLiked={isPostLiked(post, likedPosts)}
               isLoadingComments={loadingComments.has(post.id)}
-              isSaved={savedPosts.has(post.id)}
+              isSaved={isPostSaved(post, savedPosts)}
               isSubmittingComment={commentMutation.isPending}
               key={`post-${post.id}`}
               onCommentChange={updateComment}
@@ -467,16 +529,6 @@ export function ExploreScreen() {
             />
           ))}
 
-          {visiblePins.map((pin, index) => (
-            <ExplorePinCard
-              index={index}
-              isSaved={savedPins.has(pin.id)}
-              key={pin.id}
-              onOpen={openPinDetail}
-              onToggleSaved={toggleSavedPin}
-              pin={pin}
-            />
-          ))}
         </div>
 
         {showsCommunityFeed(activeCollection) ? (
@@ -488,7 +540,6 @@ export function ExploreScreen() {
           />
         ) : null}
       </section>
-
       <PostDetailDialog
         commentValue={selectedPostCommentValue}
         comments={selectedPostComments}
@@ -500,7 +551,6 @@ export function ExploreScreen() {
         isSaved={isSelectedPostSaved}
         onClose={() => {
           setSelectedPostId(null);
-          setSelectedChatPostId(null);
         }}
         onCommentChange={(value) => {
           if (selectedPostId !== null) {
@@ -525,18 +575,6 @@ export function ExploreScreen() {
         }}
         open={selectedPostId !== null}
         post={selectedPost}
-      />
-
-      <PinDetailDialog
-        isSaved={isSelectedPinSaved}
-        onClose={() => setSelectedPinId(null)}
-        onToggleSaved={() => {
-          if (selectedPin !== null) {
-            toggleSavedPin(selectedPin.id);
-          }
-        }}
-        open={selectedPinId !== null}
-        pin={selectedPin}
       />
     </main>
   );
@@ -725,7 +763,10 @@ function LoadMorePosts({
   totalPosts: number;
 }>) {
   return (
-    <div className="flex min-h-20 items-center justify-center py-4" ref={refNode}>
+    <div
+      className="flex min-h-20 items-center justify-center py-4"
+      ref={refNode}
+    >
       {isLoading ? (
         <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
           <span className="size-2 animate-pulse rounded-full bg-[#ff385c]" />

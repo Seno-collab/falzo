@@ -9,22 +9,9 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import type { KeyboardEvent } from "react";
-import { ScenicImage } from "@/components/scenic-image";
 import { Button } from "@/components/ui/button";
 import type { Post, PostComment } from "@/features/posts/types";
 import { cn } from "@/lib/utils";
-
-type PinCardData = {
-  id: string;
-  imageId: string;
-  title: string;
-  author: string;
-  city: string;
-  collection: string;
-  saves: string;
-  height: string;
-  gradient: string;
-};
 
 type PostCardProps = {
   post: Post;
@@ -43,14 +30,6 @@ type PostCardProps = {
   onToggleComments: (postId: number) => void;
   onCommentChange: (postId: number, value: string) => void;
   onSubmitComment: (postId: number) => void;
-};
-
-type PinCardProps = {
-  pin: PinCardData;
-  index: number;
-  isSaved: boolean;
-  onOpen: (pinId: string) => void;
-  onToggleSaved: (pinId: string) => void;
 };
 
 const cardClass =
@@ -109,7 +88,7 @@ function Comments({
       key={comment.id}
     >
       <p className="text-xs font-semibold text-[#777]">
-        User #{comment.user_id}
+        {comment.user_name || `User #${comment.user_id}`}
       </p>
       <p className="mt-1 leading-5">{comment.content}</p>
     </div>
@@ -175,6 +154,7 @@ export function ExplorePostCard({
 }: PostCardProps) {
   const title = post.caption || "Community post";
   const location = post.location_name || "Uploaded";
+  const authorName = post.user_name || `User #${post.user_id}`;
 
   return (
     <motion.article
@@ -250,7 +230,7 @@ export function ExplorePostCard({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[#202020]">
-              User #{post.user_id}
+              {authorName}
             </p>
             <p className="mt-0.5 text-xs font-medium text-[#777]">
               {new Date(post.created_at).toLocaleDateString()}
@@ -317,111 +297,6 @@ export function ExplorePostCard({
             />
           </div>
         ) : null}
-      </div>
-    </motion.article>
-  );
-}
-
-export function ExplorePinCard({
-  pin,
-  index,
-  isSaved,
-  onOpen,
-  onToggleSaved,
-}: PinCardProps) {
-  return (
-    <motion.article
-      className={cardClass}
-      initial={{ opacity: 0, y: 18 }}
-      transition={animation(index)}
-      viewport={{ amount: 0.12, once: true }}
-      whileInView={{ opacity: 1, y: 0 }}
-    >
-      <div
-        className={cn(
-          "relative cursor-zoom-in overflow-hidden",
-          pin.height,
-          pin.gradient,
-        )}
-        onClick={() => onOpen(pin.id)}
-        onKeyDown={(event) => onKeyboardOpen(event, () => onOpen(pin.id))}
-        role="button"
-        tabIndex={0}
-      >
-        <ScenicImage
-          alt={pin.title}
-          className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
-          id={pin.imageId}
-          sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, (max-width: 1536px) 31vw, 23vw"
-        />
-        <div className={overlayClass} />
-        <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 opacity-0 transition duration-200 group-hover:opacity-100">
-          <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
-            {pin.collection}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              aria-label="Open image"
-              className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen(pin.id);
-              }}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <Maximize2 className="size-4" />
-            </Button>
-            <Button
-              aria-label={isSaved ? "Remove save" : "Save"}
-              className={cn(
-                "rounded-full shadow-sm backdrop-blur-xl",
-                isSaved
-                  ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
-                  : "bg-white/86 text-[#222] hover:bg-white",
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleSaved(pin.id);
-              }}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <Heart className={cn("size-4", isSaved ? "fill-current" : "")} />
-            </Button>
-          </div>
-        </div>
-        <div className="absolute inset-x-4 bottom-4 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
-            {pin.city}
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-normal">
-            {pin.title}
-          </h2>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 p-4">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[#202020]">
-            {pin.author}
-          </p>
-          <p className="mt-0.5 text-xs font-medium text-[#777]">
-            {pin.saves} saves
-          </p>
-        </div>
-        <Button
-          aria-label={isSaved ? "Saved" : "Save pin"}
-          className={cn("rounded-full", activeClass("heart", isSaved))}
-          onClick={() => onToggleSaved(pin.id)}
-          size="icon-sm"
-          type="button"
-          variant="outline"
-        >
-          <Bookmark className={cn("size-4", isSaved ? "fill-current" : "")} />
-        </Button>
       </div>
     </motion.article>
   );

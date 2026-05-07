@@ -25,8 +25,9 @@ type PostActionInput struct {
 type CommentPostInput = NewCommentInput
 
 type ListPostsInput struct {
-	Page  int
-	Limit int
+	Page         int
+	Limit        int
+	ViewerUserID uint64
 }
 
 type ListCommentsInput struct {
@@ -36,7 +37,8 @@ type ListCommentsInput struct {
 }
 
 type GetPostDetailInput struct {
-	PostID uint64
+	PostID       uint64
+	ViewerUserID uint64
 }
 
 type GetPostsByLocationInput struct {
@@ -61,21 +63,34 @@ func (s *Service) CreatePost(ctx context.Context, input CreatePostInput) (PostVi
 }
 
 func (s *Service) LikePost(ctx context.Context, input PostActionInput) error {
-	if s.posts == nil {
-		return ErrDependencyUnavailable
-	}
-	if input.PostID == 0 {
-		return ErrPostIDRequired
-	}
-	if input.UserID == 0 {
-		return ErrUserIDRequired
-	}
+	return s.handlePostAction(ctx, input, func(ctx context.Context, postID uint64, userID uint64) error {
+		return s.posts.Like(ctx, postID, userID)
+	})
+}
 
-	return s.posts.Like(ctx, input.PostID, input.UserID)
+func (s *Service) UnlikePost(ctx context.Context, input PostActionInput) error {
+	return s.handlePostAction(ctx, input, func(ctx context.Context, postID uint64, userID uint64) error {
+		return s.posts.Unlike(ctx, postID, userID)
+	})
 }
 
 func (s *Service) SavePost(ctx context.Context, input PostActionInput) error {
+	return s.handlePostAction(ctx, input, func(ctx context.Context, postID uint64, userID uint64) error {
+		return s.posts.Save(ctx, postID, userID)
+	})
+}
+
+func (s *Service) UnsavePost(ctx context.Context, input PostActionInput) error {
+	return s.handlePostAction(ctx, input, func(ctx context.Context, postID uint64, userID uint64) error {
+		return s.posts.Unsave(ctx, postID, userID)
+	})
+}
+
+func (s *Service) handlePostAction(ctx context.Context, input PostActionInput, action func(context.Context, uint64, uint64) error) error {
 	if s.posts == nil {
+		return ErrDependencyUnavailable
+	}
+	if action == nil {
 		return ErrDependencyUnavailable
 	}
 	if input.PostID == 0 {
@@ -85,7 +100,7 @@ func (s *Service) SavePost(ctx context.Context, input PostActionInput) error {
 		return ErrUserIDRequired
 	}
 
-	return s.posts.Save(ctx, input.PostID, input.UserID)
+	return action(ctx, input.PostID, input.UserID)
 }
 
 func (s *Service) CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error) {
@@ -119,7 +134,7 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 		return nil, ErrLimitTooLarge
 	}
 
-	items, err := s.posts.GetPosts(ctx, input.Page, input.Limit)
+	items, err := s.posts.GetPosts(ctx, input.Page, input.Limit, input.ViewerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +155,7 @@ func (s *Service) GetPostDetail(ctx context.Context, input GetPostDetailInput) (
 		return nil, ErrPostIDRequired
 	}
 
-	item, err := s.posts.GetPostDetail(ctx, input.PostID)
+	item, err := s.posts.GetPostDetail(ctx, input.PostID, input.ViewerUserID)
 	if err != nil {
 		return nil, err
 	}

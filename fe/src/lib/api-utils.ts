@@ -51,3 +51,8 @@ export async function apiPost<T>(
   const response = await http.post<ApiEnvelope<T> | T>(url, data, config);
   return unwrapApiData(response.data);
 }
+
+export async function apiDelete<T>(url: string, config?: AxiosRequestConfig) {
+  const response = await http.delete<ApiEnvelope<T> | T>(url, config);
+  return unwrapApiData(response.data);
+}

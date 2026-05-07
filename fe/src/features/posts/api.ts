@@ -1,10 +1,17 @@
 import { initializeAuthHeader } from "@/features/auth/api";
-import { apiGet, apiPost, endpointPath, envEndpoint } from "@/lib/api-utils";
+import {
+  apiDelete,
+  apiGet,
+  apiPost,
+  endpointPath,
+  envEndpoint,
+} from "@/lib/api-utils";
 import type {
   CreatePostPayload,
   Post,
   PostComment,
   PostCommentCreatedEvent,
+  PostCreatedEvent,
   UploadedImage,
 } from "./types";
 
@@ -42,6 +49,8 @@ export async function getPostsApi(params?: {
   page?: number;
   limit?: number;
 }): Promise<Post[]> {
+  initializeAuthHeader();
+
   return apiGet<Post[]>(POSTS_ENDPOINT, {
     params: {
       page: params?.page ?? 1,
@@ -51,7 +60,13 @@ export async function getPostsApi(params?: {
 }
 
 export async function getPostDetailApi(postId: number): Promise<Post> {
+  initializeAuthHeader();
+
   return apiGet<Post>(endpointPath(POSTS_ENDPOINT, postId));
+}
+
+export function getPostEventsUrl() {
+  return buildEventSourceUrl(endpointPath(POSTS_ENDPOINT, "events"));
 }
 
 export async function uploadImageApi(file: File): Promise<UploadedImage> {
@@ -77,10 +92,22 @@ export async function likePostApi(postId: number): Promise<void> {
   await apiPost(endpointPath(POSTS_ENDPOINT, postId, "like"));
 }
 
+export async function unlikePostApi(postId: number): Promise<void> {
+  initializeAuthHeader();
+
+  await apiDelete(endpointPath(POSTS_ENDPOINT, postId, "like"));
+}
+
 export async function savePostApi(postId: number): Promise<void> {
   initializeAuthHeader();
 
   await apiPost(endpointPath(POSTS_ENDPOINT, postId, "save"));
+}
+
+export async function unsavePostApi(postId: number): Promise<void> {
+  initializeAuthHeader();
+
+  await apiDelete(endpointPath(POSTS_ENDPOINT, postId, "save"));
 }
 
 export async function getPostCommentsApi(postId: number): Promise<PostComment[]> {
@@ -110,6 +137,7 @@ export function parsePostCommentCreatedEvent(
       typeof payload.id !== "number" ||
       typeof payload.post_id !== "number" ||
       typeof payload.user_id !== "number" ||
+      typeof payload.user_name !== "string" ||
       typeof payload.content !== "string" ||
       typeof payload.created_at !== "string"
     ) {
@@ -117,6 +145,35 @@ export function parsePostCommentCreatedEvent(
     }
 
     return payload as PostCommentCreatedEvent;
+  } catch {
+    return null;
+  }
+}
+
+export function parsePostCreatedEvent(
+  event: MessageEvent<string>,
+): PostCreatedEvent | null {
+  try {
+    const payload = JSON.parse(event.data) as Partial<PostCreatedEvent>;
+    if (
+      typeof payload.id !== "number" ||
+      typeof payload.user_id !== "number" ||
+      typeof payload.user_name !== "string" ||
+      typeof payload.image_url !== "string" ||
+      typeof payload.caption !== "string" ||
+      typeof payload.location_name !== "string" ||
+      typeof payload.latitude !== "number" ||
+      typeof payload.longitude !== "number" ||
+      typeof payload.created_at !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      ...payload,
+      is_liked: Boolean(payload.is_liked),
+      is_saved: Boolean(payload.is_saved),
+    } as PostCreatedEvent;
   } catch {
     return null;
   }

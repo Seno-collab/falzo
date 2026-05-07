@@ -20,7 +20,9 @@ import (
 type handlerService interface {
 	CreatePost(ctx context.Context, input CreatePostInput) (PostView, error)
 	LikePost(ctx context.Context, input PostActionInput) error
+	UnlikePost(ctx context.Context, input PostActionInput) error
 	SavePost(ctx context.Context, input PostActionInput) error
+	UnsavePost(ctx context.Context, input PostActionInput) error
 	CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error)
 	GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error)
 	GetPostDetail(ctx context.Context, input GetPostDetailInput) (*PostView, error)
@@ -35,6 +37,8 @@ type Handler struct {
 	}
 	commentEvents    CommentEventSubscriber
 	commentPublisher CommentEventPublisher
+	postEvents       PostEventSubscriber
+	postPublisher    PostEventPublisher
 }
 
 type HandlerOption func(*Handler)
@@ -43,6 +47,13 @@ func WithCommentEvents(subscriber CommentEventSubscriber, publisher CommentEvent
 	return func(h *Handler) {
 		h.commentEvents = subscriber
 		h.commentPublisher = publisher
+	}
+}
+
+func WithPostEvents(subscriber PostEventSubscriber, publisher PostEventPublisher) HandlerOption {
+	return func(h *Handler) {
+		h.postEvents = subscriber
+		h.postPublisher = publisher
 	}
 }
 
@@ -66,6 +77,7 @@ func NewHandler(
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.GetPosts)
+	r.Get("/events", h.StreamPosts)
 	r.Get("/location", h.GetPostsByLocation)
 	r.Get("/{id}/comments/events", h.StreamComments)
 	r.Get("/{id}/comments", h.GetComments)
@@ -74,7 +86,9 @@ func (h *Handler) Routes() chi.Router {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Post("/", h.CreatePost)
 		protected.Post("/{id}/like", h.LikePost)
+		protected.Delete("/{id}/like", h.UnlikePost)
 		protected.Post("/{id}/save", h.SavePost)
+		protected.Delete("/{id}/save", h.UnsavePost)
 		protected.Post("/{id}/comments", h.CommentPost)
 	})
 	return r
@@ -118,6 +132,12 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.postPublisher != nil {
+		if err := h.postPublisher.PublishPostCreated(r.Context(), post); err != nil {
+			log.Warn().Err(err).Uint64("post_id", post.ID).Msg("post event publish failed")
+		}
+	}
+
 	httpResponse.Success(w, http.StatusCreated, "Post created successfully", post, r)
 }
 
@@ -128,7 +148,10 @@ func (h *Handler) GetPostDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.service.GetPostDetail(r.Context(), GetPostDetailInput{PostID: postID})
+	post, err := h.service.GetPostDetail(r.Context(), GetPostDetailInput{
+		PostID:       postID,
+		ViewerUserID: h.viewerUserID(r),
+	})
 	if err != nil {
 		share.WriteError(w, r, err, "get_post_detail", mapPostError)
 		return
@@ -221,13 +244,65 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := h.service.GetPosts(r.Context(), ListPostsInput{Page: page, Limit: limit})
+	posts, err := h.service.GetPosts(r.Context(), ListPostsInput{
+		Page:         page,
+		Limit:        limit,
+		ViewerUserID: h.viewerUserID(r),
+	})
 	if err != nil {
 		share.WriteError(w, r, err, "get_posts", mapPostError)
 		return
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Posts fetched successfully", posts, r)
+}
+
+func (h *Handler) StreamPosts(w http.ResponseWriter, r *http.Request) {
+	if h.postEvents == nil {
+		share.WriteError(w, r, ErrDependencyUnavailable, "stream_posts", mapPostError)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	posts, unsubscribe := h.postEvents.SubscribePosts(r.Context())
+	defer unsubscribe()
+
+	if _, err := w.Write([]byte(": connected\n\n")); err != nil {
+		return
+	}
+	flusher.Flush()
+
+	heartbeat := time.NewTicker(25 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case post, ok := <-posts:
+			if !ok {
+				return
+			}
+			if err := writeSSE(w, flusher, "post.created", post); err != nil {
+				return
+			}
+		case <-heartbeat.C:
+			if _, err := w.Write([]byte(": keep-alive\n\n")); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
 }
 
 func (h *Handler) parsePageLimit(w http.ResponseWriter, r *http.Request, operation string) (int, int, bool) {
@@ -273,8 +348,16 @@ func (h *Handler) LikePost(w http.ResponseWriter, r *http.Request) {
 	h.handlePostAction(w, r, "like_post", "Post liked successfully", "post liked", h.service.LikePost)
 }
 
+func (h *Handler) UnlikePost(w http.ResponseWriter, r *http.Request) {
+	h.handlePostAction(w, r, "unlike_post", "Post unliked successfully", "post unliked", h.service.UnlikePost)
+}
+
 func (h *Handler) SavePost(w http.ResponseWriter, r *http.Request) {
 	h.handlePostAction(w, r, "save_post", "Post saved successfully", "post saved", h.service.SavePost)
+}
+
+func (h *Handler) UnsavePost(w http.ResponseWriter, r *http.Request) {
+	h.handlePostAction(w, r, "unsave_post", "Post unsaved successfully", "post unsaved", h.service.UnsavePost)
 }
 
 func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
@@ -364,4 +447,27 @@ func (h *Handler) handlePostAction(
 	}
 
 	httpResponse.Success(w, http.StatusOK, successMessage, map[string]string{"message": payloadMessage}, r)
+}
+
+func (h *Handler) viewerUserID(r *http.Request) uint64 {
+	if h.authService == nil {
+		return 0
+	}
+
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if authHeader == "" {
+		return 0
+	}
+
+	token, ok := strings.CutPrefix(authHeader, "Bearer ")
+	if !ok || strings.TrimSpace(token) == "" {
+		return 0
+	}
+
+	principal, err := h.authService.Authenticate(r.Context(), strings.TrimSpace(token))
+	if err != nil || principal == nil {
+		return 0
+	}
+
+	return principal.UserID
 }

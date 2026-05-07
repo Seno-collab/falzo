@@ -33,7 +33,7 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 	err := r.db.Pool().QueryRow(ctx, `
 		INSERT INTO posts (user_id, image_url, caption, location_name, latitude, longitude)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at, updated_at
+		RETURNING id, (SELECT user_name FROM users WHERE id = $1), created_at, updated_at
 	`,
 		item.UserID,
 		item.ImageURL.String(),
@@ -41,7 +41,7 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 		item.LocationName.String(),
 		item.Latitude,
 		item.Longitude,
-	).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt)
+	).Scan(&item.ID, &item.UserName, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		return share.MapDBError(ctx, postRepoService, "posts.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -68,6 +68,24 @@ func (r *PostgresRepository) Like(ctx context.Context, postID uint64, userID uin
 	return nil
 }
 
+func (r *PostgresRepository) Unlike(ctx context.Context, postID uint64, userID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensurePostExists(ctx, postID); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		DELETE FROM post_likes
+		WHERE post_id = $1 AND user_id = $2
+	`, postID, userID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.unlike", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) Save(ctx context.Context, postID uint64, userID uint64) error {
 	if r.db == nil || r.db.Pool() == nil {
 		return post.ErrDependencyUnavailable
@@ -87,6 +105,24 @@ func (r *PostgresRepository) Save(ctx context.Context, postID uint64, userID uin
 	return nil
 }
 
+func (r *PostgresRepository) Unsave(ctx context.Context, postID uint64, userID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensurePostExists(ctx, postID); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		DELETE FROM post_saves
+		WHERE post_id = $1 AND user_id = $2
+	`, postID, userID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.unsave", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment) error {
 	if r.db == nil || r.db.Pool() == nil {
 		return post.ErrDependencyUnavailable
@@ -101,8 +137,8 @@ func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment)
 	err := r.db.Pool().QueryRow(ctx, `
 		INSERT INTO post_comments (post_id, user_id, content)
 		VALUES ($1, $2, $3)
-		RETURNING id, created_at
-	`, comment.PostID, comment.UserID, comment.Content.String()).Scan(&comment.ID, &comment.CreatedAt)
+		RETURNING id, (SELECT user_name FROM users WHERE id = $2), created_at
+	`, comment.PostID, comment.UserID, comment.Content.String()).Scan(&comment.ID, &comment.UserName, &comment.CreatedAt)
 	if err != nil {
 		return share.MapDBError(ctx, postRepoService, "posts.comment", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -110,20 +146,31 @@ func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment)
 	return nil
 }
 
-func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int) ([]post.Post, error) {
+func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]post.Post, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, post.ErrDependencyUnavailable
 	}
 
 	offset := (page - 1) * limit
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT id, user_id, image_url, caption, location_name,
-				COALESCE(latitude, 0), COALESCE(longitude, 0),
-				created_at, updated_at
+		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
+				EXISTS (
+					SELECT 1
+					FROM post_likes
+					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $3
+				),
+				EXISTS (
+					SELECT 1
+					FROM post_saves
+					WHERE post_saves.post_id = posts.id AND post_saves.user_id = $3
+				),
+				posts.created_at, posts.updated_at
 		FROM posts
-		ORDER BY created_at DESC, id DESC
+		INNER JOIN users ON users.id = posts.user_id
+		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT $1 OFFSET $2
-	`, limit, offset)
+	`, limit, offset, viewerUserID)
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -154,10 +201,11 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 
 	offset := (page - 1) * limit
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT id, post_id, user_id, content, created_at
+		SELECT post_comments.id, post_comments.post_id, post_comments.user_id, users.user_name, post_comments.content, post_comments.created_at
 		FROM post_comments
-		WHERE post_id = $1
-		ORDER BY created_at ASC, id ASC
+		INNER JOIN users ON users.id = post_comments.user_id
+		WHERE post_comments.post_id = $1
+		ORDER BY post_comments.created_at ASC, post_comments.id ASC
 		LIMIT $2 OFFSET $3
 	`, postID, limit, offset)
 	if err != nil {
@@ -171,7 +219,7 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 			item       post.Comment
 			rawContent string
 		)
-		if err := rows.Scan(&item.ID, &item.PostID, &item.UserID, &rawContent, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.PostID, &item.UserID, &item.UserName, &rawContent, &item.CreatedAt); err != nil {
 			return nil, share.MapDBError(ctx, postRepoService, "posts.get_comments.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
 		}
 		content, err := post.NewContent(rawContent)
@@ -188,19 +236,30 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 	return comments, nil
 }
 
-func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64) (*post.Post, error) {
+func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*post.Post, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, post.ErrDependencyUnavailable
 	}
 
 	item, err := scanPost(r.db.Pool().QueryRow(ctx, `
-		SELECT id, user_id, image_url, caption, location_name,
-				COALESCE(latitude, 0), COALESCE(longitude, 0),
-				created_at, updated_at
+		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
+				EXISTS (
+					SELECT 1
+					FROM post_likes
+					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $2
+				),
+				EXISTS (
+					SELECT 1
+					FROM post_saves
+					WHERE post_saves.post_id = posts.id AND post_saves.user_id = $2
+				),
+				posts.created_at, posts.updated_at
 		FROM posts
-		WHERE id = $1
+		INNER JOIN users ON users.id = posts.user_id
+		WHERE posts.id = $1
 		LIMIT 1
-	`, postID))
+	`, postID, viewerUserID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, post.ErrNotFound
@@ -218,12 +277,15 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 
 	pattern := "%" + strings.TrimSpace(locationName.String()) + "%"
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT id, user_id, image_url, caption, location_name,
-				COALESCE(latitude, 0), COALESCE(longitude, 0),
-				created_at, updated_at
+		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
+				false,
+				false,
+				posts.created_at, posts.updated_at
 		FROM posts
-		WHERE location_name ILIKE $1
-		ORDER BY created_at DESC, id DESC
+		INNER JOIN users ON users.id = posts.user_id
+		WHERE posts.location_name ILIKE $1
+		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT 100
 	`, pattern)
 	if err != nil {
@@ -280,11 +342,14 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 	err := scanner.Scan(
 		&item.ID,
 		&item.UserID,
+		&item.UserName,
 		&rawImageURL,
 		&rawCaption,
 		&rawLocationName,
 		&item.Latitude,
 		&item.Longitude,
+		&item.IsLiked,
+		&item.IsSaved,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)

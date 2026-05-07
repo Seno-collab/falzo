@@ -24,7 +24,9 @@ const (
 	engagementRetryHash     = "post:engagement_event_retries"
 	engagementConsumerGroup = "post-engagement-db-writers"
 	engagementActionLike    = "like"
+	engagementActionUnlike  = "unlike"
 	engagementActionSave    = "save"
+	engagementActionUnsave  = "unsave"
 )
 
 var defaultEngagementConfig = config.EngagementConfig{
@@ -53,20 +55,28 @@ func (r *EngagementStreamRepository) Like(ctx context.Context, postID uint64, us
 	return r.publishEngagement(ctx, engagementActionLike, postID, userID)
 }
 
+func (r *EngagementStreamRepository) Unlike(ctx context.Context, postID uint64, userID uint64) error {
+	return r.publishEngagement(ctx, engagementActionUnlike, postID, userID)
+}
+
 func (r *EngagementStreamRepository) Save(ctx context.Context, postID uint64, userID uint64) error {
 	return r.publishEngagement(ctx, engagementActionSave, postID, userID)
+}
+
+func (r *EngagementStreamRepository) Unsave(ctx context.Context, postID uint64, userID uint64) error {
+	return r.publishEngagement(ctx, engagementActionUnsave, postID, userID)
 }
 
 func (r *EngagementStreamRepository) Comment(ctx context.Context, comment *post.Comment) error {
 	return r.next.Comment(ctx, comment)
 }
 
-func (r *EngagementStreamRepository) GetPosts(ctx context.Context, page int, limit int) ([]post.Post, error) {
-	return r.next.GetPosts(ctx, page, limit)
+func (r *EngagementStreamRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]post.Post, error) {
+	return r.next.GetPosts(ctx, page, limit, viewerUserID)
 }
 
-func (r *EngagementStreamRepository) GetPostDetail(ctx context.Context, postID uint64) (*post.Post, error) {
-	return r.next.GetPostDetail(ctx, postID)
+func (r *EngagementStreamRepository) GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*post.Post, error) {
+	return r.next.GetPostDetail(ctx, postID, viewerUserID)
 }
 
 func (r *EngagementStreamRepository) GetPostsByLocation(ctx context.Context, locationName post.LocationName) ([]post.Post, error) {
@@ -82,8 +92,12 @@ func (r *EngagementStreamRepository) publishEngagement(ctx context.Context, acti
 	switch action {
 	case engagementActionLike:
 		pipe.SAdd(ctx, postLikesKey(postID), strconv.FormatUint(userID, 10))
+	case engagementActionUnlike:
+		pipe.SRem(ctx, postLikesKey(postID), strconv.FormatUint(userID, 10))
 	case engagementActionSave:
 		pipe.SAdd(ctx, postSavesKey(postID), strconv.FormatUint(userID, 10))
+	case engagementActionUnsave:
+		pipe.SRem(ctx, postSavesKey(postID), strconv.FormatUint(userID, 10))
 	}
 	pipe.XAdd(ctx, &goredis.XAddArgs{
 		Stream: engagementStream,
@@ -232,8 +246,12 @@ func (w engagementStreamWorker) processMessage(ctx context.Context, message gore
 	switch action {
 	case engagementActionLike:
 		return w.sink.Like(ctx, postID, userID)
+	case engagementActionUnlike:
+		return w.sink.Unlike(ctx, postID, userID)
 	case engagementActionSave:
 		return w.sink.Save(ctx, postID, userID)
+	case engagementActionUnsave:
+		return w.sink.Unsave(ctx, postID, userID)
 	default:
 		return fmt.Errorf("unknown post engagement action %q", action)
 	}

@@ -1,7 +1,6 @@
 "use client";
 
 import { Bookmark, Heart, MessageCircle, Send } from "lucide-react";
-import { ScenicImage } from "@/components/scenic-image";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,15 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import type { Post, PostComment } from "@/features/posts/types";
 import { cn } from "@/lib/utils";
-
-type PinDetailData = {
-  id: string;
-  imageId: string;
-  title: string;
-  author: string;
-  city: string;
-  gradient: string;
-};
 
 type PostDetailDialogProps = {
   open: boolean;
@@ -39,14 +29,6 @@ type PostDetailDialogProps = {
   onLoadComments: () => void;
   onCommentChange: (value: string) => void;
   onSubmitComment: () => void;
-};
-
-type PinDetailDialogProps = {
-  open: boolean;
-  pin: PinDetailData | null;
-  isSaved: boolean;
-  onClose: () => void;
-  onToggleSaved: () => void;
 };
 
 function selectedClass(type: "heart" | "save", active: boolean) {
@@ -70,16 +52,18 @@ function DetailComments({
   isChatOpen: boolean;
   isLoading: boolean;
 }>) {
-  if (!isChatOpen) {
+  if (isLoading) {
     return (
-      <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
-        Chat is closed.
-      </div>
+      <p className="text-sm font-semibold text-[#555]">Loading comments</p>
     );
   }
 
-  if (isLoading) {
-    return <p className="text-sm font-semibold text-[#555]">Loading comments</p>;
+  if (!isChatOpen) {
+    return (
+      <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+        Open comments.
+      </div>
+    );
   }
 
   if (comments.length === 0) {
@@ -97,7 +81,7 @@ function DetailComments({
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold text-[#777]">
-          User #{comment.user_id}
+          {comment.user_name || `User #${comment.user_id}`}
         </p>
         <p className="text-xs font-medium text-[#999]">
           {new Date(comment.created_at).toLocaleDateString()}
@@ -126,6 +110,8 @@ export function PostDetailDialog({
   onCommentChange,
   onSubmitComment,
 }: Readonly<PostDetailDialogProps>) {
+  const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
+
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
       <DialogContent className="max-h-[92vh] w-[min(96vw,76rem)] overflow-hidden border-white/16 bg-[#101010] p-0 text-white">
@@ -151,15 +137,17 @@ export function PostDetailDialog({
                   {post?.caption || "Community post"}
                 </DialogTitle>
                 <DialogDescription className="text-sm text-[#777]">
-                  {post?.location_name || "Uploaded"} - User #
-                  {post?.user_id ?? ""}
+                  {post?.location_name || "Uploaded"} - {authorName}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="mt-4 flex items-center gap-2">
                 <Button
                   aria-label={isLiked ? "Liked post" : "Like post"}
-                  className={cn("rounded-full", selectedClass("heart", isLiked))}
+                  className={cn(
+                    "rounded-full",
+                    selectedClass("heart", isLiked),
+                  )}
                   disabled={!post}
                   onClick={onLike}
                   size="icon-sm"
@@ -241,81 +229,6 @@ export function PostDetailDialog({
                   <Send className="size-4" />
                 </Button>
               </div>
-            </div>
-          </aside>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function PinDetailDialog({
-  open,
-  pin,
-  isSaved,
-  onClose,
-  onToggleSaved,
-}: Readonly<PinDetailDialogProps>) {
-  return (
-    <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
-      <DialogContent className="max-h-[92vh] w-[min(96vw,72rem)] overflow-hidden border-white/16 bg-[#101010] p-0 text-white">
-        <div className="grid max-h-[92vh] overflow-hidden lg:grid-cols-[minmax(0,1.2fr)_340px]">
-          <div
-            className={cn(
-              "min-h-[56vh] bg-black lg:min-h-[82vh]",
-              pin?.gradient,
-            )}
-          >
-            {pin ? (
-              <ScenicImage
-                alt={pin.title}
-                className="h-full max-h-[82vh] w-full object-contain"
-                id={pin.imageId}
-                sizes="96vw"
-              />
-            ) : null}
-          </div>
-          <aside className="flex flex-col bg-[#f7f7f5] p-5 text-[#1f1f1f]">
-            <DialogHeader>
-              <DialogTitle className="text-xl leading-7 text-[#111]">
-                {pin?.title || "Image"}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-[#777]">
-                {pin?.city || "Explore"} - {pin?.author || ""}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="mt-4 flex items-center gap-2">
-              <Button
-                aria-label={isSaved ? "Saved image" : "Save image"}
-                className={cn("rounded-full", selectedClass("heart", isSaved))}
-                disabled={!pin}
-                onClick={onToggleSaved}
-                size="icon-sm"
-                type="button"
-                variant="outline"
-              >
-                <Bookmark
-                  className={cn("size-4", isSaved ? "fill-current" : "")}
-                />
-              </Button>
-              <Button
-                aria-label="Save favorite"
-                className={cn("rounded-full", selectedClass("heart", isSaved))}
-                disabled={!pin}
-                onClick={onToggleSaved}
-                size="icon-sm"
-                type="button"
-                variant="outline"
-              >
-                <Heart
-                  className={cn("size-4", isSaved ? "fill-current" : "")}
-                />
-              </Button>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
-              Comments are available on community posts from the backend feed.
             </div>
           </aside>
         </div>

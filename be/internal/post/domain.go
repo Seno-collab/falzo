@@ -30,11 +30,13 @@ var (
 
 type Repository interface {
 	Create(ctx context.Context, post *Post) error
-	Like(ctx context.Context, postID uint64, userID uint64) error
-	Save(ctx context.Context, postID uint64, userID uint64) error
 	Comment(ctx context.Context, comment *Comment) error
-	GetPosts(ctx context.Context, page int, limit int) ([]Post, error)
-	GetPostDetail(ctx context.Context, postID uint64) (*Post, error)
+	Like(ctx context.Context, postID uint64, userID uint64) error
+	Unlike(ctx context.Context, postID uint64, userID uint64) error
+	Save(ctx context.Context, postID uint64, userID uint64) error
+	Unsave(ctx context.Context, postID uint64, userID uint64) error
+	GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]Post, error)
+	GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*Post, error)
 	GetPostsByLocation(ctx context.Context, locationName LocationName) ([]Post, error)
 	GetComments(ctx context.Context, postID uint64, page int, limit int) ([]Comment, error)
 }
@@ -42,6 +44,7 @@ type Repository interface {
 type Post struct {
 	ID           uint64       `json:"id"`
 	UserID       uint64       `json:"user_id"`
+	UserName     string       `json:"user_name"`
 	ImageURL     ImageURL     `json:"-"`
 	Caption      Caption      `json:"-"`
 	LocationName LocationName `json:"-"`
@@ -49,29 +52,37 @@ type Post struct {
 	Longitude    float64      `json:"longitude"`
 	CreatedAt    time.Time    `json:"created_at"`
 	UpdatedAt    time.Time    `json:"-"`
+	IsLiked      bool         `json:"is_liked"`
+	IsSaved      bool         `json:"is_saved"`
 }
 
 type PostView struct {
 	ID           uint64    `json:"id"`
 	UserID       uint64    `json:"user_id"`
+	UserName     string    `json:"user_name"`
 	ImageURL     string    `json:"image_url"`
 	Caption      string    `json:"caption"`
 	LocationName string    `json:"location_name"`
 	Latitude     float64   `json:"latitude"`
 	Longitude    float64   `json:"longitude"`
 	CreatedAt    time.Time `json:"created_at"`
+	IsLiked      bool      `json:"is_liked"`
+	IsSaved      bool      `json:"is_saved"`
 }
 
 func (p Post) View() PostView {
 	return PostView{
 		ID:           p.ID,
 		UserID:       p.UserID,
+		UserName:     p.UserName,
 		ImageURL:     p.ImageURL.String(),
 		Caption:      p.Caption.String(),
 		LocationName: p.LocationName.String(),
 		Latitude:     p.Latitude,
 		Longitude:    p.Longitude,
 		CreatedAt:    p.CreatedAt,
+		IsLiked:      p.IsLiked,
+		IsSaved:      p.IsSaved,
 	}
 }
 
@@ -88,6 +99,7 @@ type Comment struct {
 	ID        uint64    `json:"id"`
 	PostID    uint64    `json:"post_id"`
 	UserID    uint64    `json:"user_id"`
+	UserName  string    `json:"user_name"`
 	Content   Content   `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -96,6 +108,7 @@ type CommentView struct {
 	ID        uint64    `json:"id"`
 	PostID    uint64    `json:"post_id"`
 	UserID    uint64    `json:"user_id"`
+	UserName  string    `json:"user_name"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -105,6 +118,7 @@ func (c Comment) View() CommentView {
 		ID:        c.ID,
 		PostID:    c.PostID,
 		UserID:    c.UserID,
+		UserName:  c.UserName,
 		Content:   c.Content.String(),
 		CreatedAt: c.CreatedAt,
 	}

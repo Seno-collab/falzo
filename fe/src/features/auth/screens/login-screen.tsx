@@ -55,7 +55,7 @@ export function LoginScreen() {
     document.title = copy.documentTitle;
 
     if (hasAuthSession()) {
-      router.replace(ROUTES.dashboard);
+      router.replace(ROUTES.explore);
     }
   }, [copy.documentTitle, router]);
 
@@ -63,7 +63,7 @@ export function LoginScreen() {
     try {
       await loginApi(values);
       toast.success(copy.successTitle);
-      router.replace(ROUTES.dashboard);
+      router.replace(ROUTES.explore);
     } catch (error) {
       toast.error(copy.errorTitle, {
         description: getApiErrorMessage(error),

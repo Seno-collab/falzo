@@ -7,13 +7,9 @@ export function showsCommunityFeed(collection: string) {
   return collection === ALL_COLLECTION || collection === COMMUNITY_COLLECTION;
 }
 
-export function getExploreCollections(
-  categories: Category[] | undefined,
-  pins: readonly { collection: string }[],
-) {
+export function getExploreCollections(categories: Category[] | undefined) {
   const names = [
     ...(categories ?? []).map((category) => category.name),
-    ...pins.map((pin) => pin.collection),
   ]
     .map((name) => name.trim())
     .filter(

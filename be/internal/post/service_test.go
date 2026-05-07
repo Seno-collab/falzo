@@ -14,20 +14,24 @@ func (f *fakePostRepository) Create(context.Context, *Post) error { return nil }
 
 func (f *fakePostRepository) Like(context.Context, uint64, uint64) error { return nil }
 
+func (f *fakePostRepository) Unlike(context.Context, uint64, uint64) error { return nil }
+
 func (f *fakePostRepository) Save(context.Context, uint64, uint64) error { return nil }
+
+func (f *fakePostRepository) Unsave(context.Context, uint64, uint64) error { return nil }
 
 func (f *fakePostRepository) Comment(_ context.Context, comment *Comment) error {
 	comment.ID = 10
 	return nil
 }
 
-func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int) ([]Post, error) {
+func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64) ([]Post, error) {
 	f.page = page
 	f.limit = limit
 	return nil, nil
 }
 
-func (f *fakePostRepository) GetPostDetail(context.Context, uint64) (*Post, error) {
+func (f *fakePostRepository) GetPostDetail(context.Context, uint64, uint64) (*Post, error) {
 	return nil, nil
 }
 

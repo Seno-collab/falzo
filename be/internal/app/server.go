@@ -68,24 +68,32 @@ func Run() {
 	postgresPostRepository := postInfra.NewPostgresRepository(db)
 	var postRepository post.Repository = postgresPostRepository
 	commentEventBroker := post.NewCommentEventBroker()
+	postEventBroker := post.NewPostEventBroker()
 	var commentEventPublisher post.CommentEventPublisher = commentEventBroker
+	var postEventPublisher post.PostEventPublisher = postEventBroker
 	var stopEngagementWorker context.CancelFunc
 	var stopCommentEventSubscriber context.CancelFunc
+	var stopPostEventSubscriber context.CancelFunc
 	if redisClient != nil {
 		postRepository = postInfra.NewEngagementStreamRepository(postRepository, redisClient)
 		engagementWorkerCtx, cancelEngagementWorker := context.WithCancel(context.Background())
 		stopEngagementWorker = cancelEngagementWorker
 		go postInfra.RunEngagementStreamWorker(engagementWorkerCtx, postgresPostRepository, redisClient, cfg.Engagement)
 		commentEventPublisher = postInfra.NewRedisCommentEventPublisher(redisClient, commentEventBroker)
+		postEventPublisher = postInfra.NewRedisPostEventPublisher(redisClient, postEventBroker)
 		commentEventCtx, cancelCommentEventSubscriber := context.WithCancel(context.Background())
 		stopCommentEventSubscriber = cancelCommentEventSubscriber
 		go postInfra.RunRedisCommentEventSubscriber(commentEventCtx, commentEventBroker, redisClient)
+		postEventCtx, cancelPostEventSubscriber := context.WithCancel(context.Background())
+		stopPostEventSubscriber = cancelPostEventSubscriber
+		go postInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
 	}
 	postService := post.NewService(postRepository)
 	postHandler := post.NewHandler(
 		postService,
 		authService,
 		post.WithCommentEvents(commentEventBroker, commentEventPublisher),
+		post.WithPostEvents(postEventBroker, postEventPublisher),
 	)
 	imageRepository := uploadInfra.NewPostgresRepository(db)
 	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
@@ -151,6 +159,12 @@ func Run() {
 	if stopCommentEventSubscriber != nil {
 		sm.Register("post-comment-event-subscriber-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 			stopCommentEventSubscriber()
+			return nil
+		})
+	}
+	if stopPostEventSubscriber != nil {
+		sm.Register("post-event-subscriber-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+			stopPostEventSubscriber()
 			return nil
 		})
 	}
