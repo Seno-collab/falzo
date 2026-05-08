@@ -141,7 +141,7 @@ function readAuthUserId(user: AuthUser | null | undefined) {
 function normalizeSearchValue(value: string) {
   return value
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -503,7 +503,7 @@ export function ExploreScreen() {
     if (selectedPostId === postId) {
       setSelectedChatPostId(postId);
     }
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       commentInputRefs.current[postId]?.focus();
     }, 0);
   }
@@ -524,7 +524,7 @@ export function ExploreScreen() {
     if (selectedPostId === postId) {
       setSelectedChatPostId(postId);
     }
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       commentInputRefs.current[postId]?.focus();
     }, 0);
   }
@@ -758,8 +758,8 @@ export function ExploreScreen() {
         </div>
 
         {(showSavedBoard || hasSearch) &&
-        visiblePosts.length === 0 &&
-        !postsQuery.isLoading ? (
+          visiblePosts.length === 0 &&
+          !postsQuery.isLoading ? (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-black/10 bg-white/72 px-6 text-center">
             {showSavedBoard ? (
               <Bookmark className="size-8 text-[#777]" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Heart, MessageCircle, Pencil, Reply, Send, X } from "lucide-react";
+import { Bookmark, Heart, LogInIcon, MessageCircle, Pencil, Reply, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,6 +55,8 @@ function isCommentEdited(comment: PostComment) {
   return comment.updated_at !== comment.created_at;
 }
 
+
+
 function DetailComments({
   comments,
   isChatOpen,
@@ -95,16 +97,21 @@ function DetailComments({
       </div>
     );
   }
+  const getCommentClassName = (comment: PostComment) => {
+    if (editingCommentId === comment.id) {
+      return "border-[#dec078] bg-[#fff8e6]";
+    }
 
+    if (selectedReplyTargetId === comment.id) {
+      return "border-[#8ebae6] bg-[#f2f7fd]";
+    }
+    return "border-black/5 bg-white";
+  };
   return comments.map((comment) => (
     <div
       className={cn(
         "rounded-2xl border px-4 py-3 text-sm text-[#333]",
-        editingCommentId === comment.id
-          ? "border-[#dec078] bg-[#fff8e6]"
-          : selectedReplyTargetId === comment.id
-          ? "border-[#8ebae6] bg-[#f2f7fd]"
-          : "border-black/5 bg-white",
+        getCommentClassName(comment)
       )}
       key={comment.id}
     >
@@ -182,15 +189,14 @@ export function PostDetailDialog({
   onSubmitComment,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
-  const commentPlaceholder = !isChatOpen
-    ? "Open chat"
-    : !isAuthenticated
-      ? "Login to comment"
-      : editingComment
-        ? "Edit comment"
-      : replyTarget
-        ? `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`
-        : "Write a comment";
+  const getCommentState = () => {
+    if (!isChatOpen) return { placeholder: "Open chat", color: undefined };
+    if (!isAuthenticated) return { placeholder: "Login to comment", color: "orange" };
+    if (editingComment) return { placeholder: "Edit comment", color: undefined };
+    if (replyTarget) return { placeholder: `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`, color: undefined };
+    return { placeholder: "Write a comment", color: undefined };
+  };
+  const { placeholder: commentPlaceholder, color: commentButtonColor } = getCommentState();
 
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
@@ -342,7 +348,7 @@ export function PostDetailDialog({
                   type="button"
                   variant="outline"
                 >
-                  <Send className="size-4" />
+                  {isAuthenticated ? <Send className="size-4" /> : <LogInIcon className="size-4 text-muted-foreground" />}
                 </Button>
               </div>
             </div>

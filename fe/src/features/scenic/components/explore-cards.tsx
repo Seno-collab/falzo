@@ -93,7 +93,7 @@ function Comments({
   selectedReplyTargetId,
   editingCommentId,
   currentUserId,
-}: {
+}: Readonly<{
   comments: PostComment[];
   isLoading: boolean;
   onReply: (comment: PostComment) => void;
@@ -101,7 +101,7 @@ function Comments({
   selectedReplyTargetId: number | null;
   editingCommentId: number | null;
   currentUserId: number | null;
-}) {
+}>) {
   if (isLoading) {
     return <p className="text-xs font-semibold text-[#555]">Loading comments</p>;
   }
@@ -290,7 +290,7 @@ export function ExplorePostCard({
   onReplyComment,
   onSubmitComment,
   onRegisterCommentInput,
-}: PostCardProps) {
+}: Readonly<PostCardProps>) {
   const title = post.caption || "Community post";
   const location = post.location_name || "Uploaded";
   const authorName = post.user_name || `User #${post.user_id}`;
@@ -436,7 +436,7 @@ export function ExplorePostCard({
             </div>
             <CommentInput
               disabled={!isAuthenticated || isSubmittingComment}
-              editingComment={editingComment}
+              editingComment={editingComment?.id ? editingComment : null}
               isAuthenticated={isAuthenticated}
               isSubmitting={isSubmittingComment}
               onCancelEdit={() => onCancelEdit(post.id)}

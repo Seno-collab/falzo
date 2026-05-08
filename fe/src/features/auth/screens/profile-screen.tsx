@@ -44,6 +44,7 @@ import {
   readAuthUserText,
 } from "@/features/auth/user-display";
 import { ROUTES } from "@/lib/routes";
+import { useQueryClient } from "@tanstack/react-query";
 
 type PasswordFormValues = {
   currentPassword: string;
@@ -114,6 +115,7 @@ function ProfileField({
 
 export function ProfileScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [profile, setProfile] = useState<AuthUser | null>(null);
@@ -167,9 +169,6 @@ export function ProfileScreen() {
   const email = readAuthUserText(profile, ["email"]);
   const username = readAuthUserText(profile, [
     "user_name",
-    "userName",
-    "username",
-    "name",
   ]);
   const subject = readAuthUserText(profile, ["subject", "id"]);
 
@@ -197,6 +196,8 @@ export function ProfileScreen() {
 
     try {
       await logoutApi();
+      queryClient.removeQueries({ queryKey: ["me", "explore", "auth"] });
+      queryClient.clear();
       router.replace(ROUTES.login);
     } finally {
       setIsLoggingOut(false);

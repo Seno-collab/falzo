@@ -49,7 +49,7 @@ const initialForm: FormState = {
   longitude: "106.7009",
 };
 const maxImageSize = 10 * 1024 * 1024;
-const acceptedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const acceptedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg", "image/svg+xml", "image/gif"]);
 
 function parseCoordinate(value: string) {
   const normalized = Number(value);
@@ -78,7 +78,7 @@ function formatFileSize(size: number) {
 
 function getImageValidationError(file: File) {
   if (!acceptedImageTypes.has(file.type)) {
-    return "Only JPG, PNG, or WebP images are supported.";
+    return "Only JPG, PNG, WebP, SVG, or GIF images are supported.";
   }
 
   if (file.size > maxImageSize) {
@@ -176,7 +176,7 @@ export function UploadImageScreen() {
       const latitude = parseCoordinate(form.latitude);
       const longitude = parseCoordinate(form.longitude);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        throw new Error("Latitude and longitude must be valid numbers.");
+        throw new TypeError("Latitude and longitude must be valid numbers.");
       }
 
       return createPostApi({
@@ -329,7 +329,7 @@ export function UploadImageScreen() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <input
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
                         className="sr-only"
                         disabled={isBusy}
                         onChange={(event) => {
@@ -372,7 +372,7 @@ export function UploadImageScreen() {
                     Choose a JPG, PNG, or WebP image to upload.
                   </span>
                   <input
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
                     className="sr-only"
                     disabled={isBusy}
                     onChange={(event) => {
@@ -405,7 +405,7 @@ export function UploadImageScreen() {
             <div className="space-y-2">
               <Label htmlFor="image-file">Image</Label>
               <Input
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
                 disabled={isBusy}
                 id="image-file"
                 onChange={(event) => {
