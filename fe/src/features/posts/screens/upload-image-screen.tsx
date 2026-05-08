@@ -369,7 +369,7 @@ export function UploadImageScreen() {
                     <ImagePlus className="size-7" />
                   </span>
                   <span className="max-w-sm text-sm font-semibold text-[#315578]">
-                    Choose a JPG, PNG, or WebP image to upload.
+                    Choose a JPG, PNG, or WebP, SVG, or GIF image to upload.
                   </span>
                   <input
                     accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
