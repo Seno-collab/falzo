@@ -255,6 +255,7 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 		Page:         page,
 		Limit:        limit,
 		ViewerUserID: h.viewerUserID(r),
+		Search:       r.URL.Query().Get("search"),
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "get_posts", mapPostError)

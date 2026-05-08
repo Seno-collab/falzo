@@ -11,6 +11,7 @@ type fakePostRepository struct {
 	updateUserID     uint64
 	page             int
 	limit            int
+	search           string
 }
 
 func (f *fakePostRepository) Create(context.Context, *Post) error { return nil }
@@ -41,9 +42,10 @@ func (f *fakePostRepository) UpdateComment(_ context.Context, postID uint64, com
 	}, nil
 }
 
-func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64) ([]Post, error) {
+func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64, search string) ([]Post, error) {
 	f.page = page
 	f.limit = limit
+	f.search = search
 	return nil, nil
 }
 
@@ -130,12 +132,12 @@ func TestGetPostsPassesPaginationToRepository(t *testing.T) {
 	repo := &fakePostRepository{}
 	service := NewService(repo)
 
-	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 2, Limit: 24})
+	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 2, Limit: 24, Search: " Kyoto "})
 	if err != nil {
 		t.Fatalf("get posts: %v", err)
 	}
 
-	if repo.page != 2 || repo.limit != 24 {
-		t.Fatalf("expected page=2 limit=24, got page=%d limit=%d", repo.page, repo.limit)
+	if repo.page != 2 || repo.limit != 24 || repo.search != "Kyoto" {
+		t.Fatalf("expected page=2 limit=24 search=Kyoto, got page=%d limit=%d search=%q", repo.page, repo.limit, repo.search)
 	}
 }

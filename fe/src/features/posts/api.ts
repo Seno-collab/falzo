@@ -51,13 +51,16 @@ function buildEventSourceUrl(path: string) {
 export async function getPostsApi(params?: {
   page?: number;
   limit?: number;
+  search?: string;
 }): Promise<Post[]> {
   initializeAuthHeader();
 
+  const search = params?.search?.trim();
   return apiGet<Post[]>(POSTS_ENDPOINT, {
     params: {
       page: params?.page ?? 1,
       limit: params?.limit ?? 24,
+      ...(search ? { search } : {}),
     },
   });
 }

@@ -261,12 +261,13 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 	return comment, nil
 }
 
-func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]post.Post, error) {
+func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string) ([]post.Post, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, post.ErrDependencyUnavailable
 	}
 
 	offset := (page - 1) * limit
+	searchPattern := "%" + strings.TrimSpace(search) + "%"
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
@@ -283,9 +284,10 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, 
 				posts.created_at, posts.updated_at
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
+		WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4)
 		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT $1 OFFSET $2
-	`, limit, offset, viewerUserID)
+	`, limit, offset, viewerUserID, searchPattern)
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}

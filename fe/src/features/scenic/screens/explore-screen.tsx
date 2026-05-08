@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 import {
   useInfiniteQuery,
@@ -22,9 +23,18 @@ import {
 import type { InfiniteData } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   getApiErrorMessage,
   getMeApi,
@@ -128,6 +138,27 @@ function readAuthUserId(user: AuthUser | null | undefined) {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function matchesPostSearch(post: Post, searchValue: string) {
+  const terms = normalizeSearchValue(searchValue).split(/\s+/).filter(Boolean);
+  if (terms.length === 0) {
+    return true;
+  }
+
+  const searchableText = normalizeSearchValue(
+    [post.caption, post.location_name, post.user_name].join(" "),
+  );
+
+  return terms.every((term) => searchableText.includes(term));
+}
+
 export function ExploreScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -136,6 +167,8 @@ export function ExploreScreen() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeCollection, setActiveCollection] = useState("All");
+  const [searchValue, setSearchValue] = useState("");
+  const [showSavedBoard, setShowSavedBoard] = useState(false);
   const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
   const [savedPosts, setSavedPosts] = useState<PostActionOverrides>({});
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
@@ -158,11 +191,18 @@ export function ExploreScreen() {
   const [editingComments, setEditingComments] = useState<
     Record<number, PostComment | null>
   >({});
+  const deferredSearchValue = useDeferredValue(searchValue);
+  const activeSearch = deferredSearchValue.trim();
+  const normalizedActiveSearch = normalizeSearchValue(activeSearch);
 
   const postsQuery = useInfiniteQuery({
-    queryKey: ["posts", "explore"],
+    queryKey: ["posts", "explore", activeSearch],
     queryFn: ({ pageParam }) =>
-      getPostsApi({ page: pageParam, limit: postsPageSize }),
+      getPostsApi({
+        page: pageParam,
+        limit: postsPageSize,
+        search: activeSearch,
+      }),
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.length < postsPageSize ? undefined : lastPageParam + 1,
     initialPageParam: 1,
@@ -200,9 +240,12 @@ export function ExploreScreen() {
       if (!post) {
         return;
       }
+      if (activeSearch && !matchesPostSearch(post, activeSearch)) {
+        return;
+      }
 
       queryClient.setQueryData<PostsInfiniteData>(
-        ["posts", "explore"],
+        ["posts", "explore", activeSearch],
         (current) => {
           if (!current) {
             return {
@@ -229,7 +272,7 @@ export function ExploreScreen() {
       source.removeEventListener("post.created", handlePostCreated);
       source.close();
     };
-  }, [queryClient]);
+  }, [activeSearch, queryClient]);
 
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -315,13 +358,46 @@ export function ExploreScreen() {
     [categoriesQuery.data],
   );
 
+  const loadedPosts = useMemo(() => postsQuery.data?.pages.flat() ?? [], [
+    postsQuery.data,
+  ]);
+
+  const savedBoardPosts = useMemo(
+    () => loadedPosts.filter((post) => isPostSaved(post, savedPosts)),
+    [loadedPosts, savedPosts],
+  );
+
   const visiblePosts = useMemo(() => {
-    if (!showsCommunityFeed(activeCollection)) {
-      return [];
+    const basePosts = (() => {
+      if (showSavedBoard) {
+        return savedBoardPosts;
+      }
+
+      if (!showsCommunityFeed(activeCollection)) {
+        return [];
+      }
+
+      return loadedPosts;
+    })();
+
+    const normalizedSearch = normalizedActiveSearch;
+    if (!normalizedSearch) {
+      return basePosts;
     }
 
-    return postsQuery.data?.pages.flat() ?? [];
-  }, [activeCollection, postsQuery.data]);
+    return basePosts.filter((post) => matchesPostSearch(post, normalizedSearch));
+  }, [
+    activeCollection,
+    loadedPosts,
+    savedBoardPosts,
+    normalizedActiveSearch,
+    showSavedBoard,
+  ]);
+
+  const hasSearch = normalizedActiveSearch.length > 0;
+  const searchResultsLabel = hasSearch
+    ? `${visiblePosts.length} result${visiblePosts.length === 1 ? "" : "s"}`
+    : null;
 
   const selectedPost = useMemo(() => {
     if (selectedPostId === null) {
@@ -330,13 +406,13 @@ export function ExploreScreen() {
 
     return (
       postDetailQuery.data ??
-      visiblePosts.find((post) => post.id === selectedPostId) ??
+      loadedPosts.find((post) => post.id === selectedPostId) ??
       null
     );
-  }, [postDetailQuery.data, selectedPostId, visiblePosts]);
+  }, [loadedPosts, postDetailQuery.data, selectedPostId]);
 
   const shouldLoadMorePosts =
-    showsCommunityFeed(activeCollection) &&
+    (showSavedBoard || showsCommunityFeed(activeCollection)) &&
     postsQuery.hasNextPage &&
     !postsQuery.isFetchingNextPage;
   const fetchNextPostsPage = postsQuery.fetchNextPage;
@@ -522,12 +598,20 @@ export function ExploreScreen() {
     const post =
       selectedPost?.id === postId
         ? selectedPost
-        : visiblePosts.find((item) => item.id === postId) ?? null;
+        : loadedPosts.find((item) => item.id === postId) ?? null;
     if (!requireAuth() || !post || saveMutation.isPending) {
       return;
     }
 
     saveMutation.mutate({ isSaved: isPostSaved(post, savedPosts), postId });
+  }
+
+  function toggleSavedBoard() {
+    if (!showSavedBoard && !requireAuth()) {
+      return;
+    }
+
+    setShowSavedBoard((current) => !current);
   }
 
   function submitComment(postId: number) {
@@ -583,19 +667,59 @@ export function ExploreScreen() {
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
       <ExploreTopbar
         isAuthenticated={isAuthenticated}
+        onClearSearch={() => setSearchValue("")}
         onProfileClick={() => {
           router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login);
         }}
+        onSearchChange={setSearchValue}
         profileName={profileName}
+        searchValue={searchValue}
       />
 
       <ExploreHero
         activeCollection={activeCollection}
         collections={collections}
         onCollectionChange={setActiveCollection}
+        onToggleSavedBoard={toggleSavedBoard}
+        savedBoardCount={savedBoardPosts.length}
+        showSavedBoard={showSavedBoard}
       />
 
       <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
+        {showSavedBoard || searchResultsLabel ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+                {showSavedBoard ? "Board" : "Search"}
+              </p>
+              <h2 className="text-lg font-semibold tracking-normal text-[#111]">
+                {showSavedBoard ? "Saved posts" : searchResultsLabel}
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              {searchResultsLabel ? (
+                <Button
+                  className="rounded-full"
+                  onClick={() => setSearchValue("")}
+                  type="button"
+                  variant="outline"
+                >
+                  Clear search
+                </Button>
+              ) : null}
+              {showSavedBoard ? (
+                <Button
+                  className="rounded-full"
+                  onClick={toggleSavedBoard}
+                  type="button"
+                  variant="outline"
+                >
+                  Show all
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
           {visiblePosts.map((post, index) => (
             <ExplorePostCard
@@ -633,7 +757,29 @@ export function ExploreScreen() {
 
         </div>
 
-        {showsCommunityFeed(activeCollection) ? (
+        {(showSavedBoard || hasSearch) &&
+        visiblePosts.length === 0 &&
+        !postsQuery.isLoading ? (
+          <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-black/10 bg-white/72 px-6 text-center">
+            {showSavedBoard ? (
+              <Bookmark className="size-8 text-[#777]" />
+            ) : (
+              <Search className="size-8 text-[#777]" />
+            )}
+            <h2 className="mt-3 text-xl font-semibold tracking-normal text-[#111]">
+              {showSavedBoard
+                ? "No saved posts yet"
+                : "No posts match your search"}
+            </h2>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-[#666]">
+              {showSavedBoard
+                ? "Tap the bookmark on posts you like, then open Board to see them here."
+                : "Try a place, caption, or creator name from the posts already loaded."}
+            </p>
+          </div>
+        ) : null}
+
+        {showSavedBoard || showsCommunityFeed(activeCollection) ? (
           <LoadMorePosts
             hasNextPage={Boolean(postsQuery.hasNextPage)}
             isLoading={postsQuery.isFetchingNextPage}
@@ -714,15 +860,22 @@ export function ExploreScreen() {
 
 function ExploreTopbar({
   isAuthenticated,
+  onClearSearch,
   onProfileClick,
+  onSearchChange,
   profileName,
+  searchValue,
 }: Readonly<{
   isAuthenticated: boolean;
+  onClearSearch: () => void;
   onProfileClick: () => void;
+  onSearchChange: (value: string) => void;
   profileName: string | null;
+  searchValue: string;
 }>) {
   const profileLabel =
     isAuthenticated && profileName ? `Profile: ${profileName}` : "Profile";
+  const authLabel = isAuthenticated ? profileLabel : "Login";
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
@@ -754,17 +907,29 @@ function ExploreTopbar({
           <Search className="-translate-y-1/2 pointer-events-none absolute left-4 top-1/2 size-4 text-[#777]" />
           <input
             className="h-11 w-full rounded-full border border-black/6 bg-white px-11 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)]"
+            onChange={(event) => onSearchChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && searchValue) {
+                onClearSearch();
+              }
+            }}
             placeholder="Search places, rooms, tables, textures"
             type="search"
+            value={searchValue}
           />
           <Button
-            aria-label="Search filters"
+            aria-label={searchValue ? "Clear search" : "Search filters"}
             className="-translate-y-1/2 absolute right-1.5 top-1/2 rounded-full"
+            onClick={searchValue ? onClearSearch : undefined}
             size="icon-sm"
             type="button"
             variant="ghost"
           >
-            <SlidersHorizontal className="size-4" />
+            {searchValue ? (
+              <X className="size-4" />
+            ) : (
+              <SlidersHorizontal className="size-4" />
+            )}
           </Button>
         </div>
 
@@ -807,15 +972,69 @@ function ExploreTopbar({
           </Button>
         </div>
 
-        <Button
-          aria-label="Menu"
-          className="rounded-full sm:hidden"
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          <Menu className="size-4" />
-        </Button>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button
+              aria-label="Menu"
+              className="rounded-full sm:hidden"
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Menu className="size-4" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right">
+            <SheetHeader>
+              <SheetTitle>Explore menu</SheetTitle>
+              <SheetDescription>
+                Open your account or move around Falzo.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="space-y-2 px-5">
+              <SheetClose asChild>
+                <Link
+                  className={cn(
+                    buttonVariants({ size: "default", variant: "outline" }),
+                    "w-full justify-start rounded-full",
+                  )}
+                  href={ROUTES.locations}
+                >
+                  <MapIcon className="size-4" />
+                  Locations
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <Link
+                  className={cn(
+                    buttonVariants({ size: "default", variant: "outline" }),
+                    "w-full justify-start rounded-full",
+                  )}
+                  href={ROUTES.upload}
+                >
+                  <Plus className="size-4" />
+                  Upload
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <button
+                  className={cn(
+                    buttonVariants({
+                      size: "default",
+                      variant: isAuthenticated ? "outline" : "default",
+                    }),
+                    "w-full justify-start rounded-full",
+                  )}
+                  onClick={onProfileClick}
+                  type="button"
+                >
+                  <UserRound className="size-4" />
+                  {authLabel}
+                </button>
+              </SheetClose>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </header>
   );
@@ -825,10 +1044,16 @@ function ExploreHero({
   activeCollection,
   collections,
   onCollectionChange,
+  onToggleSavedBoard,
+  savedBoardCount,
+  showSavedBoard,
 }: Readonly<{
   activeCollection: string;
   collections: string[];
   onCollectionChange: (collection: string) => void;
+  onToggleSavedBoard: () => void;
+  savedBoardCount: number;
+  showSavedBoard: boolean;
 }>) {
   return (
     <section className="mx-auto w-full max-w-370 px-4 pb-4 pt-6 sm:px-6 lg:px-8">
@@ -853,11 +1078,23 @@ function ExploreHero({
             <ChevronDown className="size-4" />
           </Button>
           <Button
-            className="rounded-full bg-[#ff385c] text-white shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)] hover:bg-[#e93152]"
+            aria-pressed={showSavedBoard}
+            className={cn(
+              "rounded-full shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)]",
+              showSavedBoard
+                ? "bg-[#111] text-white hover:bg-[#222]"
+                : "bg-[#ff385c] text-white hover:bg-[#e93152]",
+            )}
+            onClick={onToggleSavedBoard}
             type="button"
           >
             <Bookmark className="size-4" />
             Board
+            {savedBoardCount > 0 ? (
+              <span className="rounded-full bg-white/18 px-2 py-0.5 text-xs">
+                {savedBoardCount}
+              </span>
+            ) : null}
           </Button>
         </div>
       </div>

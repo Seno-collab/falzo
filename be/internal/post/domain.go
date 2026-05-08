@@ -39,7 +39,7 @@ type Repository interface {
 	Unlike(ctx context.Context, postID uint64, userID uint64) error
 	Save(ctx context.Context, postID uint64, userID uint64) error
 	Unsave(ctx context.Context, postID uint64, userID uint64) error
-	GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64) ([]Post, error)
+	GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string) ([]Post, error)
 	GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*Post, error)
 	GetPostsByLocation(ctx context.Context, locationName LocationName) ([]Post, error)
 	GetComments(ctx context.Context, postID uint64, page int, limit int) ([]Comment, error)

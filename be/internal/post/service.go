@@ -35,6 +35,7 @@ type ListPostsInput struct {
 	Page         int
 	Limit        int
 	ViewerUserID uint64
+	Search       string
 }
 
 type ListCommentsInput struct {
@@ -168,7 +169,7 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 		return nil, ErrLimitTooLarge
 	}
 
-	items, err := s.posts.GetPosts(ctx, input.Page, input.Limit, input.ViewerUserID)
+	items, err := s.posts.GetPosts(ctx, input.Page, input.Limit, input.ViewerUserID, strings.TrimSpace(input.Search))
 	if err != nil {
 		return nil, err
 	}
