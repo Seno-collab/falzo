@@ -14,7 +14,10 @@ export function trimTrailingSlashes(path: string) {
   return path.replace(/\/+$/, "");
 }
 
-export function endpointPath(base: string, ...segments: Array<number | string>) {
+export function endpointPath(
+  base: string,
+  ...segments: Array<number | string>
+) {
   const normalizedBase = trimTrailingSlashes(base);
   const suffix = segments
     .map((segment) => String(segment).replaceAll(/^\/+|\/+$/g, ""))
@@ -32,7 +35,7 @@ export function unwrapApiData<T>(value: ApiEnvelope<T> | T): T {
     "success" in value &&
     "data" in value
   ) {
-    return (value).data;
+    return value.data;
   }
 
   return value;

@@ -8,9 +8,7 @@ export function showsCommunityFeed(collection: string) {
 }
 
 export function getExploreCollections(categories: Category[] | undefined) {
-  const names = [
-    ...(categories ?? []).map((category) => category.name),
-  ]
+  const names = [...(categories ?? []).map((category) => category.name)]
     .map((name) => name.trim())
     .filter(
       (name) =>

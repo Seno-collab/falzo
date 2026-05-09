@@ -28,10 +28,7 @@ import {
   getMeApi,
   hasAuthSession,
 } from "@/features/auth/api";
-import {
-  createPostApi,
-  uploadImageApi,
-} from "@/features/posts/api";
+import { createPostApi, uploadImageApi } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
 import { ROUTES } from "@/lib/routes";
 
@@ -49,7 +46,14 @@ const initialForm: FormState = {
   longitude: "106.7009",
 };
 const maxImageSize = 10 * 1024 * 1024;
-const acceptedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg", "image/svg+xml", "image/gif"]);
+const acceptedImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/jpg",
+  "image/svg+xml",
+  "image/gif",
+]);
 
 function parseCoordinate(value: string) {
   const normalized = Number(value);
@@ -96,7 +100,9 @@ export function UploadImageScreen() {
   const formFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
+    null,
+  );
   const [form, setForm] = useState<FormState>(initialForm);
 
   const previewUrl = useMemo(() => {

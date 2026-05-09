@@ -254,7 +254,11 @@ export function ExploreScreen() {
             };
           }
 
-          if (current.pages.some((page) => page.some((item) => item.id === post.id))) {
+          if (
+            current.pages.some((page) =>
+              page.some((item) => item.id === post.id),
+            )
+          ) {
             return current;
           }
 
@@ -358,9 +362,10 @@ export function ExploreScreen() {
     [categoriesQuery.data],
   );
 
-  const loadedPosts = useMemo(() => postsQuery.data?.pages.flat() ?? [], [
-    postsQuery.data,
-  ]);
+  const loadedPosts = useMemo(
+    () => postsQuery.data?.pages.flat() ?? [],
+    [postsQuery.data],
+  );
 
   const savedBoardPosts = useMemo(
     () => loadedPosts.filter((post) => isPostSaved(post, savedPosts)),
@@ -385,7 +390,9 @@ export function ExploreScreen() {
       return basePosts;
     }
 
-    return basePosts.filter((post) => matchesPostSearch(post, normalizedSearch));
+    return basePosts.filter((post) =>
+      matchesPostSearch(post, normalizedSearch),
+    );
   }, [
     activeCollection,
     loadedPosts,
@@ -586,7 +593,7 @@ export function ExploreScreen() {
     const post =
       selectedPost?.id === postId
         ? selectedPost
-        : visiblePosts.find((item) => item.id === postId) ?? null;
+        : (visiblePosts.find((item) => item.id === postId) ?? null);
     if (!requireAuth() || !post || likeMutation.isPending) {
       return;
     }
@@ -598,7 +605,7 @@ export function ExploreScreen() {
     const post =
       selectedPost?.id === postId
         ? selectedPost
-        : loadedPosts.find((item) => item.id === postId) ?? null;
+        : (loadedPosts.find((item) => item.id === postId) ?? null);
     if (!requireAuth() || !post || saveMutation.isPending) {
       return;
     }
@@ -754,12 +761,11 @@ export function ExploreScreen() {
               replyTarget={replyTargets[post.id] ?? null}
             />
           ))}
-
         </div>
 
         {(showSavedBoard || hasSearch) &&
-          visiblePosts.length === 0 &&
-          !postsQuery.isLoading ? (
+        visiblePosts.length === 0 &&
+        !postsQuery.isLoading ? (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-black/10 bg-white/72 px-6 text-center">
             {showSavedBoard ? (
               <Bookmark className="size-8 text-[#777]" />

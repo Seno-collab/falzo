@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  BarChart3,
-  Compass,
-  LogOut,
-} from "lucide-react";
+import { BarChart3, Compass, LogOut } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";

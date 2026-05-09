@@ -73,9 +73,7 @@ function formatExpiry(expires?: AuthUser["expires"]) {
   }
 
   const date =
-    typeof expires === "number"
-      ? new Date(expires * 1000)
-      : new Date(expires);
+    typeof expires === "number" ? new Date(expires * 1000) : new Date(expires);
 
   if (Number.isNaN(date.getTime())) {
     return "Active session";
@@ -162,14 +160,9 @@ export function ProfileScreen() {
     };
   }, [router]);
 
-  const displayName = useMemo(
-    () => getAuthUserDisplayName(profile),
-    [profile],
-  );
+  const displayName = useMemo(() => getAuthUserDisplayName(profile), [profile]);
   const email = readAuthUserText(profile, ["email"]);
-  const username = readAuthUserText(profile, [
-    "user_name",
-  ]);
+  const username = readAuthUserText(profile, ["user_name"]);
   const subject = readAuthUserText(profile, ["subject", "id"]);
 
   const handleChangePassword = passwordForm.handleSubmit(async (values) => {

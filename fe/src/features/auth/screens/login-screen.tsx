@@ -16,7 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage, hasAuthSession, loginApi } from "@/features/auth/api";
+import {
+  getApiErrorMessage,
+  hasAuthSession,
+  loginApi,
+} from "@/features/auth/api";
 import { messages } from "@/i18n/messages";
 import { ROUTES } from "@/lib/routes";
 

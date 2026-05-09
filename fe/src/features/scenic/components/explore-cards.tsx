@@ -103,11 +103,15 @@ function Comments({
   currentUserId: number | null;
 }>) {
   if (isLoading) {
-    return <p className="text-xs font-semibold text-[#555]">Loading comments</p>;
+    return (
+      <p className="text-xs font-semibold text-[#555]">Loading comments</p>
+    );
   }
 
   if (comments.length === 0) {
-    return <p className="text-xs font-semibold text-[#555]">No comments yet.</p>;
+    return (
+      <p className="text-xs font-semibold text-[#555]">No comments yet.</p>
+    );
   }
 
   return comments.map((comment) => (
@@ -117,8 +121,8 @@ function Comments({
         editingCommentId === comment.id
           ? "border-[#dec078] bg-[#fff8e6]"
           : selectedReplyTargetId === comment.id
-          ? "border-[#8ebae6] bg-[#f2f7fd]"
-          : "border-transparent bg-white",
+            ? "border-[#8ebae6] bg-[#f2f7fd]"
+            : "border-transparent bg-white",
       )}
       key={comment.id}
     >
@@ -198,9 +202,9 @@ function CommentInput({
     ? "Login to comment"
     : editingComment
       ? "Edit comment"
-    : replyTarget
-      ? `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`
-      : "Write a comment";
+      : replyTarget
+        ? `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`
+        : "Write a comment";
 
   return (
     <div className="mt-3 space-y-2">
@@ -398,7 +402,10 @@ export function ExplorePostCard({
             </Button>
             <Button
               aria-label="View comments"
-              className={cn("rounded-full", activeClass("comment", commentsOpen))}
+              className={cn(
+                "rounded-full",
+                activeClass("comment", commentsOpen),
+              )}
               onClick={() => onToggleComments(post.id)}
               size="icon-sm"
               type="button"
