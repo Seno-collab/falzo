@@ -1,16 +1,18 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Camera,
   Check,
   Compass,
+  Crosshair,
   ImagePlus,
   Loader2,
+  Map as MapIcon,
   MapPin,
-  Map,
   RefreshCcw,
+  Search,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -19,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { PageShell } from "@/components/layout/page-shell";
+import MapClient, { type Coordinates, type MapPoint } from "@/components/map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,10 +31,12 @@ import {
   getMeApi,
   hasAuthSession,
 } from "@/features/auth/api";
+import { searchLocationsApi } from "@/features/locations/api";
+import type { Location } from "@/features/locations/types";
 import { createPostApi, uploadImageApi } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
 import { ROUTES } from "@/lib/routes";
-import MapClient from "@/components/map";
+
 type FormState = {
   caption: string;
   locationName: string;
@@ -42,9 +47,11 @@ type FormState = {
 const initialForm: FormState = {
   caption: "",
   locationName: "",
-  latitude: "10.7769",
-  longitude: "106.7009",
+  latitude: "",
+  longitude: "",
 };
+const currentLocationId = "__current-location";
+const mapSelectionLocationId = "__map-selection";
 const maxImageSize = 10 * 1024 * 1024;
 const acceptedImageTypes = new Set([
   "image/jpeg",
@@ -92,6 +99,16 @@ function getImageValidationError(file: File) {
   return null;
 }
 
+function locationToMapPoint(location: Location): MapPoint {
+  return {
+    id: location.id,
+    name: location.name,
+    address: location.address,
+    latitude: location.latitude,
+    longitude: location.longitude,
+  };
+}
+
 export function UploadImageScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -104,6 +121,16 @@ export function UploadImageScreen() {
     null,
   );
   const [form, setForm] = useState<FormState>(initialForm);
+  const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(
+    null,
+  );
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationSearchInput, setLocationSearchInput] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(
+    null,
+  );
+  const [submittedLocationSearch, setSubmittedLocationSearch] =
+    useState("Ho Chi Minh");
 
   const previewUrl = useMemo(() => {
     if (!selectedFile) {
@@ -172,6 +199,32 @@ export function UploadImageScreen() {
     },
   });
 
+  const locationQuery = useQuery({
+    enabled: submittedLocationSearch.trim().length > 0,
+    queryKey: ["locations", "upload-search", submittedLocationSearch],
+    queryFn: () => searchLocationsApi(submittedLocationSearch.trim()),
+  });
+
+  const mapPoints = useMemo<MapPoint[]>(() => {
+    const points = new Map<string, MapPoint>();
+
+    for (const location of locationQuery.data ?? []) {
+      points.set(location.id, locationToMapPoint(location));
+    }
+
+    if (selectedLocation && !points.has(selectedLocation.id)) {
+      points.set(selectedLocation.id, locationToMapPoint(selectedLocation));
+    }
+
+    return Array.from(points.values());
+  }, [locationQuery.data, selectedLocation]);
+
+  useEffect(() => {
+    if (locationQuery.error) {
+      toast.error(getApiErrorMessage(locationQuery.error));
+    }
+  }, [locationQuery.error]);
+
   const publishMutation = useMutation({
     mutationFn: async () => {
       if (!selectedFile && !uploadedImage?.url) {
@@ -181,8 +234,13 @@ export function UploadImageScreen() {
       const image = uploadedImage ?? (await uploadSelectedFile());
       const latitude = parseCoordinate(form.latitude);
       const longitude = parseCoordinate(form.longitude);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        throw new TypeError("Latitude and longitude must be valid numbers.");
+      if (
+        !selectedLocation ||
+        !form.locationName.trim() ||
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude)
+      ) {
+        throw new TypeError("Choose a location before publishing.");
       }
 
       return createPostApi({
@@ -202,6 +260,8 @@ export function UploadImageScreen() {
       selectedFileRef.current = null;
       setUploadedImage(null);
       setForm(initialForm);
+      setSelectedLocation(null);
+      setLocationSearchInput("");
       await queryClient.invalidateQueries({ queryKey: ["posts"] });
       toast.success("Post successfully");
     },
@@ -209,6 +269,78 @@ export function UploadImageScreen() {
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function selectLocation(location: Location) {
+    setSelectedLocation(location);
+    setLocationSearchInput(location.name);
+    setForm((current) => ({
+      ...current,
+      locationName: location.name,
+      latitude: String(location.latitude),
+      longitude: String(location.longitude),
+    }));
+  }
+
+  function selectCurrentPosition(position: Coordinates) {
+    const currentLocation: Location = {
+      id: currentLocationId,
+      name: "Current location",
+      address: `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(
+        5,
+      )}`,
+      latitude: position.latitude,
+      longitude: position.longitude,
+    };
+
+    setCurrentPosition(position);
+    selectLocation(currentLocation);
+  }
+
+  function selectMapLocation(position: Coordinates) {
+    const locationName =
+      locationSearchInput.trim() ||
+      `Map location ${position.latitude.toFixed(5)}, ${position.longitude.toFixed(
+        5,
+      )}`;
+    const mapLocation: Location = {
+      id: mapSelectionLocationId,
+      name: locationName,
+      address: `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(
+        5,
+      )}`,
+      latitude: position.latitude,
+      longitude: position.longitude,
+    };
+
+    selectLocation(mapLocation);
+  }
+
+  function handleUseCurrentLocation() {
+    if (!navigator.geolocation) {
+      toast.error("This browser does not support location access.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        selectCurrentPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setIsLocating(false);
+      },
+      (error) => {
+        toast.error(error.message || "Unable to read your current location.");
+        setIsLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30_000,
+        timeout: 12_000,
+      },
+    );
   }
 
   function resetFileInputs() {
@@ -292,7 +424,7 @@ export function UploadImageScreen() {
             },
             {
               id: "locations",
-              icon: <Map className="size-4" />,
+              icon: <MapIcon className="size-4" />,
               label: "Locations",
               to: ROUTES.locations,
               variant: "outline",
@@ -470,62 +602,135 @@ export function UploadImageScreen() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Input
-                disabled={isPublishing}
-                id="location"
-                maxLength={255}
-                onChange={(event) =>
-                  updateForm("locationName", event.target.value)
-                }
-                placeholder="Ho Chi Minh City"
-                value={form.locationName}
-              />
-            </div>
+            <div className="space-y-3">
+              <Label htmlFor="location-search">Location</Label>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <Input
+                  disabled={isPublishing}
+                  id="location-search"
+                  maxLength={255}
+                  onChange={(event) =>
+                    setLocationSearchInput(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      setSubmittedLocationSearch(locationSearchInput);
+                    }
+                  }}
+                  placeholder="Search Ho Chi Minh City, Da Nang, Kyoto"
+                  value={locationSearchInput}
+                />
+                <Button
+                  disabled={isPublishing || locationQuery.isFetching}
+                  onClick={() => setSubmittedLocationSearch(locationSearchInput)}
+                  type="button"
+                  variant="outline"
+                >
+                  {locationQuery.isFetching ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Search className="size-4" />
+                  )}
+                  Search
+                </Button>
+                <Button
+                  disabled={isPublishing || isLocating}
+                  onClick={handleUseCurrentLocation}
+                  type="button"
+                  variant="outline"
+                >
+                  {isLocating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Crosshair className="size-4" />
+                  )}
+                  Current
+                </Button>
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="latitude">Latitude</Label>
-                <Input
-                  disabled={isPublishing}
-                  id="latitude"
-                  inputMode="decimal"
-                  onChange={(event) =>
-                    updateForm("latitude", event.target.value)
+              <MapClient
+                currentPosition={currentPosition}
+                height="compact"
+                onSelectCoordinates={selectMapLocation}
+                onSelectPoint={(point) => {
+                  const nextLocation =
+                    locationQuery.data?.find(
+                      (location) => location.id === point.id,
+                    ) ??
+                    (selectedLocation?.id === point.id
+                      ? selectedLocation
+                      : null);
+
+                  if (nextLocation) {
+                    selectLocation(nextLocation);
                   }
-                  value={form.latitude}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="longitude">Longitude</Label>
-                <Input
-                  disabled={isPublishing}
-                  id="longitude"
-                  inputMode="decimal"
-                  onChange={(event) =>
-                    updateForm("longitude", event.target.value)
-                  }
-                  value={form.longitude}
-                />
-              </div>
-            </div>
-            <div>
-              <Map
-                center={[Number(form.latitude), Number(form.longitude)]}
+                }}
+                points={mapPoints}
+                selectedPointId={selectedLocation?.id}
                 zoom={13}
               />
-            </div>
-            <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
-              <MapPin className="size-4 shrink-0 text-[#2f6fb8]" />
-              <span className="min-w-0">
-                Location fields are sent directly to the backend post API.
-              </span>
+
+              <div className="grid max-h-52 gap-2 overflow-y-auto pr-1">
+                {locationQuery.data?.map((location) => {
+                  const selected = selectedLocation?.id === location.id;
+
+                  return (
+                    <button
+                      className={`rounded-xl border px-3 py-2 text-left transition ${
+                        selected
+                          ? "border-[#2f6fb8] bg-[#eef7ff]"
+                          : "border-[#d7e5f4] bg-white/90 hover:border-[#a9c8e8] hover:bg-[#f8fbff]"
+                      }`}
+                      disabled={isPublishing}
+                      key={location.id}
+                      onClick={() => selectLocation(location)}
+                      type="button"
+                    >
+                      <span className="block truncate text-sm font-semibold text-[#15365a]">
+                        {location.name}
+                      </span>
+                      <span className="mt-1 line-clamp-2 text-xs leading-5 text-[#6682a1]">
+                        {location.address}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {!locationQuery.isFetching &&
+                locationQuery.data?.length === 0 ? (
+                  <div className="rounded-xl border border-[#d7e5f4] bg-white/90 px-3 py-3 text-sm font-semibold text-[#6682a1]">
+                    No locations found.
+                  </div>
+                ) : null}
+              </div>
+
+              {selectedLocation ? (
+                <div className="app-panel-soft flex items-start gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-[#2f6fb8]" />
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-[#15365a]">
+                      {selectedLocation.name}
+                    </span>
+                    <span className="block text-xs leading-5 text-[#6682a1]">
+                      {selectedLocation.address}
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
+                  <MapPin className="size-4 shrink-0 text-[#2f6fb8]" />
+                  <span className="min-w-0">
+                    Choose a location from search results or use your current
+                    position, or click any point on the map.
+                  </span>
+                </div>
+              )}
             </div>
 
             <Button
               className="w-full"
-              disabled={isBusy || !selectedFile}
+              disabled={isBusy || !selectedFile || !selectedLocation}
               type="submit"
               variant="gradient"
             >

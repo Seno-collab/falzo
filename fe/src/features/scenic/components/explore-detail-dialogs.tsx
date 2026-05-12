@@ -48,20 +48,135 @@ type PostDetailDialogProps = {
   onSubmitComment: () => void;
 };
 
-function selectedClass(type: "heart" | "save", active: boolean) {
-  if (!active) {
-    return "";
-  }
-
-  if (type === "heart") {
-    return "border-[#ffb3c1] bg-[#fff1f4] text-[#cf2142]";
-  }
-
-  return "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]";
-}
-
 function isCommentEdited(comment: PostComment) {
   return comment.updated_at !== comment.created_at;
+}
+
+function getCommentAuthor(comment: PostComment) {
+  return comment.user_name || `User #${comment.user_id}`;
+}
+
+function formatCommentDate(comment: PostComment) {
+  return new Date(comment.created_at).toLocaleDateString();
+}
+
+function getCommentThreads(comments: PostComment[]) {
+  const commentsById = new Map<number, PostComment>();
+  const repliesByParentId = new Map<number, PostComment[]>();
+  const threadRoots: PostComment[] = [];
+
+  for (const comment of comments) {
+    commentsById.set(comment.id, comment);
+  }
+
+  for (const comment of comments) {
+    const parentId = comment.reply_to_comment_id;
+    if (parentId && commentsById.has(parentId)) {
+      repliesByParentId.set(parentId, [
+        ...(repliesByParentId.get(parentId) ?? []),
+        comment,
+      ]);
+      continue;
+    }
+
+    threadRoots.push(comment);
+  }
+
+  return threadRoots.map((comment) => ({
+    comment,
+    replies: repliesByParentId.get(comment.id) ?? [],
+  }));
+}
+
+function CommentAvatar({ name }: Readonly<{ name: string }>) {
+  return (
+    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#111] text-xs font-bold uppercase text-white">
+      {name.trim().charAt(0) || "U"}
+    </span>
+  );
+}
+
+function CommentBubble({
+  comment,
+  compact = false,
+  currentUserId,
+  editingCommentId,
+  onEditComment,
+  onReplyComment,
+  selectedReplyTargetId,
+}: Readonly<{
+  comment: PostComment;
+  compact?: boolean;
+  currentUserId: number | null;
+  editingCommentId: number | null;
+  onEditComment: (comment: PostComment) => void;
+  onReplyComment: (comment: PostComment) => void;
+  selectedReplyTargetId: number | null;
+}>) {
+  const author = getCommentAuthor(comment);
+  const isEditing = editingCommentId === comment.id;
+  const isReplyTarget = selectedReplyTargetId === comment.id;
+
+  return (
+    <div
+      className={cn(
+        "flex gap-3 rounded-2xl px-3 py-2.5 transition",
+        isEditing ? "bg-[#fff6dc]" : "",
+        isReplyTarget ? "bg-[#edf6ff]" : "",
+      )}
+    >
+      <CommentAvatar name={author} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="min-w-0 truncate text-sm font-bold text-[#171717]">
+            {author}
+          </p>
+          <span className="text-xs font-medium text-[#8a8a8a]">
+            {formatCommentDate(comment)}
+          </span>
+          {isCommentEdited(comment) ? (
+            <span className="rounded-full bg-[#f1f1f1] px-2 py-0.5 text-[11px] font-semibold text-[#777]">
+              edited
+            </span>
+          ) : null}
+        </div>
+
+        {comment.reply_to_comment_id && !compact ? (
+          <div className="mt-2 rounded-xl border-l-2 border-[#d7d7d7] bg-[#f6f6f6] px-3 py-2 text-xs text-[#666]">
+            <p className="font-semibold">
+              {comment.reply_to_user_name ||
+                `User #${comment.reply_to_user_id ?? ""}`}
+            </p>
+            <p className="mt-0.5 line-clamp-2">{comment.reply_to_content}</p>
+          </div>
+        ) : null}
+
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#202020]">
+          {comment.content}
+        </p>
+
+        <div className="mt-2 flex items-center gap-4">
+          <button
+            className="text-xs font-bold text-[#777] transition hover:text-[#111]"
+            onClick={() => onReplyComment(comment)}
+            type="button"
+          >
+            Reply
+          </button>
+          {currentUserId === comment.user_id ? (
+            <button
+              className="inline-flex items-center gap-1 text-xs font-bold text-[#8c6a1f] transition hover:text-[#5e430f]"
+              onClick={() => onEditComment(comment)}
+              type="button"
+            >
+              <Pencil className="size-3" />
+              Edit
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DetailComments({
@@ -85,13 +200,15 @@ function DetailComments({
 }>) {
   if (isLoading) {
     return (
-      <p className="text-sm font-semibold text-[#555]">Loading comments</p>
+      <div className="rounded-2xl bg-[#f4f4f4] px-4 py-5 text-sm font-bold text-[#555]">
+        Loading comments
+      </div>
     );
   }
 
   if (!isChatOpen) {
     return (
-      <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+      <div className="rounded-2xl bg-[#f4f4f4] px-4 py-5 text-sm font-bold text-[#555]">
         Open comments.
       </div>
     );
@@ -99,72 +216,43 @@ function DetailComments({
 
   if (comments.length === 0) {
     return (
-      <div className="rounded-2xl border border-black/6 bg-white px-4 py-5 text-sm font-semibold text-[#555]">
+      <div className="rounded-2xl bg-[#f4f4f4] px-4 py-5 text-sm font-bold text-[#555]">
         No comments yet.
       </div>
     );
   }
-  const getCommentClassName = (comment: PostComment) => {
-    if (editingCommentId === comment.id) {
-      return "border-[#dec078] bg-[#fff8e6]";
-    }
 
-    if (selectedReplyTargetId === comment.id) {
-      return "border-[#8ebae6] bg-[#f2f7fd]";
-    }
-    return "border-black/5 bg-white";
-  };
-  return comments.map((comment) => (
-    <div
-      className={cn(
-        "rounded-2xl border px-4 py-3 text-sm text-[#333]",
-        getCommentClassName(comment),
-      )}
-      key={comment.id}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate text-xs font-semibold text-[#777]">
-          {comment.user_name || `User #${comment.user_id}`}
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          <p className="text-xs font-medium text-[#999]">
-            {new Date(comment.created_at).toLocaleDateString()}
+  return getCommentThreads(comments).map(({ comment, replies }) => (
+    <div className="space-y-1" key={comment.id}>
+      <CommentBubble
+        comment={comment}
+        currentUserId={currentUserId}
+        editingCommentId={editingCommentId}
+        onEditComment={onEditComment}
+        onReplyComment={onReplyComment}
+        selectedReplyTargetId={selectedReplyTargetId}
+      />
+      {replies.length > 0 ? (
+        <div className="ml-12 border-l border-[#e5e5e5] pl-3">
+          <p className="px-3 py-1 text-xs font-bold text-[#8a8a8a]">
+            {replies.length} repl{replies.length === 1 ? "y" : "ies"}
           </p>
-          {isCommentEdited(comment) ? (
-            <span className="rounded-full bg-[#f2f7fd] px-2 py-0.5 text-[11px] font-medium text-[#5f7894]">
-              edited
-            </span>
-          ) : null}
-          {currentUserId === comment.user_id ? (
-            <button
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#8c6a1f] transition hover:text-[#5e430f]"
-              onClick={() => onEditComment(comment)}
-              type="button"
-            >
-              <Pencil className="size-3" />
-              Edit
-            </button>
-          ) : null}
-          <button
-            className="inline-flex items-center gap-1 text-xs font-semibold text-[#5f7894] transition hover:text-[#244c78]"
-            onClick={() => onReplyComment(comment)}
-            type="button"
-          >
-            <Reply className="size-3" />
-            Reply
-          </button>
-        </div>
-      </div>
-      {comment.reply_to_comment_id ? (
-        <div className="mt-3 rounded-xl border-l-2 border-[#7aa7d9] bg-[#f2f7fd] px-3 py-2 text-xs text-[#4b6682]">
-          <p className="font-semibold">
-            {comment.reply_to_user_name ||
-              `User #${comment.reply_to_user_id ?? ""}`}
-          </p>
-          <p className="mt-1 line-clamp-2">{comment.reply_to_content}</p>
+          <div className="space-y-1">
+            {replies.map((reply) => (
+              <CommentBubble
+                comment={reply}
+                compact
+                currentUserId={currentUserId}
+                editingCommentId={editingCommentId}
+                key={reply.id}
+                onEditComment={onEditComment}
+                onReplyComment={onReplyComment}
+                selectedReplyTargetId={selectedReplyTargetId}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
-      <p className="mt-2 leading-6">{comment.content}</p>
     </div>
   ));
 }
@@ -196,99 +284,105 @@ export function PostDetailDialog({
   onSubmitComment,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
-  const getCommentState = () => {
-    if (!isChatOpen) return { placeholder: "Open chat", color: undefined };
+  const getCommentPlaceholder = () => {
+    if (!isChatOpen) return "Open chat";
     if (!isAuthenticated)
-      return { placeholder: "Login to comment", color: "orange" };
-    if (editingComment)
-      return { placeholder: "Edit comment", color: undefined };
+      return "Login to comment";
+    if (editingComment) return "Edit comment";
     if (replyTarget)
-      return {
-        placeholder: `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`,
-        color: undefined,
-      };
-    return { placeholder: "Write a comment", color: undefined };
+      return `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`;
+    return "Write a comment";
   };
-  const { placeholder: commentPlaceholder, color: commentButtonColor } =
-    getCommentState();
+  const commentPlaceholder = getCommentPlaceholder();
+  const commentCount = comments.length;
 
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
-      <DialogContent className="max-h-[92vh] w-[min(96vw,76rem)] overflow-hidden border-white/16 bg-[#101010] p-0 text-white">
-        <div className="grid max-h-[92vh] overflow-hidden lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.72fr)]">
-          <div className="min-h-[56vh] bg-black lg:min-h-[82vh]">
+      <DialogContent className="h-[min(94vh,860px)] w-[min(98vw,86rem)] overflow-hidden border-white/16 bg-[#050505] p-0 text-white">
+        <div className="grid h-full min-h-0 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
+          <div className="relative min-h-[48vh] bg-black lg:min-h-0">
             {post ? (
               <img
                 alt={post.caption || post.location_name || "Post detail"}
-                className="h-full max-h-[82vh] w-full object-contain"
+                className="h-full w-full object-contain"
                 src={post.image_url}
               />
             ) : (
-              <div className="flex h-full min-h-[56vh] items-center justify-center text-sm font-semibold text-white/68">
+              <div className="flex h-full min-h-[48vh] items-center justify-center text-sm font-semibold text-white/68">
                 Loading post
               </div>
             )}
-          </div>
 
-          <aside className="flex max-h-[92vh] min-h-0 flex-col bg-[#f7f7f5] text-[#1f1f1f]">
-            <div className="border-b border-black/6 p-5">
-              <DialogHeader>
-                <DialogTitle className="text-xl leading-7 text-[#111]">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-5 pb-5 pt-24">
+              <div className="max-w-2xl">
+                <p className="text-sm font-bold text-white">{authorName}</p>
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/90">
                   {post?.caption || "Community post"}
-                </DialogTitle>
-                <DialogDescription className="text-sm text-[#777]">
-                  {post?.location_name || "Uploaded"} - {authorName}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="mt-4 flex items-center gap-2">
-                <Button
-                  aria-label={isLiked ? "Liked post" : "Like post"}
-                  className={cn(
-                    "rounded-full",
-                    selectedClass("heart", isLiked),
-                  )}
-                  disabled={!post}
-                  onClick={onLike}
-                  size="icon-sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Heart
-                    className={cn("size-4", isLiked ? "fill-current" : "")}
-                  />
-                </Button>
-                <Button
-                  aria-label={isSaved ? "Saved post" : "Save post"}
-                  className={cn("rounded-full", selectedClass("save", isSaved))}
-                  disabled={!post}
-                  onClick={onSave}
-                  size="icon-sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Bookmark
-                    className={cn("size-4", isSaved ? "fill-current" : "")}
-                  />
-                </Button>
-                <Button
-                  aria-label="Focus comment input"
-                  className={cn(
-                    "rounded-full",
-                    isChatOpen ? selectedClass("save", true) : "",
-                  )}
-                  disabled={!post}
-                  onClick={onLoadComments}
-                  size="icon-sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <MessageCircle className="size-4" />
-                </Button>
+                </p>
+                <p className="mt-2 text-xs font-semibold text-white/60">
+                  {post?.location_name || "Uploaded"}
+                </p>
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="absolute bottom-6 right-4 flex flex-col items-center gap-3">
+              <button
+                aria-label={isLiked ? "Liked post" : "Like post"}
+                className={cn(
+                  "flex size-12 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20",
+                  isLiked ? "text-[#ff4d6d]" : "",
+                )}
+                disabled={!post}
+                onClick={onLike}
+                type="button"
+              >
+                <Heart
+                  className={cn("size-5", isLiked ? "fill-current" : "")}
+                />
+              </button>
+              <button
+                aria-label="Open comments"
+                className={cn(
+                  "flex size-12 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20",
+                  isChatOpen ? "bg-white text-[#111] hover:bg-white" : "",
+                )}
+                disabled={!post}
+                onClick={onLoadComments}
+                type="button"
+              >
+                <MessageCircle className="size-5" />
+              </button>
+              <button
+                aria-label={isSaved ? "Saved post" : "Save post"}
+                className={cn(
+                  "flex size-12 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20",
+                  isSaved ? "text-[#f8c14a]" : "",
+                )}
+                disabled={!post}
+                onClick={onSave}
+                type="button"
+              >
+                <Bookmark
+                  className={cn("size-5", isSaved ? "fill-current" : "")}
+                />
+              </button>
+            </div>
+          </div>
+
+          <aside className="flex min-h-0 flex-col bg-white text-[#1f1f1f]">
+            <div className="border-b border-black/8 px-5 py-4">
+              <DialogHeader>
+                <DialogTitle className="text-lg leading-7 text-[#111]">
+                  Comments
+                </DialogTitle>
+                <DialogDescription className="text-sm text-[#777]">
+                  {commentCount} comment{commentCount === 1 ? "" : "s"} grouped
+                  by conversation.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
               <div className="space-y-3">
                 <DetailComments
                   comments={comments}
@@ -303,7 +397,7 @@ export function PostDetailDialog({
               </div>
             </div>
 
-            <div className="border-t border-black/6 bg-white p-4">
+            <div className="border-t border-black/8 bg-white p-4">
               {editingComment ? (
                 <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
                   <Pencil className="mt-0.5 size-3 shrink-0" />

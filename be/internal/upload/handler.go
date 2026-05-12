@@ -9,10 +9,12 @@ import (
 	"strconv"
 
 	"falzo-be/internal/auth"
+	"falzo-be/internal/notification"
 	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -33,6 +35,7 @@ type Handler struct {
 	}
 	protectedMiddlewares []func(http.Handler) http.Handler
 	maxBodyBytes         int64
+	notifications        notification.Publisher
 }
 
 type HandlerOption func(*Handler)
@@ -48,6 +51,12 @@ func WithMaxBodyBytes(maxBodyBytes int64) HandlerOption {
 		if maxBodyBytes > 0 {
 			h.maxBodyBytes = maxBodyBytes
 		}
+	}
+}
+
+func WithNotifications(publisher notification.Publisher) HandlerOption {
+	return func(h *Handler) {
+		h.notifications = publisher
 	}
 }
 
@@ -121,6 +130,8 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		share.WriteError(w, r, err, "upload_image", mapUploadError)
 		return
 	}
+
+	h.publishImageUploadedNotification(r.Context(), principal, result)
 
 	httpResponse.Success(w, http.StatusCreated, "Image uploaded successfully", result, r)
 }
@@ -197,4 +208,24 @@ func detectImageMimeType(data []byte, header *multipart.FileHeader) string {
 		}
 	}
 	return headerType
+}
+
+func (h *Handler) publishImageUploadedNotification(ctx context.Context, principal *auth.AuthenticatedUser, result UploadImageResult) {
+	if h.notifications == nil || principal == nil || principal.UserID == 0 {
+		return
+	}
+
+	if err := h.notifications.Publish(ctx, notification.Notification{
+		UserID:      principal.UserID,
+		ActorUserID: principal.UserID,
+		ActorName:   principal.Username,
+		Type:        notification.TypeImageUploaded,
+		Title:       "Image uploaded",
+		Body:        "Your image is ready.",
+		Resource:    notification.ResourceImage,
+		ResourceID:  notification.ResourceIDInt64(result.ID),
+		ImageID:     result.ID,
+	}); err != nil {
+		log.Warn().Err(err).Int64("image_id", result.ID).Uint64("user_id", principal.UserID).Msg("upload notification publish failed")
+	}
 }

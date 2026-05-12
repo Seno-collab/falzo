@@ -11,6 +11,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("APP_NAME", "")
 	t.Setenv("APP_ENV", "")
 	t.Setenv("HTTP_ADDR", "")
+	t.Setenv("GRPC_ADDR", "")
 	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "")
 	t.Setenv("POSTGRES_SSL_MODE", "")
@@ -28,6 +29,10 @@ func TestLoadUsesDefaults(t *testing.T) {
 
 	if cfg.HTTP.Addr != ":8080" {
 		t.Fatalf("expected default http addr, got %q", cfg.HTTP.Addr)
+	}
+
+	if cfg.GRPC.Addr != ":9090" {
+		t.Fatalf("expected default grpc addr, got %q", cfg.GRPC.Addr)
 	}
 
 	if cfg.HTTP.ShutdownTimeout != 60*time.Second {
@@ -82,6 +87,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("APP_NAME", "falzo-test")
 	t.Setenv("HTTP_ADDR", ":9090")
+	t.Setenv("GRPC_ADDR", ":9091")
 	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "15s")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "true")
 	t.Setenv("POSTGRES_SSL_MODE", "require")
@@ -104,6 +110,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if cfg.HTTP.Addr != ":9090" {
 		t.Fatalf("expected env http addr, got %q", cfg.HTTP.Addr)
+	}
+
+	if cfg.GRPC.Addr != ":9091" {
+		t.Fatalf("expected env grpc addr, got %q", cfg.GRPC.Addr)
 	}
 
 	if cfg.HTTP.ShutdownTimeout != 15*time.Second {

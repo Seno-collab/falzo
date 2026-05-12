@@ -11,6 +11,7 @@ import (
 type Config struct {
 	App        AppConfig
 	HTTP       HTTPConfig
+	GRPC       GRPCConfig
 	Auth       AuthConfig
 	Postgres   PostgresConfig
 	Redis      RedisConfig
@@ -32,6 +33,10 @@ type HTTPConfig struct {
 	CORSAllowedHeaders   []string
 	CORSAllowCredentials bool
 	CORSMaxAgeSeconds    int
+}
+
+type GRPCConfig struct {
+	Addr string
 }
 
 type AuthConfig struct {
@@ -93,6 +98,9 @@ func Load() Config {
 			CORSAllowedHeaders:   getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
 			CORSAllowCredentials: GetBool("HTTP_CORS_ALLOW_CREDENTIALS", false),
 			CORSMaxAgeSeconds:    GetInt("HTTP_CORS_MAX_AGE_SECONDS", 600),
+		},
+		GRPC: GRPCConfig{
+			Addr: GetEnv("GRPC_ADDR", ":9090"),
 		},
 		Auth: AuthConfig{
 			JWTSecret:                  GetEnv("AUTH_JWT_SECRET", "change-me-in-production"),

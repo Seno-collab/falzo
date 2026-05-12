@@ -337,6 +337,10 @@ export function hasAuthSession() {
   return Boolean(getStoredValue(ACCESS_TOKEN_KEY));
 }
 
+export function getAuthAccessToken() {
+  return getStoredValue(ACCESS_TOKEN_KEY);
+}
+
 export function clearAuthSession() {
   clearStorageKey(ACCESS_TOKEN_KEY);
   clearStorageKey(REFRESH_TOKEN_KEY);

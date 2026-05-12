@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"falzo-be/internal/auth"
+	"falzo-be/internal/notification"
 	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
 
@@ -40,6 +41,7 @@ type Handler struct {
 	commentPublisher CommentEventPublisher
 	postEvents       PostEventSubscriber
 	postPublisher    PostEventPublisher
+	notifications    notification.Publisher
 }
 
 type HandlerOption func(*Handler)
@@ -55,6 +57,12 @@ func WithPostEvents(subscriber PostEventSubscriber, publisher PostEventPublisher
 	return func(h *Handler) {
 		h.postEvents = subscriber
 		h.postPublisher = publisher
+	}
+}
+
+func WithNotifications(publisher notification.Publisher) HandlerOption {
+	return func(h *Handler) {
+		h.notifications = publisher
 	}
 }
 
@@ -399,10 +407,12 @@ func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.commentPublisher != nil {
-		if err := h.commentPublisher.PublishCommentUpdated(r.Context(), comment); err != nil {
+		if err := h.commentPublisher.PublishCommentCreated(r.Context(), comment); err != nil {
 			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
 		}
 	}
+
+	h.publishCommentNotification(r.Context(), principal, comment)
 
 	httpResponse.Success(w, http.StatusCreated, "Comment created successfully", comment, r)
 }
@@ -444,7 +454,7 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.commentPublisher != nil {
-		if err := h.commentPublisher.PublishCommentCreated(r.Context(), comment); err != nil {
+		if err := h.commentPublisher.PublishCommentUpdated(r.Context(), comment); err != nil {
 			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
 		}
 	}
@@ -524,4 +534,57 @@ func (h *Handler) viewerUserID(r *http.Request) uint64 {
 	}
 
 	return principal.UserID
+}
+
+func (h *Handler) publishCommentNotification(ctx context.Context, principal *auth.AuthenticatedUser, comment CommentView) {
+	if h.notifications == nil || principal == nil || principal.UserID == 0 {
+		return
+	}
+
+	item, err := h.service.GetPostDetail(ctx, GetPostDetailInput{PostID: comment.PostID})
+	if err != nil || item == nil {
+		log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment notification post lookup failed")
+		return
+	}
+	if item.UserID == 0 || item.UserID == principal.UserID {
+		item.UserID = 0
+	}
+
+	actorName := strings.TrimSpace(principal.Username)
+	if actorName == "" {
+		actorName = "Someone"
+	}
+
+	recipients := make(map[uint64]string)
+	if item.UserID != 0 {
+		recipients[item.UserID] = "New comment"
+	}
+	if comment.ReplyToUserID != 0 && comment.ReplyToUserID != principal.UserID {
+		recipients[comment.ReplyToUserID] = "New reply"
+	}
+
+	for userID, title := range recipients {
+		if err := h.notifications.Publish(ctx, notification.Notification{
+			UserID:      userID,
+			ActorUserID: principal.UserID,
+			ActorName:   actorName,
+			Type:        notification.TypePostCommented,
+			Title:       title,
+			Body:        actorName + ": " + commentNotificationSnippet(comment.Content),
+			Resource:    notification.ResourceComment,
+			ResourceID:  notification.ResourceIDUint64(comment.ID),
+			PostID:      comment.PostID,
+		}); err != nil {
+			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Uint64("user_id", userID).Msg("comment notification publish failed")
+		}
+	}
+}
+
+func commentNotificationSnippet(content string) string {
+	value := strings.Join(strings.Fields(content), " ")
+	if len(value) <= 120 {
+		return value
+	}
+
+	return value[:117] + "..."
 }

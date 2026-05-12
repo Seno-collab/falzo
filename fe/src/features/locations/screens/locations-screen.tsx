@@ -7,7 +7,7 @@ import {
   Crosshair,
   ImageIcon,
   Loader2,
-  Map,
+  Map as MapIcon,
   MapPin,
   Navigation,
   Search,
@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { PageShell } from "@/components/layout/page-shell";
+import MapClient, { type MapPoint } from "@/components/map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,6 +132,42 @@ export function LocationsScreen() {
     () => nearbyQuery.data ?? [],
     [nearbyQuery.data],
   );
+  const mapPoints = useMemo<MapPoint[]>(() => {
+    const points = new Map<string, MapPoint>();
+
+    for (const location of searchQuery.data ?? []) {
+      points.set(location.id, {
+        id: location.id,
+        name: location.name,
+        address: location.address,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
+    }
+
+    for (const item of nearbyLocations) {
+      points.set(item.location.id, {
+        id: item.location.id,
+        name: item.location.name,
+        address: item.location.address,
+        latitude: item.location.latitude,
+        longitude: item.location.longitude,
+        distanceMeters: item.distance_meters,
+      });
+    }
+
+    if (selectedLocation && !points.has(selectedLocation.id)) {
+      points.set(selectedLocation.id, {
+        id: selectedLocation.id,
+        name: selectedLocation.name,
+        address: selectedLocation.address,
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+      });
+    }
+
+    return Array.from(points.values());
+  }, [nearbyLocations, searchQuery.data, selectedLocation]);
 
   function useCurrentPosition() {
     if (!navigator.geolocation) {
@@ -206,7 +243,7 @@ export function LocationsScreen() {
             },
           ]}
           brand="Falzo Locations"
-          brandIcon={<Map className="size-3.5" />}
+          brandIcon={<MapIcon className="size-3.5" />}
           mobileMenuTitle="Locations"
           subtitle="Search places, discover nearby locations, and review location posts."
         />
@@ -252,6 +289,40 @@ export function LocationsScreen() {
               </Button>
             </div>
           </form>
+
+          <section className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="app-kicker">Map</p>
+                <h2 className="text-xl font-semibold tracking-normal text-[#15365a]">
+                  Explore locations visually
+                </h2>
+              </div>
+              {selectedLocation ? (
+                <span className="rounded-full border border-[#d7e5f4] bg-[#f7fbff] px-3 py-1 text-xs font-semibold text-[#356792]">
+                  {selectedLocation.name}
+                </span>
+              ) : null}
+            </div>
+            <MapClient
+              currentPosition={coords}
+              onSelectPoint={(point) => {
+                const nextLocation =
+                  searchQuery.data?.find(
+                    (location) => location.id === point.id,
+                  ) ??
+                  nearbyLocations.find((item) => item.location.id === point.id)
+                    ?.location ??
+                  null;
+
+                if (nextLocation) {
+                  setSelectedLocation(nextLocation);
+                }
+              }}
+              points={mapPoints}
+              selectedPointId={selectedLocation?.id}
+            />
+          </section>
 
           <section className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6">
             <div className="flex flex-wrap items-end justify-between gap-3">

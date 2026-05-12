@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Bell,
   Bookmark,
   Camera,
   ChevronDown,
@@ -23,7 +22,14 @@ import {
 import type { InfiniteData } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -43,6 +49,13 @@ import {
 import type { AuthUser } from "@/features/auth/types";
 import { getAuthUserDisplayName } from "@/features/auth/user-display";
 import { getCategoriesApi } from "@/features/categories/api";
+import { NotificationBell } from "@/features/notifications/notification-bell";
+import {
+  createPostUploadNotification,
+  getNotificationsApi,
+  subscribeNotificationEvents,
+} from "@/features/notifications/api";
+import type { AppNotification } from "@/features/notifications/types";
 import {
   createPostCommentApi,
   getPostCommentEventsUrl,
@@ -72,6 +85,7 @@ import { cn } from "@/lib/utils";
 type PostsInfiniteData = InfiniteData<Post[], number>;
 
 const postsPageSize = 24;
+const maxNotifications = 30;
 
 function getCommentTime(comment: PostComment) {
   const timestamp = new Date(comment.created_at).getTime();
@@ -159,6 +173,34 @@ function matchesPostSearch(post: Post, searchValue: string) {
   return terms.every((term) => searchableText.includes(term));
 }
 
+function mergeNotification(
+  notifications: AppNotification[],
+  notification: AppNotification,
+) {
+  const existingIndex = notifications.findIndex(
+    (item) => item.id === notification.id,
+  );
+  const next =
+    existingIndex >= 0
+      ? notifications.map((item) =>
+          item.id === notification.id ? notification : item,
+        )
+      : [notification, ...notifications];
+
+  return next
+    .sort(
+      (left, right) =>
+        new Date(right.created_at).getTime() -
+        new Date(left.created_at).getTime(),
+    )
+    .slice(0, maxNotifications);
+}
+
+function getNotificationPostId(notification: AppNotification) {
+  const id = Number(notification.post_id);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
 export function ExploreScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -191,6 +233,10 @@ export function ExploreScreen() {
   const [editingComments, setEditingComments] = useState<
     Record<number, PostComment | null>
   >({});
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const deferredSearchValue = useDeferredValue(searchValue);
   const activeSearch = deferredSearchValue.trim();
   const normalizedActiveSearch = normalizeSearchValue(activeSearch);
@@ -227,11 +273,66 @@ export function ExploreScreen() {
     retry: false,
     staleTime: 0,
   });
+  const notificationsQuery = useQuery({
+    enabled: isAuthenticated,
+    queryKey: ["notifications", "list"],
+    queryFn: () => getNotificationsApi(maxNotifications),
+    refetchOnMount: "always",
+    retry: false,
+    staleTime: 0,
+  });
+  const profileName =
+    profileQuery.data && !profileQuery.isFetching
+      ? getAuthUserDisplayName(profileQuery.data, "") || null
+      : null;
+  const currentUserId = readAuthUserId(profileQuery.data);
+
+  const addNotification = useCallback((notification: AppNotification) => {
+    setNotifications((current) => mergeNotification(current, notification));
+  }, []);
+
+  const markNotificationsRead = useCallback(() => {
+    setReadNotificationIds(new Set(notifications.map((item) => item.id)));
+  }, [notifications]);
+
+  const unreadNotificationCount = useMemo(
+    () =>
+      notifications.reduce(
+        (count, notification) =>
+          readNotificationIds.has(notification.id) ? count : count + 1,
+        0,
+      ),
+    [notifications, readNotificationIds],
+  );
 
   useEffect(() => {
     document.title = "Falzo Explore | Visual Inspiration";
     setIsAuthenticated(hasAuthSession());
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    return subscribeNotificationEvents({
+      onNotification: addNotification,
+      onError: () => undefined,
+    });
+  }, [addNotification, isAuthenticated]);
+
+  useEffect(() => {
+    if (!notificationsQuery.data) {
+      return;
+    }
+
+    setNotifications((current) =>
+      notificationsQuery.data.reduce(
+        (merged, notification) => mergeNotification(merged, notification),
+        current,
+      ),
+    );
+  }, [notificationsQuery.data]);
 
   useEffect(() => {
     const source = new EventSource(getPostEventsUrl());
@@ -240,6 +341,10 @@ export function ExploreScreen() {
       if (!post) {
         return;
       }
+      if (isAuthenticated && post.user_id !== currentUserId) {
+        addNotification(createPostUploadNotification(post));
+      }
+
       if (activeSearch && !matchesPostSearch(post, activeSearch)) {
         return;
       }
@@ -276,7 +381,7 @@ export function ExploreScreen() {
       source.removeEventListener("post.created", handlePostCreated);
       source.close();
     };
-  }, [activeSearch, queryClient]);
+  }, [activeSearch, addNotification, currentUserId, isAuthenticated, queryClient]);
 
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -580,6 +685,16 @@ export function ExploreScreen() {
     void loadComments(postId);
   }
 
+  function openNotificationTarget(notification: AppNotification) {
+    const postId = getNotificationPostId(notification);
+    if (postId === null) {
+      return;
+    }
+
+    setReadNotificationIds((current) => new Set(current).add(notification.id));
+    openPostDetail(postId);
+  }
+
   function openSelectedPostChat() {
     if (selectedPostId === null) {
       return;
@@ -665,11 +780,6 @@ export function ExploreScreen() {
     loadingComments.has(selectedPostId);
   const isSelectedPostLiked = isPostLiked(selectedPost, likedPosts);
   const isSelectedPostSaved = isPostSaved(selectedPost, savedPosts);
-  const profileName =
-    profileQuery.data && !profileQuery.isFetching
-      ? getAuthUserDisplayName(profileQuery.data, "") || null
-      : null;
-  const currentUserId = readAuthUserId(profileQuery.data);
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
       <ExploreTopbar
@@ -678,9 +788,13 @@ export function ExploreScreen() {
         onProfileClick={() => {
           router.push(hasAuthSession() ? ROUTES.profile : ROUTES.login);
         }}
+        notifications={notifications}
+        onNotificationsOpen={markNotificationsRead}
+        onNotificationSelect={openNotificationTarget}
         onSearchChange={setSearchValue}
         profileName={profileName}
         searchValue={searchValue}
+        unreadNotificationCount={unreadNotificationCount}
       />
 
       <ExploreHero
@@ -866,18 +980,26 @@ export function ExploreScreen() {
 
 function ExploreTopbar({
   isAuthenticated,
+  notifications,
   onClearSearch,
+  onNotificationsOpen,
+  onNotificationSelect,
   onProfileClick,
   onSearchChange,
   profileName,
   searchValue,
+  unreadNotificationCount,
 }: Readonly<{
   isAuthenticated: boolean;
+  notifications: AppNotification[];
   onClearSearch: () => void;
+  onNotificationsOpen: () => void;
+  onNotificationSelect: (notification: AppNotification) => void;
   onProfileClick: () => void;
   onSearchChange: (value: string) => void;
   profileName: string | null;
   searchValue: string;
+  unreadNotificationCount: number;
 }>) {
   const profileLabel =
     isAuthenticated && profileName ? `Profile: ${profileName}` : "Profile";
@@ -951,15 +1073,12 @@ function ExploreTopbar({
               <Plus className="size-4" />
             </Link>
           </Button>
-          <Button
-            aria-label="Notifications"
-            className="rounded-full"
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            <Bell className="size-4" />
-          </Button>
+          <NotificationBell
+            notifications={notifications}
+            onOpen={onNotificationsOpen}
+            onSelectNotification={onNotificationSelect}
+            unreadCount={unreadNotificationCount}
+          />
           <Button
             aria-label={profileLabel}
             className={cn(
@@ -1022,6 +1141,17 @@ function ExploreTopbar({
                   Upload
                 </Link>
               </SheetClose>
+              <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
+                <span className="text-sm font-medium text-[#1f1f1f]">
+                  Notifications
+                </span>
+                <NotificationBell
+                  notifications={notifications}
+                  onOpen={onNotificationsOpen}
+                  onSelectNotification={onNotificationSelect}
+                  unreadCount={unreadNotificationCount}
+                />
+              </div>
               <SheetClose asChild>
                 <button
                   className={cn(

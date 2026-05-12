@@ -8,6 +8,8 @@ import (
 	categoryInfra "falzo-be/internal/category/infra"
 	"falzo-be/internal/location"
 	locationInfra "falzo-be/internal/location/infra"
+	"falzo-be/internal/notification"
+	notificationInfra "falzo-be/internal/notification/infra"
 	"falzo-be/internal/post"
 	postInfra "falzo-be/internal/post/infra"
 	"falzo-be/internal/upload"
@@ -18,6 +20,7 @@ import (
 	httpMiddleware "falzo-be/pkg/http/middleware"
 	"falzo-be/pkg/logger"
 	"falzo-be/pkg/shutdown"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,6 +31,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
 )
 
 func Run() {
@@ -65,6 +69,11 @@ func Run() {
 	locationRepository := locationInfra.NewPostgresRepository(db)
 	locationService := location.NewService(locationRepository)
 	locationHandler := location.NewHandler(locationService)
+	notificationRepository := notificationInfra.NewPostgresRepository(db)
+	notificationHub := notification.NewHub(notificationRepository)
+	notificationHandler := notification.NewHandler(notificationHub, authService)
+	grpcServer := grpc.NewServer()
+	notification.RegisterNotificationServiceServer(grpcServer, notification.NewGRPCServer(notificationHub, authService))
 	postgresPostRepository := postInfra.NewPostgresRepository(db)
 	var postRepository post.Repository = postgresPostRepository
 	commentEventBroker := post.NewCommentEventBroker()
@@ -94,6 +103,7 @@ func Run() {
 		authService,
 		post.WithCommentEvents(commentEventBroker, commentEventPublisher),
 		post.WithPostEvents(postEventBroker, postEventPublisher),
+		post.WithNotifications(notificationHub),
 	)
 	imageRepository := uploadInfra.NewPostgresRepository(db)
 	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
@@ -115,6 +125,7 @@ func Run() {
 		authService,
 		upload.WithProtectedMiddlewares(uploadRateLimit),
 		upload.WithMaxBodyBytes(cfg.Upload.MaxSize+(1<<20)),
+		upload.WithNotifications(notificationHub),
 	)
 	categoryRepository := categoryInfra.NewPostgresRepository(db)
 	categoryService := category.NewService(categoryRepository)
@@ -140,12 +151,17 @@ func Run() {
 		api.Mount("/auth", authHandler.Routes())
 		api.Mount("/locations", locationHandler.Routes())
 		api.Mount("/posts", postHandler.Routes())
+		api.Mount("/notifications", notificationHandler.Routes())
 		api.Mount("/categories", categoryHandler.Routes())
 		api.Mount("/", uploadHandler.Routes())
 	})
 
 	sm := shutdown.NewManager()
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}
+	grpcListener, err := net.Listen("tcp", cfg.GRPC.Addr)
+	if err != nil {
+		log.Fatal().Err(err).Str("addr", cfg.GRPC.Addr).Msg("failed to listen grpc")
+	}
 	sm.Register("auth-session-cleanup-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		stopSessionCleanup()
 		return nil
@@ -172,6 +188,21 @@ func Run() {
 		// Stop accepting new requests immediately
 		return srv.Shutdown(ctx)
 	})
+	sm.Register("grpc-stop-accepting", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+		done := make(chan struct{})
+		go func() {
+			grpcServer.GracefulStop()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			grpcServer.Stop()
+			return ctx.Err()
+		}
+	})
 	sm.Register("postgres-close", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		return db.Close()
 	})
@@ -183,12 +214,19 @@ func Run() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Error().Err(err).Str("addr", cfg.GRPC.Addr).Msg("grpc server failed")
+			os.Exit(1)
+		}
+	}()
+	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error().Err(err).Str("addr", srv.Addr).Msg("server failed")
 			os.Exit(1)
 		}
 	}()
 	log.Info().Str("addr", srv.Addr).Msg("server started")
+	log.Info().Str("addr", cfg.GRPC.Addr).Msg("grpc server started")
 	sig := <-quit
 	log.Info().Str("signal", sig.String()).Msg("shutdown initiated")
 
