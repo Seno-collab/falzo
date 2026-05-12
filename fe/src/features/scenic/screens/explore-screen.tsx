@@ -1105,7 +1105,7 @@ function ExploreHero({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden">
         {collections.map((collection) => (
           <button
             className={cn(

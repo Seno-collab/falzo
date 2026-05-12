@@ -8,8 +8,8 @@ import {
   Compass,
   ImagePlus,
   Loader2,
-  Map,
   MapPin,
+  Map,
   RefreshCcw,
   Trash2,
   Upload,
@@ -31,7 +31,7 @@ import {
 import { createPostApi, uploadImageApi } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
 import { ROUTES } from "@/lib/routes";
-
+import MapClient from "@/components/map";
 type FormState = {
   caption: string;
   locationName: string;
@@ -203,7 +203,7 @@ export function UploadImageScreen() {
       setUploadedImage(null);
       setForm(initialForm);
       await queryClient.invalidateQueries({ queryKey: ["posts"] });
-      router.push(ROUTES.explore);
+      toast.success("Post successfully");
     },
   });
 
@@ -319,12 +319,12 @@ export function UploadImageScreen() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.58fr)]">
           <section className="app-panel overflow-hidden rounded-2xl border-[#d6e5f6] bg-white/92">
-            <div className="relative min-h-[420px] bg-[#edf4fb]">
+            <div className="relative min-h-105 bg-[#edf4fb]">
               {previewUrl ? (
                 <>
                   <img
                     alt="Selected upload preview"
-                    className="h-full min-h-[420px] w-full object-cover"
+                    className="h-full min-h-105 w-full object-cover"
                     src={previewUrl}
                   />
                   <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-3">
@@ -370,7 +370,7 @@ export function UploadImageScreen() {
                   </div>
                 </>
               ) : (
-                <label className="flex min-h-[420px] cursor-pointer flex-col items-center justify-center gap-4 px-6 text-center">
+                <label className="flex min-h-105 cursor-pointer flex-col items-center justify-center gap-4 px-6 text-center">
                   <span className="inline-flex size-16 items-center justify-center rounded-2xl bg-white text-[#2f6fb8] shadow-[0_16px_38px_-28px_rgb(28_77_128/0.7)]">
                     <ImagePlus className="size-7" />
                   </span>
@@ -510,7 +510,12 @@ export function UploadImageScreen() {
                 />
               </div>
             </div>
-
+            <div>
+              <Map
+                center={[Number(form.latitude), Number(form.longitude)]}
+                zoom={13}
+              />
+            </div>
             <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
               <MapPin className="size-4 shrink-0 text-[#2f6fb8]" />
               <span className="min-w-0">

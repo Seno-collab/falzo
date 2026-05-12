@@ -84,9 +84,7 @@ export async function uploadImageApi(file: File): Promise<UploadedImage> {
   return apiPost<UploadedImage>(IMAGE_UPLOAD_ENDPOINT, formData);
 }
 
-export async function createPostApi(
-  payload: CreatePostPayload,
-): Promise<Post> {
+export async function createPostApi(payload: CreatePostPayload): Promise<Post> {
   initializeAuthHeader();
 
   return apiPost<Post>(POSTS_ENDPOINT, payload);
@@ -116,7 +114,9 @@ export async function unsavePostApi(postId: number): Promise<void> {
   await apiDelete(endpointPath(POSTS_ENDPOINT, postId, "save"));
 }
 
-export async function getPostCommentsApi(postId: number): Promise<PostComment[]> {
+export async function getPostCommentsApi(
+  postId: number,
+): Promise<PostComment[]> {
   return apiGet<PostComment[]>(
     endpointPath(POSTS_ENDPOINT, postId, "comments"),
     {
