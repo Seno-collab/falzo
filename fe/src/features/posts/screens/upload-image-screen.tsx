@@ -31,7 +31,11 @@ import {
   getMeApi,
   hasAuthSession,
 } from "@/features/auth/api";
-import { searchLocationsApi } from "@/features/locations/api";
+import {
+  defaultLocationSearch,
+  normalizeLocationSearchQuery,
+  searchLocationsWithFallbackApi,
+} from "@/features/locations/search";
 import type { Location } from "@/features/locations/types";
 import { createPostApi, uploadImageApi } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
@@ -130,7 +134,7 @@ export function UploadImageScreen() {
     null,
   );
   const [submittedLocationSearch, setSubmittedLocationSearch] =
-    useState("Ho Chi Minh");
+    useState(defaultLocationSearch);
 
   const previewUrl = useMemo(() => {
     if (!selectedFile) {
@@ -202,7 +206,7 @@ export function UploadImageScreen() {
   const locationQuery = useQuery({
     enabled: submittedLocationSearch.trim().length > 0,
     queryKey: ["locations", "upload-search", submittedLocationSearch],
-    queryFn: () => searchLocationsApi(submittedLocationSearch.trim()),
+    queryFn: () => searchLocationsWithFallbackApi(submittedLocationSearch),
   });
 
   const mapPoints = useMemo<MapPoint[]>(() => {
@@ -269,6 +273,12 @@ export function UploadImageScreen() {
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function submitLocationSearch() {
+    setSubmittedLocationSearch(
+      normalizeLocationSearchQuery(locationSearchInput),
+    );
   }
 
   function selectLocation(location: Location) {
@@ -615,15 +625,15 @@ export function UploadImageScreen() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      setSubmittedLocationSearch(locationSearchInput);
+                      submitLocationSearch();
                     }
                   }}
-                  placeholder="Search Ho Chi Minh City, Da Nang, Kyoto"
+                  placeholder="Search TP.HCM, Ho Chi Minh City, Da Nang, Kyoto"
                   value={locationSearchInput}
                 />
                 <Button
                   disabled={isPublishing || locationQuery.isFetching}
-                  onClick={() => setSubmittedLocationSearch(locationSearchInput)}
+                  onClick={submitLocationSearch}
                   type="button"
                   variant="outline"
                 >

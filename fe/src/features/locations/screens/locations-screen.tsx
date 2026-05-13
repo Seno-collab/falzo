@@ -26,8 +26,13 @@ import { getApiErrorMessage } from "@/features/auth/api";
 import {
   getLocationPostsApi,
   getNearbyLocationsApi,
-  searchLocationsApi,
 } from "@/features/locations/api";
+import {
+  defaultLocationSearch,
+  isGeocodedLocation,
+  normalizeLocationSearchQuery,
+  searchLocationsWithFallbackApi,
+} from "@/features/locations/search";
 import type { Location, NearbyLocation } from "@/features/locations/types";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -93,7 +98,7 @@ function LocationRow({
 
 export function LocationsScreen() {
   const [searchInput, setSearchInput] = useState("");
-  const [submittedSearch, setSubmittedSearch] = useState("Ho Chi Minh");
+  const [submittedSearch, setSubmittedSearch] = useState(defaultLocationSearch);
   const [coords, setCoords] = useState<Coordinates | null>(null);
   const [radiusMeters, setRadiusMeters] = useState(defaultRadiusMeters);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
@@ -108,7 +113,7 @@ export function LocationsScreen() {
   const searchQuery = useQuery({
     enabled: submittedSearch.trim().length > 0,
     queryKey: ["locations", "search", submittedSearch],
-    queryFn: () => searchLocationsApi(submittedSearch.trim()),
+    queryFn: () => searchLocationsWithFallbackApi(submittedSearch),
   });
 
   const nearbyQuery = useQuery({
@@ -123,7 +128,7 @@ export function LocationsScreen() {
   });
 
   const postsQuery = useQuery({
-    enabled: selectedLocation !== null,
+    enabled: selectedLocation !== null && !isGeocodedLocation(selectedLocation),
     queryKey: ["locations", selectedLocation?.id, "posts"],
     queryFn: () => getLocationPostsApi(selectedLocation?.id ?? ""),
   });
@@ -255,7 +260,7 @@ export function LocationsScreen() {
             className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6"
             onSubmit={(event) => {
               event.preventDefault();
-              setSubmittedSearch(searchInput);
+              setSubmittedSearch(normalizeLocationSearchQuery(searchInput));
             }}
           >
             <div className="space-y-1">
@@ -270,7 +275,7 @@ export function LocationsScreen() {
                 <Input
                   id="location-search"
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Ho Chi Minh, Da Nang, Kyoto"
+                  placeholder="TP.HCM, Ho Chi Minh, Da Nang, Kyoto"
                   value={searchInput}
                 />
               </div>
@@ -473,7 +478,25 @@ export function LocationsScreen() {
                 </article>
               ))}
 
+              {selectedLocation && isGeocodedLocation(selectedLocation) ? (
+                <div className="app-empty-state">
+                  <span className="app-empty-icon">
+                    <ImageIcon className="size-5" />
+                  </span>
+                  <p className="text-sm font-semibold text-[#315578]">
+                    No posts for this location yet.
+                  </p>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={ROUTES.upload}>
+                      <Upload className="size-4" />
+                      Upload
+                    </Link>
+                  </Button>
+                </div>
+              ) : null}
+
               {selectedLocation &&
+              !isGeocodedLocation(selectedLocation) &&
               !postsQuery.isFetching &&
               postsQuery.data?.length === 0 ? (
                 <div className="app-empty-state">
