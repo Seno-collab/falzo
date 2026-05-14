@@ -37,11 +37,8 @@ import {
   normalizeLocationSearchQuery,
   searchLocationsWithFallbackApi,
 } from "@/features/locations/search";
-=======
 import { getCategoriesApi } from "@/features/categories/api";
 import type { Category } from "@/features/categories/types";
-import { searchLocationsApi } from "@/features/locations/api";
->>>>>>> Stashed changes
 import type { Location } from "@/features/locations/types";
 import { createPostApi, uploadImageApi } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
@@ -142,8 +139,9 @@ export function UploadImageScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
     null,
   );
-  const [submittedLocationSearch, setSubmittedLocationSearch] =
-    useState(defaultLocationSearch);
+  const [submittedLocationSearch, setSubmittedLocationSearch] = useState(
+    defaultLocationSearch,
+  );
 
   const previewUrl = useMemo(() => {
     if (!selectedFile) {
