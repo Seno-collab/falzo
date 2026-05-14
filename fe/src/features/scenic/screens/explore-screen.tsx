@@ -10,6 +10,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  Tags,
   UserRound,
   X,
 } from "lucide-react";
@@ -49,10 +50,11 @@ import {
 import type { AuthUser } from "@/features/auth/types";
 import { getAuthUserDisplayName } from "@/features/auth/user-display";
 import { getCategoriesApi } from "@/features/categories/api";
+import type { Category } from "@/features/categories/types";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import {
-  createPostUploadNotification,
   getNotificationsApi,
+  markNotificationsReadApi,
   subscribeNotificationEvents,
 } from "@/features/notifications/api";
 import type { AppNotification } from "@/features/notifications/types";
@@ -75,6 +77,8 @@ import type { Post, PostComment } from "@/features/posts/types";
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
 import { PostDetailDialog } from "@/features/scenic/components/explore-detail-dialogs";
 import {
+  ALL_COLLECTION,
+  FOLLOWING_COLLECTION,
   getExploreCollections,
   showsCommunityFeed,
   toggleSetValue,
@@ -167,7 +171,13 @@ function matchesPostSearch(post: Post, searchValue: string) {
   }
 
   const searchableText = normalizeSearchValue(
-    [post.caption, post.location_name, post.user_name].join(" "),
+    [
+      post.caption,
+      post.location_name,
+      post.user_name,
+      post.category_name,
+      post.category_slug,
+    ].join(" "),
   );
 
   return terms.every((term) => searchableText.includes(term));
@@ -241,22 +251,37 @@ export function ExploreScreen() {
   const activeSearch = deferredSearchValue.trim();
   const normalizedActiveSearch = normalizeSearchValue(activeSearch);
 
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategoriesApi,
+  });
+  const activeCategorySlug = useMemo(() => {
+    if (showsCommunityFeed(activeCollection)) {
+      return "";
+    }
+
+    return (
+      categoriesQuery.data?.find(
+        (category) => category.name === activeCollection,
+      )?.slug ?? ""
+    );
+  }, [activeCollection, categoriesQuery.data]);
+  const activeFeed =
+    activeCollection === FOLLOWING_COLLECTION ? "following" : undefined;
+
   const postsQuery = useInfiniteQuery({
-    queryKey: ["posts", "explore", activeSearch],
+    queryKey: ["posts", "explore", activeSearch, activeCategorySlug, activeFeed],
     queryFn: ({ pageParam }) =>
       getPostsApi({
         page: pageParam,
         limit: postsPageSize,
         search: activeSearch,
+        categorySlug: activeCategorySlug,
+        feed: activeFeed,
       }),
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.length < postsPageSize ? undefined : lastPageParam + 1,
     initialPageParam: 1,
-  });
-
-  const categoriesQuery = useQuery({
-    queryKey: ["categories"],
-    queryFn: getCategoriesApi,
   });
 
   const postDetailQuery = useQuery({
@@ -291,9 +316,38 @@ export function ExploreScreen() {
     setNotifications((current) => mergeNotification(current, notification));
   }, []);
 
+  const markNotificationIdsRead = useCallback((ids: string[]) => {
+    const cleanIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    if (cleanIds.length === 0) {
+      return;
+    }
+
+    const readAt = new Date().toISOString();
+    setReadNotificationIds((current) => {
+      const next = new Set(current);
+      cleanIds.forEach((id) => next.add(id));
+      return next;
+    });
+    setNotifications((current) =>
+      current.map((notification) =>
+        cleanIds.includes(notification.id)
+          ? { ...notification, read_at: notification.read_at ?? readAt }
+          : notification,
+      ),
+    );
+    void markNotificationsReadApi(cleanIds).catch(() => undefined);
+  }, []);
+
   const markNotificationsRead = useCallback(() => {
-    setReadNotificationIds(new Set(notifications.map((item) => item.id)));
-  }, [notifications]);
+    markNotificationIdsRead(
+      notifications
+        .filter(
+          (notification) =>
+            !notification.read_at && !readNotificationIds.has(notification.id),
+        )
+        .map((notification) => notification.id),
+    );
+  }, [markNotificationIdsRead, notifications, readNotificationIds]);
 
   const unreadNotificationCount = useMemo(
     () =>
@@ -332,6 +386,13 @@ export function ExploreScreen() {
         current,
       ),
     );
+    setReadNotificationIds((current) => {
+      const next = new Set(current);
+      notificationsQuery.data
+        .filter((notification) => Boolean(notification.read_at))
+        .forEach((notification) => next.add(notification.id));
+      return next;
+    });
   }, [notificationsQuery.data]);
 
   useEffect(() => {
@@ -341,16 +402,18 @@ export function ExploreScreen() {
       if (!post) {
         return;
       }
-      if (isAuthenticated && post.user_id !== currentUserId) {
-        addNotification(createPostUploadNotification(post));
-      }
-
       if (activeSearch && !matchesPostSearch(post, activeSearch)) {
+        return;
+      }
+      if (activeCategorySlug && post.category_slug !== activeCategorySlug) {
+        return;
+      }
+      if (activeFeed) {
         return;
       }
 
       queryClient.setQueryData<PostsInfiniteData>(
-        ["posts", "explore", activeSearch],
+        ["posts", "explore", activeSearch, activeCategorySlug, activeFeed],
         (current) => {
           if (!current) {
             return {
@@ -381,7 +444,12 @@ export function ExploreScreen() {
       source.removeEventListener("post.created", handlePostCreated);
       source.close();
     };
-  }, [activeSearch, addNotification, currentUserId, isAuthenticated, queryClient]);
+  }, [
+    activeCategorySlug,
+    activeFeed,
+    activeSearch,
+    queryClient,
+  ]);
 
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -466,6 +534,10 @@ export function ExploreScreen() {
     () => getExploreCollections(categoriesQuery.data),
     [categoriesQuery.data],
   );
+  const categories = useMemo(
+    () => categoriesQuery.data ?? [],
+    [categoriesQuery.data],
+  );
 
   const loadedPosts = useMemo(
     () => postsQuery.data?.pages.flat() ?? [],
@@ -484,7 +556,7 @@ export function ExploreScreen() {
       }
 
       if (!showsCommunityFeed(activeCollection)) {
-        return [];
+        return activeCategorySlug ? loadedPosts : [];
       }
 
       return loadedPosts;
@@ -500,6 +572,7 @@ export function ExploreScreen() {
     );
   }, [
     activeCollection,
+    activeCategorySlug,
     loadedPosts,
     savedBoardPosts,
     normalizedActiveSearch,
@@ -524,7 +597,9 @@ export function ExploreScreen() {
   }, [loadedPosts, postDetailQuery.data, selectedPostId]);
 
   const shouldLoadMorePosts =
-    (showSavedBoard || showsCommunityFeed(activeCollection)) &&
+    (showSavedBoard ||
+      showsCommunityFeed(activeCollection) ||
+      Boolean(activeCategorySlug)) &&
     postsQuery.hasNextPage &&
     !postsQuery.isFetchingNextPage;
   const fetchNextPostsPage = postsQuery.fetchNextPage;
@@ -686,13 +761,17 @@ export function ExploreScreen() {
   }
 
   function openNotificationTarget(notification: AppNotification) {
+    markNotificationIdsRead([notification.id]);
     const postId = getNotificationPostId(notification);
-    if (postId === null) {
+    if (postId !== null) {
+      openPostDetail(postId);
       return;
     }
 
-    setReadNotificationIds((current) => new Set(current).add(notification.id));
-    openPostDetail(postId);
+    const actorUserId = Number(notification.actor_user_id);
+    if (Number.isFinite(actorUserId) && actorUserId > 0) {
+      router.push(ROUTES.userProfile(actorUserId));
+    }
   }
 
   function openSelectedPostChat() {
@@ -734,6 +813,15 @@ export function ExploreScreen() {
     }
 
     setShowSavedBoard((current) => !current);
+  }
+
+  function changeCollection(collection: string) {
+    if (collection === FOLLOWING_COLLECTION && !requireAuth()) {
+      return;
+    }
+
+    setShowSavedBoard(false);
+    setActiveCollection(collection);
   }
 
   function submitComment(postId: number) {
@@ -800,11 +888,21 @@ export function ExploreScreen() {
       <ExploreHero
         activeCollection={activeCollection}
         collections={collections}
-        onCollectionChange={setActiveCollection}
+        onCollectionChange={changeCollection}
         onToggleSavedBoard={toggleSavedBoard}
         savedBoardCount={savedBoardPosts.length}
         showSavedBoard={showSavedBoard}
       />
+
+      {activeCollection === ALL_COLLECTION && !showSavedBoard ? (
+        <ExploreCategoryBar
+          categories={categories}
+          onSelectCategory={(category) => {
+            setShowSavedBoard(false);
+            setActiveCollection(category.name);
+          }}
+        />
+      ) : null}
 
       <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
         {showSavedBoard || searchResultsLabel ? (
@@ -899,7 +997,9 @@ export function ExploreScreen() {
           </div>
         ) : null}
 
-        {showSavedBoard || showsCommunityFeed(activeCollection) ? (
+        {showSavedBoard ||
+        showsCommunityFeed(activeCollection) ||
+        activeCategorySlug ? (
           <LoadMorePosts
             hasNextPage={Boolean(postsQuery.hasNextPage)}
             isLoading={postsQuery.isFetchingNextPage}
@@ -1251,6 +1351,51 @@ function ExploreHero({
             {collection}
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function ExploreCategoryBar({
+  categories,
+  onSelectCategory,
+}: Readonly<{
+  categories: Category[];
+  onSelectCategory: (category: Category) => void;
+}>) {
+  if (categories.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="mx-auto w-full max-w-370 px-4 pb-5 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-3 border-black/6 border-y bg-white/74 py-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-42 shrink-0 items-center gap-2 text-[#333]">
+          <span className="flex size-8 items-center justify-center rounded-full bg-[#111] text-white">
+            <Tags className="size-4" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+              Categories
+            </p>
+            <h2 className="text-base font-semibold tracking-normal text-[#111]">
+              All
+            </h2>
+          </div>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          {categories.map((category) => (
+            <button
+              className="shrink-0 rounded-full border border-black/7 bg-[#f7f7f5] px-3.5 py-2 text-sm font-semibold text-[#444] transition hover:border-black/15 hover:bg-white"
+              key={category.id}
+              onClick={() => onSelectCategory(category)}
+              type="button"
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -28,6 +28,22 @@ func (r *fakeNotificationRepository) ListByUser(_ context.Context, userID uint64
 	return items, nil
 }
 
+func (r *fakeNotificationRepository) MarkRead(_ context.Context, userID uint64, ids []string) error {
+	readAt := time.Now().UTC()
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	for index := range r.items {
+		if r.items[index].UserID == userID {
+			if _, ok := idSet[r.items[index].ID]; ok {
+				r.items[index].ReadAt = &readAt
+			}
+		}
+	}
+	return nil
+}
+
 func TestHubPublishesOnlyToTargetUser(t *testing.T) {
 	hub := NewHub()
 	target, unsubscribeTarget, err := hub.Subscribe(t.Context(), 7)

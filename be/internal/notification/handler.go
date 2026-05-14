@@ -20,6 +20,7 @@ import (
 type Handler struct {
 	subscriber  Subscriber
 	lister      Lister
+	marker      Marker
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	}
@@ -35,6 +36,9 @@ func NewHandler(
 	if lister, ok := subscriber.(Lister); ok {
 		h.lister = lister
 	}
+	if marker, ok := subscriber.(Marker); ok {
+		h.marker = marker
+	}
 	return h
 }
 
@@ -44,8 +48,13 @@ func (h *Handler) Routes() chi.Router {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Get("/", h.ListNotifications)
 		protected.Get("/events", h.StreamNotifications)
+		protected.Post("/read", h.MarkNotificationsRead)
 	})
 	return r
+}
+
+type markNotificationsReadRequest struct {
+	IDs []string `json:"ids"`
 }
 
 func (h *Handler) ListNotifications(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +89,32 @@ func (h *Handler) ListNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Notifications fetched successfully", items, r)
+}
+
+func (h *Handler) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	if h.marker == nil {
+		httpResponse.Error(w, http.StatusServiceUnavailable, "notification service unavailable", r)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "mark_notifications_read", mapNotificationError)
+		return
+	}
+
+	var req markNotificationsReadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, ErrInternal, "mark_notifications_read", mapNotificationError)
+		return
+	}
+
+	if err := h.marker.MarkRead(r.Context(), principal.UserID, req.IDs); err != nil {
+		share.WriteError(w, r, err, "mark_notifications_read", mapNotificationError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Notifications marked read successfully", nil, r)
 }
 
 func (h *Handler) StreamNotifications(w http.ResponseWriter, r *http.Request) {

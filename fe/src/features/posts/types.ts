@@ -2,6 +2,9 @@ export type Post = {
   id: number;
   user_id: number;
   user_name: string;
+  category_id?: number;
+  category_name?: string;
+  category_slug?: string;
   image_url: string;
   caption: string;
   location_name: string;
@@ -39,6 +42,7 @@ export type PostCreatedEvent = Post;
 export type CreatePostPayload = {
   image_url: string;
   caption: string;
+  category_id?: number;
   location_name: string;
   latitude: number;
   longitude: number;

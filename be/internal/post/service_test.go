@@ -8,13 +8,19 @@ import (
 
 type fakePostRepository struct {
 	commentReplyToID uint64
+	createCategoryID uint64
 	updateUserID     uint64
 	page             int
 	limit            int
 	search           string
+	categorySlug     string
+	feed             string
 }
 
-func (f *fakePostRepository) Create(context.Context, *Post) error { return nil }
+func (f *fakePostRepository) Create(_ context.Context, post *Post) error {
+	f.createCategoryID = post.CategoryID
+	return nil
+}
 
 func (f *fakePostRepository) Like(context.Context, uint64, uint64) error { return nil }
 
@@ -42,11 +48,35 @@ func (f *fakePostRepository) UpdateComment(_ context.Context, postID uint64, com
 	}, nil
 }
 
-func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64, search string) ([]Post, error) {
+func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64, search string, categorySlug string, feed string) ([]Post, error) {
 	f.page = page
 	f.limit = limit
 	f.search = search
+	f.categorySlug = categorySlug
+	f.feed = feed
 	return nil, nil
+}
+
+func TestCreatePostPassesCategoryToRepository(t *testing.T) {
+	repo := &fakePostRepository{}
+	service := NewService(repo)
+
+	_, err := service.CreatePost(t.Context(), CreatePostInput{
+		UserID:       2,
+		CategoryID:   4,
+		ImageURL:     "https://example.com/image.jpg",
+		Caption:      "Category post",
+		LocationName: "Da Nang",
+		Latitude:     16.0471,
+		Longitude:    108.2068,
+	})
+	if err != nil {
+		t.Fatalf("create post: %v", err)
+	}
+
+	if repo.createCategoryID != 4 {
+		t.Fatalf("expected category id 4, got %d", repo.createCategoryID)
+	}
 }
 
 func TestCommentPostPassesReplyTargetToRepository(t *testing.T) {
@@ -132,12 +162,21 @@ func TestGetPostsPassesPaginationToRepository(t *testing.T) {
 	repo := &fakePostRepository{}
 	service := NewService(repo)
 
-	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 2, Limit: 24, Search: " Kyoto "})
+	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 2, Limit: 24, Search: " Kyoto ", CategorySlug: " heritage ", Feed: "following", ViewerUserID: 7})
 	if err != nil {
 		t.Fatalf("get posts: %v", err)
 	}
 
-	if repo.page != 2 || repo.limit != 24 || repo.search != "Kyoto" {
-		t.Fatalf("expected page=2 limit=24 search=Kyoto, got page=%d limit=%d search=%q", repo.page, repo.limit, repo.search)
+	if repo.page != 2 || repo.limit != 24 || repo.search != "Kyoto" || repo.categorySlug != "heritage" || repo.feed != "following" {
+		t.Fatalf("expected page=2 limit=24 search=Kyoto category=heritage feed=following, got page=%d limit=%d search=%q category=%q feed=%q", repo.page, repo.limit, repo.search, repo.categorySlug, repo.feed)
+	}
+}
+
+func TestGetFollowingFeedRequiresViewer(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 1, Limit: 24, Feed: "following"})
+	if err != ErrUserIDRequired {
+		t.Fatalf("expected ErrUserIDRequired, got %v", err)
 	}
 }

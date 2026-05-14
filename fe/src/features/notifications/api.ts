@@ -1,6 +1,6 @@
 import { getAuthAccessToken, initializeAuthHeader } from "@/features/auth/api";
 import type { AppNotification } from "@/features/notifications/types";
-import { apiGet, envEndpoint } from "@/lib/api-utils";
+import { apiGet, apiPost, endpointPath, envEndpoint } from "@/lib/api-utils";
 
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -102,6 +102,18 @@ export function getNotificationsApi(limit = 30) {
   return apiGet<AppNotification[]>(
     `${NOTIFICATIONS_ENDPOINT}?limit=${encodeURIComponent(String(limit))}`,
   );
+}
+
+export async function markNotificationsReadApi(ids: string[]) {
+  initializeAuthHeader();
+  const cleanIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  if (cleanIds.length === 0) {
+    return;
+  }
+
+  await apiPost(endpointPath(NOTIFICATIONS_ENDPOINT, "read"), {
+    ids: cleanIds,
+  });
 }
 
 export function subscribeNotificationEvents({

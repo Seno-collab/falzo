@@ -13,6 +13,7 @@ import {
   MapPin,
   RefreshCcw,
   Search,
+  Tags,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -36,6 +37,11 @@ import {
   normalizeLocationSearchQuery,
   searchLocationsWithFallbackApi,
 } from "@/features/locations/search";
+=======
+import { getCategoriesApi } from "@/features/categories/api";
+import type { Category } from "@/features/categories/types";
+import { searchLocationsApi } from "@/features/locations/api";
+>>>>>>> Stashed changes
 import type { Location } from "@/features/locations/types";
 import { createPostApi, uploadImageApi } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
@@ -133,6 +139,9 @@ export function UploadImageScreen() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
     null,
   );
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
+    null,
+  );
   const [submittedLocationSearch, setSubmittedLocationSearch] =
     useState(defaultLocationSearch);
 
@@ -209,6 +218,20 @@ export function UploadImageScreen() {
     queryFn: () => searchLocationsWithFallbackApi(submittedLocationSearch),
   });
 
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategoriesApi,
+  });
+
+  const categories = useMemo<Category[]>(
+    () => categoriesQuery.data ?? [],
+    [categoriesQuery.data],
+  );
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === selectedCategoryId),
+    [categories, selectedCategoryId],
+  );
+
   const mapPoints = useMemo<MapPoint[]>(() => {
     const points = new Map<string, MapPoint>();
 
@@ -229,6 +252,12 @@ export function UploadImageScreen() {
     }
   }, [locationQuery.error]);
 
+  useEffect(() => {
+    if (categoriesQuery.error) {
+      toast.error(getApiErrorMessage(categoriesQuery.error));
+    }
+  }, [categoriesQuery.error]);
+
   const publishMutation = useMutation({
     mutationFn: async () => {
       if (!selectedFile && !uploadedImage?.url) {
@@ -246,10 +275,14 @@ export function UploadImageScreen() {
       ) {
         throw new TypeError("Choose a location before publishing.");
       }
+      if (categories.length > 0 && !selectedCategory) {
+        throw new TypeError("Choose a category before publishing.");
+      }
 
       return createPostApi({
         image_url: image.url,
         caption: form.caption,
+        ...(selectedCategory ? { category_id: selectedCategory.id } : {}),
         location_name: form.locationName,
         latitude,
         longitude,
@@ -265,6 +298,7 @@ export function UploadImageScreen() {
       setUploadedImage(null);
       setForm(initialForm);
       setSelectedLocation(null);
+      setSelectedCategoryId(null);
       setLocationSearchInput("");
       await queryClient.invalidateQueries({ queryKey: ["posts"] });
       toast.success("Post successfully");
@@ -613,6 +647,52 @@ export function UploadImageScreen() {
             </div>
 
             <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Category</Label>
+                {categoriesQuery.isFetching ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#356792]">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Loading
+                  </span>
+                ) : null}
+              </div>
+
+              {categories.length > 0 ? (
+                <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto pr-1">
+                  {categories.map((category) => {
+                    const selected = selectedCategoryId === category.id;
+
+                    return (
+                      <button
+                        aria-pressed={selected}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                          selected
+                            ? "border-[#2f6fb8] bg-[#15365a] text-white"
+                            : "border-[#d7e5f4] bg-white/90 text-[#385c80] hover:border-[#a9c8e8] hover:bg-[#f8fbff]"
+                        }`}
+                        disabled={isPublishing}
+                        key={category.id}
+                        onClick={() => setSelectedCategoryId(category.id)}
+                        type="button"
+                      >
+                        <Tags className="size-3.5" />
+                        {category.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
+                  <Tags className="size-4 shrink-0 text-[#2f6fb8]" />
+                  <span className="min-w-0">
+                    No categories are available yet. The post can still be
+                    published without a category.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
               <Label htmlFor="location-search">Location</Label>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                 <Input
@@ -740,7 +820,12 @@ export function UploadImageScreen() {
 
             <Button
               className="w-full"
-              disabled={isBusy || !selectedFile || !selectedLocation}
+              disabled={
+                isBusy ||
+                !selectedFile ||
+                !selectedLocation ||
+                (categories.length > 0 && !selectedCategory)
+              }
               type="submit"
               variant="gradient"
             >

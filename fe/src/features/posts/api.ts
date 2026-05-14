@@ -52,15 +52,20 @@ export async function getPostsApi(params?: {
   page?: number;
   limit?: number;
   search?: string;
+  categorySlug?: string;
+  feed?: "following";
 }): Promise<Post[]> {
   initializeAuthHeader();
 
   const search = params?.search?.trim();
+  const categorySlug = params?.categorySlug?.trim();
   return apiGet<Post[]>(POSTS_ENDPOINT, {
     params: {
       page: params?.page ?? 1,
       limit: params?.limit ?? 24,
       ...(search ? { search } : {}),
+      ...(categorySlug ? { category_slug: categorySlug } : {}),
+      ...(params?.feed ? { feed: params.feed } : {}),
     },
   });
 }
@@ -196,6 +201,18 @@ export function parsePostCreatedEvent(
 
     return {
       ...payload,
+      category_id:
+        typeof payload.category_id === "number"
+          ? payload.category_id
+          : undefined,
+      category_name:
+        typeof payload.category_name === "string"
+          ? payload.category_name
+          : undefined,
+      category_slug:
+        typeof payload.category_slug === "string"
+          ? payload.category_slug
+          : undefined,
       is_liked: Boolean(payload.is_liked),
       is_saved: Boolean(payload.is_saved),
     } as PostCreatedEvent;

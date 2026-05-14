@@ -29,11 +29,26 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 	if item == nil {
 		return post.ErrInternal
 	}
+	if item.CategoryID != 0 {
+		if err := r.ensureCategoryExists(ctx, item.CategoryID); err != nil {
+			return err
+		}
+	}
 
 	err := r.db.Pool().QueryRow(ctx, `
-		INSERT INTO posts (user_id, image_url, caption, location_name, latitude, longitude)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, (SELECT user_name FROM users WHERE id = $1), created_at, updated_at
+		WITH inserted AS (
+			INSERT INTO posts (user_id, image_url, caption, location_name, latitude, longitude, category_id)
+			VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, 0))
+			RETURNING id, category_id, created_at, updated_at
+		)
+		SELECT inserted.id, users.user_name,
+			COALESCE(categories.id, 0),
+			COALESCE(categories.name, ''),
+			COALESCE(categories.slug, ''),
+			inserted.created_at, inserted.updated_at
+		FROM inserted
+		INNER JOIN users ON users.id = $1
+		LEFT JOIN categories ON categories.id = inserted.category_id
 	`,
 		item.UserID,
 		item.ImageURL.String(),
@@ -41,7 +56,8 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 		item.LocationName.String(),
 		item.Latitude,
 		item.Longitude,
-	).Scan(&item.ID, &item.UserName, &item.CreatedAt, &item.UpdatedAt)
+		item.CategoryID,
+	).Scan(&item.ID, &item.UserName, &item.CategoryID, &item.CategoryName, &item.CategorySlug, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		return share.MapDBError(ctx, postRepoService, "posts.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -261,15 +277,17 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 	return comment, nil
 }
 
-func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string) ([]post.Post, error) {
+func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string, categorySlug string, feed string) ([]post.Post, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, post.ErrDependencyUnavailable
 	}
 
 	offset := (page - 1) * limit
 	searchPattern := "%" + strings.TrimSpace(search) + "%"
+	categorySlug = strings.TrimSpace(categorySlug)
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -284,10 +302,25 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, 
 				posts.created_at, posts.updated_at
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
-		WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4)
+		LEFT JOIN categories ON categories.id = posts.category_id
+		WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4
+			OR categories.name ILIKE $4 OR categories.slug ILIKE $4)
+			AND ($5 = '' OR categories.slug = $5)
+			AND (
+				$6 = ''
+				OR (
+					$6 = 'following'
+					AND EXISTS (
+						SELECT 1
+						FROM user_follows
+						WHERE user_follows.follower_id = $3
+							AND user_follows.following_id = posts.user_id
+					)
+				)
+			)
 		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT $1 OFFSET $2
-	`, limit, offset, viewerUserID, searchPattern)
+	`, limit, offset, viewerUserID, searchPattern, categorySlug, strings.TrimSpace(feed))
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -379,6 +412,7 @@ func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64, v
 
 	item, err := scanPost(r.db.Pool().QueryRow(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -393,6 +427,7 @@ func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64, v
 				posts.created_at, posts.updated_at
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
+		LEFT JOIN categories ON categories.id = posts.category_id
 		WHERE posts.id = $1
 		LIMIT 1
 	`, postID, viewerUserID))
@@ -414,12 +449,14 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 	pattern := "%" + strings.TrimSpace(locationName.String()) + "%"
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				false,
 				false,
 				posts.created_at, posts.updated_at
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
+		LEFT JOIN categories ON categories.id = posts.category_id
 		WHERE posts.location_name ILIKE $1
 		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT 100
@@ -458,6 +495,25 @@ func (r *PostgresRepository) ensureCommentBelongsToPost(ctx context.Context, com
 	}
 	if !exists {
 		return post.ErrReplyCommentNotFound
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) ensureCategoryExists(ctx context.Context, categoryID uint64) error {
+	var exists bool
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM categories
+			WHERE id = $1
+		)
+	`, categoryID).Scan(&exists)
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.category_exists", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if !exists {
+		return post.ErrCategoryNotFound
 	}
 
 	return nil
@@ -532,6 +588,9 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		&rawImageURL,
 		&rawCaption,
 		&rawLocationName,
+		&item.CategoryID,
+		&item.CategoryName,
+		&item.CategorySlug,
 		&item.Latitude,
 		&item.Longitude,
 		&item.IsLiked,

@@ -42,9 +42,14 @@ type Handler struct {
 	postEvents       PostEventSubscriber
 	postPublisher    PostEventPublisher
 	notifications    notification.Publisher
+	followers        FollowerLister
 }
 
 type HandlerOption func(*Handler)
+
+type FollowerLister interface {
+	ListFollowerIDs(ctx context.Context, userID uint64) ([]uint64, error)
+}
 
 func WithCommentEvents(subscriber CommentEventSubscriber, publisher CommentEventPublisher) HandlerOption {
 	return func(h *Handler) {
@@ -63,6 +68,12 @@ func WithPostEvents(subscriber PostEventSubscriber, publisher PostEventPublisher
 func WithNotifications(publisher notification.Publisher) HandlerOption {
 	return func(h *Handler) {
 		h.notifications = publisher
+	}
+}
+
+func WithFollowers(followers FollowerLister) HandlerOption {
+	return func(h *Handler) {
+		h.followers = followers
 	}
 }
 
@@ -110,6 +121,7 @@ type CreatePostRequest struct {
 	LocationName string  `json:"location_name"`
 	Latitude     float64 `json:"latitude"`
 	Longitude    float64 `json:"longitude"`
+	CategoryID   uint64  `json:"category_id"`
 }
 
 type CommentPostRequest struct {
@@ -136,6 +148,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 
 	post, err := h.service.CreatePost(r.Context(), CreatePostInput{
 		UserID:       principal.UserID,
+		CategoryID:   req.CategoryID,
 		ImageURL:     req.ImageURL,
 		Caption:      req.Caption,
 		LocationName: req.LocationName,
@@ -152,6 +165,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 			log.Warn().Err(err).Uint64("post_id", post.ID).Msg("post event publish failed")
 		}
 	}
+	h.publishFollowerPostNotifications(r.Context(), principal, post)
 
 	httpResponse.Success(w, http.StatusCreated, "Post created successfully", post, r)
 }
@@ -264,6 +278,8 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 		Limit:        limit,
 		ViewerUserID: h.viewerUserID(r),
 		Search:       r.URL.Query().Get("search"),
+		CategorySlug: r.URL.Query().Get("category_slug"),
+		Feed:         r.URL.Query().Get("feed"),
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "get_posts", mapPostError)
@@ -576,6 +592,54 @@ func (h *Handler) publishCommentNotification(ctx context.Context, principal *aut
 			PostID:      comment.PostID,
 		}); err != nil {
 			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Uint64("user_id", userID).Msg("comment notification publish failed")
+		}
+	}
+}
+
+func (h *Handler) publishFollowerPostNotifications(ctx context.Context, principal *auth.AuthenticatedUser, item PostView) {
+	if h.notifications == nil || h.followers == nil || principal == nil || principal.UserID == 0 || item.ID == 0 {
+		return
+	}
+
+	followerIDs, err := h.followers.ListFollowerIDs(ctx, principal.UserID)
+	if err != nil {
+		log.Warn().Err(err).Uint64("user_id", principal.UserID).Uint64("post_id", item.ID).Msg("post follower lookup failed")
+		return
+	}
+
+	actorName := strings.TrimSpace(principal.Username)
+	if actorName == "" {
+		actorName = strings.TrimSpace(item.UserName)
+	}
+	if actorName == "" {
+		actorName = "Someone"
+	}
+
+	detail := strings.TrimSpace(item.Caption)
+	if detail == "" {
+		detail = strings.TrimSpace(item.LocationName)
+	}
+	body := actorName + " uploaded a new post."
+	if detail != "" {
+		body = actorName + " uploaded " + detail + "."
+	}
+
+	for _, userID := range followerIDs {
+		if userID == 0 || userID == principal.UserID {
+			continue
+		}
+		if err := h.notifications.Publish(ctx, notification.Notification{
+			UserID:      userID,
+			ActorUserID: principal.UserID,
+			ActorName:   actorName,
+			Type:        notification.TypePostCreated,
+			Title:       "New upload",
+			Body:        body,
+			Resource:    notification.ResourcePost,
+			ResourceID:  notification.ResourceIDUint64(item.ID),
+			PostID:      item.ID,
+		}); err != nil {
+			log.Warn().Err(err).Uint64("post_id", item.ID).Uint64("user_id", userID).Msg("post follower notification publish failed")
 		}
 	}
 }

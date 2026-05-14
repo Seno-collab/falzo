@@ -2,9 +2,14 @@ import type { Category } from "@/features/categories/types";
 
 export const ALL_COLLECTION = "All";
 export const COMMUNITY_COLLECTION = "Community";
+export const FOLLOWING_COLLECTION = "Following";
 
 export function showsCommunityFeed(collection: string) {
-  return collection === ALL_COLLECTION || collection === COMMUNITY_COLLECTION;
+  return (
+    collection === ALL_COLLECTION ||
+    collection === COMMUNITY_COLLECTION ||
+    collection === FOLLOWING_COLLECTION
+  );
 }
 
 export function getExploreCollections(categories: Category[] | undefined) {
@@ -14,10 +19,16 @@ export function getExploreCollections(categories: Category[] | undefined) {
       (name) =>
         name.length > 0 &&
         name !== ALL_COLLECTION &&
-        name !== COMMUNITY_COLLECTION,
+        name !== COMMUNITY_COLLECTION &&
+        name !== FOLLOWING_COLLECTION,
     );
 
-  return [ALL_COLLECTION, COMMUNITY_COLLECTION, ...Array.from(new Set(names))];
+  return [
+    ALL_COLLECTION,
+    COMMUNITY_COLLECTION,
+    FOLLOWING_COLLECTION,
+    ...Array.from(new Set(names)),
+  ];
 }
 
 export function toggleSetValue<T>(current: Set<T>, value: T) {

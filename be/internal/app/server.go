@@ -12,6 +12,8 @@ import (
 	notificationInfra "falzo-be/internal/notification/infra"
 	"falzo-be/internal/post"
 	postInfra "falzo-be/internal/post/infra"
+	"falzo-be/internal/social"
+	socialInfra "falzo-be/internal/social/infra"
 	"falzo-be/internal/upload"
 	uploadInfra "falzo-be/internal/upload/infra"
 	"falzo-be/pkg/cache"
@@ -74,6 +76,9 @@ func Run() {
 	notificationHandler := notification.NewHandler(notificationHub, authService)
 	grpcServer := grpc.NewServer()
 	notification.RegisterNotificationServiceServer(grpcServer, notification.NewGRPCServer(notificationHub, authService))
+	socialRepository := socialInfra.NewPostgresRepository(db)
+	socialService := social.NewService(socialRepository)
+	socialHandler := social.NewHandler(socialService, authService, social.WithNotifications(notificationHub))
 	postgresPostRepository := postInfra.NewPostgresRepository(db)
 	var postRepository post.Repository = postgresPostRepository
 	commentEventBroker := post.NewCommentEventBroker()
@@ -104,6 +109,7 @@ func Run() {
 		post.WithCommentEvents(commentEventBroker, commentEventPublisher),
 		post.WithPostEvents(postEventBroker, postEventPublisher),
 		post.WithNotifications(notificationHub),
+		post.WithFollowers(socialService),
 	)
 	imageRepository := uploadInfra.NewPostgresRepository(db)
 	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
@@ -153,6 +159,7 @@ func Run() {
 		api.Mount("/posts", postHandler.Routes())
 		api.Mount("/notifications", notificationHandler.Routes())
 		api.Mount("/categories", categoryHandler.Routes())
+		api.Mount("/users", socialHandler.Routes())
 		api.Mount("/", uploadHandler.Routes())
 	})
 

@@ -39,6 +39,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("limit", "limit must be greater than 0")
 	case errors.Is(err, ErrLimitTooLarge):
 		return share.BadRequest("limit", "limit must not exceed 50")
+	case errors.Is(err, ErrInvalidFeed):
+		return share.BadRequest("feed", "feed must be following when provided")
 	case errors.Is(err, ErrLocationNameRequired):
 		return share.Required("location_name", "location_name is required")
 	case errors.Is(err, ErrLatitudeOutOfRange):
@@ -53,6 +55,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("caption", "caption exceeds max length")
 	case errors.Is(err, ErrLocationNameTooLong):
 		return share.BadRequest("location_name", "location_name exceeds max length")
+	case errors.Is(err, ErrCategoryNotFound):
+		return share.BadRequest("category_id", "category does not exist")
 	case errors.Is(err, ErrCommentRequired):
 		return share.Required("content", "comment content is required")
 	case errors.Is(err, ErrCommentTooLong):

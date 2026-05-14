@@ -1,4 +1,8 @@
-export type AppNotificationType = "image.uploaded" | "post.commented" | "post.created";
+export type AppNotificationType =
+  | "image.uploaded"
+  | "post.commented"
+  | "post.created"
+  | "user.followed";
 
 export type AppNotification = {
   id: string;
@@ -13,4 +17,5 @@ export type AppNotification = {
   post_id?: number;
   image_id?: number;
   created_at: string;
+  read_at?: string | null;
 };

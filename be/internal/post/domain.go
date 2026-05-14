@@ -17,6 +17,7 @@ var (
 	ErrPageMustBePositive     = errors.New("page must be greater than 0")
 	ErrLimitMustBePositive    = errors.New("limit must be greater than 0")
 	ErrLimitTooLarge          = errors.New("limit exceeds maximum")
+	ErrInvalidFeed            = errors.New("invalid feed")
 	ErrLocationNameRequired   = errors.New("location name is required")
 	ErrLatitudeOutOfRange     = errors.New("latitude must be between -90 and 90")
 	ErrLongitudeOutOfRange    = errors.New("longitude must be between -180 and 180")
@@ -24,6 +25,7 @@ var (
 	ErrInvalidImageURL        = errors.New("invalid image url")
 	ErrCaptionTooLong         = errors.New("caption exceeds max length")
 	ErrLocationNameTooLong    = errors.New("location name exceeds max length")
+	ErrCategoryNotFound       = errors.New("category not found")
 	ErrCommentRequired        = errors.New("comment content is required")
 	ErrCommentTooLong         = errors.New("comment content exceeds max length")
 	ErrReplyCommentNotFound   = errors.New("reply comment not found")
@@ -39,7 +41,7 @@ type Repository interface {
 	Unlike(ctx context.Context, postID uint64, userID uint64) error
 	Save(ctx context.Context, postID uint64, userID uint64) error
 	Unsave(ctx context.Context, postID uint64, userID uint64) error
-	GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string) ([]Post, error)
+	GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string, categorySlug string, feed string) ([]Post, error)
 	GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*Post, error)
 	GetPostsByLocation(ctx context.Context, locationName LocationName) ([]Post, error)
 	GetComments(ctx context.Context, postID uint64, page int, limit int) ([]Comment, error)
@@ -49,6 +51,9 @@ type Post struct {
 	ID           uint64       `json:"id"`
 	UserID       uint64       `json:"user_id"`
 	UserName     string       `json:"user_name"`
+	CategoryID   uint64       `json:"category_id,omitempty"`
+	CategoryName string       `json:"category_name,omitempty"`
+	CategorySlug string       `json:"category_slug,omitempty"`
 	ImageURL     ImageURL     `json:"-"`
 	Caption      Caption      `json:"-"`
 	LocationName LocationName `json:"-"`
@@ -64,6 +69,9 @@ type PostView struct {
 	ID           uint64    `json:"id"`
 	UserID       uint64    `json:"user_id"`
 	UserName     string    `json:"user_name"`
+	CategoryID   uint64    `json:"category_id,omitempty"`
+	CategoryName string    `json:"category_name,omitempty"`
+	CategorySlug string    `json:"category_slug,omitempty"`
 	ImageURL     string    `json:"image_url"`
 	Caption      string    `json:"caption"`
 	LocationName string    `json:"location_name"`
@@ -79,6 +87,9 @@ func (p Post) View() PostView {
 		ID:           p.ID,
 		UserID:       p.UserID,
 		UserName:     p.UserName,
+		CategoryID:   p.CategoryID,
+		CategoryName: p.CategoryName,
+		CategorySlug: p.CategorySlug,
 		ImageURL:     p.ImageURL.String(),
 		Caption:      p.Caption.String(),
 		LocationName: p.LocationName.String(),
@@ -92,6 +103,7 @@ func (p Post) View() PostView {
 
 type NewPostInput struct {
 	UserID       uint64
+	CategoryID   uint64
 	ImageURL     string
 	Caption      string
 	LocationName string
@@ -199,6 +211,7 @@ func NewPost(input NewPostInput) (Post, error) {
 	now := time.Now().UTC()
 	return Post{
 		UserID:       input.UserID,
+		CategoryID:   input.CategoryID,
 		ImageURL:     imageURL,
 		Caption:      caption,
 		LocationName: locationName,

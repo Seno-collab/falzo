@@ -10,6 +10,7 @@ import {
   Send,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Post, PostComment } from "@/features/posts/types";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type PostDetailDialogProps = {
@@ -128,9 +130,12 @@ function CommentBubble({
       <CommentAvatar name={author} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="min-w-0 truncate text-sm font-bold text-[#171717]">
+          <Link
+            className="min-w-0 truncate text-sm font-bold text-[#171717] hover:text-[#ff385c]"
+            href={ROUTES.userProfile(comment.user_id)}
+          >
             {author}
-          </p>
+          </Link>
           <span className="text-xs font-medium text-[#8a8a8a]">
             {formatCommentDate(comment)}
           </span>
@@ -284,6 +289,7 @@ export function PostDetailDialog({
   onSubmitComment,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
+  const categoryLabel = post?.category_name || "Community";
   const getCommentPlaceholder = () => {
     if (!isChatOpen) return "Open chat";
     if (!isAuthenticated)
@@ -313,14 +319,23 @@ export function PostDetailDialog({
               </div>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-5 pb-5 pt-24">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-5 pb-5 pt-24">
               <div className="max-w-2xl">
-                <p className="text-sm font-bold text-white">{authorName}</p>
+                {post ? (
+                  <Link
+                    className="pointer-events-auto text-sm font-bold text-white hover:text-[#ff8aa0]"
+                    href={ROUTES.userProfile(post.user_id)}
+                  >
+                    {authorName}
+                  </Link>
+                ) : (
+                  <p className="text-sm font-bold text-white">{authorName}</p>
+                )}
                 <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/90">
                   {post?.caption || "Community post"}
                 </p>
                 <p className="mt-2 text-xs font-semibold text-white/60">
-                  {post?.location_name || "Uploaded"}
+                  {post?.location_name || "Uploaded"} / {categoryLabel}
                 </p>
               </div>
             </div>

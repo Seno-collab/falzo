@@ -12,9 +12,13 @@ import (
 const (
 	TypeImageUploaded = "image.uploaded"
 	TypePostCommented = "post.commented"
+	TypePostCreated   = "post.created"
+	TypeUserFollowed  = "user.followed"
 
 	ResourceImage   = "image"
 	ResourceComment = "comment"
+	ResourcePost    = "post"
+	ResourceUser    = "user"
 )
 
 var (
@@ -26,18 +30,19 @@ var (
 )
 
 type Notification struct {
-	ID          string    `json:"id"`
-	UserID      uint64    `json:"user_id"`
-	ActorUserID uint64    `json:"actor_user_id"`
-	ActorName   string    `json:"actor_name"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Body        string    `json:"body"`
-	Resource    string    `json:"resource"`
-	ResourceID  string    `json:"resource_id"`
-	PostID      uint64    `json:"post_id,omitempty"`
-	ImageID     int64     `json:"image_id,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string     `json:"id"`
+	UserID      uint64     `json:"user_id"`
+	ActorUserID uint64     `json:"actor_user_id"`
+	ActorName   string     `json:"actor_name"`
+	Type        string     `json:"type"`
+	Title       string     `json:"title"`
+	Body        string     `json:"body"`
+	Resource    string     `json:"resource"`
+	ResourceID  string     `json:"resource_id"`
+	PostID      uint64     `json:"post_id,omitempty"`
+	ImageID     int64      `json:"image_id,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ReadAt      *time.Time `json:"read_at,omitempty"`
 }
 
 type Publisher interface {
@@ -52,9 +57,14 @@ type Lister interface {
 	ListByUser(ctx context.Context, userID uint64, limit int) ([]Notification, error)
 }
 
+type Marker interface {
+	MarkRead(ctx context.Context, userID uint64, ids []string) error
+}
+
 type Repository interface {
 	Save(ctx context.Context, item Notification) error
 	ListByUser(ctx context.Context, userID uint64, limit int) ([]Notification, error)
+	MarkRead(ctx context.Context, userID uint64, ids []string) error
 }
 
 type Hub struct {
@@ -164,6 +174,21 @@ func (h *Hub) ListByUser(ctx context.Context, userID uint64, limit int) ([]Notif
 	return h.repository.ListByUser(ctx, userID, limit)
 }
 
+func (h *Hub) MarkRead(ctx context.Context, userID uint64, ids []string) error {
+	if h == nil {
+		return ErrNilHub
+	}
+	if userID == 0 {
+		return ErrUserIDRequired
+	}
+	if h.repository == nil {
+		return nil
+	}
+
+	return h.repository.MarkRead(ctx, userID, ids)
+}
+
 var _ Publisher = (*Hub)(nil)
 var _ Subscriber = (*Hub)(nil)
 var _ Lister = (*Hub)(nil)
+var _ Marker = (*Hub)(nil)

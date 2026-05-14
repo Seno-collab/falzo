@@ -6,6 +6,7 @@ import (
 )
 
 const maxPostListLimit = 50
+const feedFollowing = "following"
 
 type Service struct {
 	posts Repository
@@ -36,6 +37,8 @@ type ListPostsInput struct {
 	Limit        int
 	ViewerUserID uint64
 	Search       string
+	CategorySlug string
+	Feed         string
 }
 
 type ListCommentsInput struct {
@@ -168,8 +171,23 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 	if input.Limit > maxPostListLimit {
 		return nil, ErrLimitTooLarge
 	}
+	feed := strings.TrimSpace(input.Feed)
+	if feed != "" && feed != feedFollowing {
+		return nil, ErrInvalidFeed
+	}
+	if feed == feedFollowing && input.ViewerUserID == 0 {
+		return nil, ErrUserIDRequired
+	}
 
-	items, err := s.posts.GetPosts(ctx, input.Page, input.Limit, input.ViewerUserID, strings.TrimSpace(input.Search))
+	items, err := s.posts.GetPosts(
+		ctx,
+		input.Page,
+		input.Limit,
+		input.ViewerUserID,
+		strings.TrimSpace(input.Search),
+		strings.TrimSpace(input.CategorySlug),
+		feed,
+	)
 	if err != nil {
 		return nil, err
 	}

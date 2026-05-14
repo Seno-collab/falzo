@@ -11,9 +11,11 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
+import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import type { Post, PostComment } from "@/features/posts/types";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type PostCardProps = {
@@ -127,9 +129,12 @@ function Comments({
       key={comment.id}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-xs font-semibold text-[#777]">
+        <Link
+          className="min-w-0 truncate text-xs font-semibold text-[#777] hover:text-[#ff385c]"
+          href={ROUTES.userProfile(comment.user_id)}
+        >
           {comment.user_name || `User #${comment.user_id}`}
-        </p>
+        </Link>
         <div className="flex shrink-0 items-center gap-2">
           {currentUserId === comment.user_id ? (
             <button
@@ -298,6 +303,7 @@ export function ExplorePostCard({
   const title = post.caption || "Community post";
   const location = post.location_name || "Uploaded";
   const authorName = post.user_name || `User #${post.user_id}`;
+  const categoryLabel = post.category_name || "Community";
 
   return (
     <motion.article
@@ -323,7 +329,7 @@ export function ExplorePostCard({
         <div className={overlayClass} />
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 opacity-0 transition duration-200 group-hover:opacity-100">
           <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
-            Community
+            {categoryLabel}
           </span>
           <div className="flex items-center gap-1">
             <Button
@@ -372,11 +378,14 @@ export function ExplorePostCard({
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[#202020]">
+            <Link
+              className="block truncate text-sm font-semibold text-[#202020] hover:text-[#ff385c]"
+              href={ROUTES.userProfile(post.user_id)}
+            >
               {authorName}
-            </p>
+            </Link>
             <p className="mt-0.5 text-xs font-medium text-[#777]">
-              {new Date(post.created_at).toLocaleDateString()}
+              {categoryLabel} - {new Date(post.created_at).toLocaleDateString()}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
