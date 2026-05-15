@@ -270,6 +270,7 @@ func principalFromAccount(account *Account) (AuthenticatedUser, error) {
 	return AuthenticatedUser{
 		UserID:    account.User.ID,
 		Username:  account.User.Username.String(),
+		Roles:     append([]string(nil), account.Roles...),
 		SessionID: sessionID,
 	}, nil
 }

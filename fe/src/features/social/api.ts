@@ -1,5 +1,11 @@
 import { initializeAuthHeader } from "@/features/auth/api";
-import { apiDelete, apiGet, apiPost, endpointPath, envEndpoint } from "@/lib/api-utils";
+import {
+  apiDelete,
+  apiGet,
+  apiPost,
+  endpointPath,
+  envEndpoint,
+} from "@/lib/api-utils";
 import type { PublicProfile } from "./types";
 
 const USERS_ENDPOINT = envEndpoint(
@@ -21,4 +27,14 @@ export async function followUserApi(userId: number) {
 export async function unfollowUserApi(userId: number) {
   initializeAuthHeader();
   await apiDelete(endpointPath(USERS_ENDPOINT, userId, "follow"));
+}
+
+export async function blockUserApi(userId: number) {
+  initializeAuthHeader();
+  await apiPost(endpointPath(USERS_ENDPOINT, userId, "block"));
+}
+
+export async function unblockUserApi(userId: number) {
+  initializeAuthHeader();
+  await apiDelete(endpointPath(USERS_ENDPOINT, userId, "block"));
 }

@@ -15,10 +15,33 @@ type fakePostRepository struct {
 	search           string
 	categorySlug     string
 	feed             string
+	sort             string
 }
 
 func (f *fakePostRepository) Create(_ context.Context, post *Post) error {
 	f.createCategoryID = post.CategoryID
+	return nil
+}
+
+func (f *fakePostRepository) UpdatePost(_ context.Context, postID uint64, userID uint64, update PostUpdate) (Post, error) {
+	return Post{ID: postID, UserID: userID, Caption: update.Caption, LocationName: update.LocationName, Latitude: update.Latitude, Longitude: update.Longitude, Status: "visible"}, nil
+}
+
+func (f *fakePostRepository) DeletePost(context.Context, uint64, ModerationActor) error { return nil }
+
+func (f *fakePostRepository) HidePost(context.Context, uint64, ModerationActor, ReportReason) error {
+	return nil
+}
+
+func (f *fakePostRepository) ReportPost(context.Context, ContentReport) error { return nil }
+
+func (f *fakePostRepository) ReportComment(context.Context, ContentReport) error { return nil }
+
+func (f *fakePostRepository) DeleteComment(context.Context, uint64, uint64, ModerationActor) error {
+	return nil
+}
+
+func (f *fakePostRepository) HideComment(context.Context, uint64, uint64, ModerationActor, ReportReason) error {
 	return nil
 }
 
@@ -29,6 +52,31 @@ func (f *fakePostRepository) Unlike(context.Context, uint64, uint64) error { ret
 func (f *fakePostRepository) Save(context.Context, uint64, uint64) error { return nil }
 
 func (f *fakePostRepository) Unsave(context.Context, uint64, uint64) error { return nil }
+
+func (f *fakePostRepository) CreateSavedCollection(_ context.Context, collection *SavedCollection) error {
+	collection.ID = 4
+	return nil
+}
+
+func (f *fakePostRepository) ListSavedCollections(context.Context, uint64) ([]SavedCollection, error) {
+	return nil, nil
+}
+
+func (f *fakePostRepository) ListSavedPosts(context.Context, uint64) ([]Post, error) {
+	return nil, nil
+}
+
+func (f *fakePostRepository) AddPostToSavedCollection(context.Context, uint64, uint64, uint64) error {
+	return nil
+}
+
+func (f *fakePostRepository) RemovePostFromSavedCollection(context.Context, uint64, uint64, uint64) error {
+	return nil
+}
+
+func (f *fakePostRepository) DeleteSavedCollection(context.Context, uint64, uint64) error {
+	return nil
+}
 
 func (f *fakePostRepository) Comment(_ context.Context, comment *Comment) error {
 	f.commentReplyToID = comment.ReplyToCommentID
@@ -48,12 +96,13 @@ func (f *fakePostRepository) UpdateComment(_ context.Context, postID uint64, com
 	}, nil
 }
 
-func (f *fakePostRepository) GetPosts(_ context.Context, page int, limit int, _ uint64, search string, categorySlug string, feed string) ([]Post, error) {
-	f.page = page
-	f.limit = limit
-	f.search = search
-	f.categorySlug = categorySlug
-	f.feed = feed
+func (f *fakePostRepository) GetPosts(_ context.Context, filter PostListFilter) ([]Post, error) {
+	f.page = filter.Page
+	f.limit = filter.Limit
+	f.search = filter.Search
+	f.categorySlug = filter.CategorySlug
+	f.feed = filter.Feed
+	f.sort = filter.Sort
 	return nil, nil
 }
 
@@ -178,5 +227,42 @@ func TestGetFollowingFeedRequiresViewer(t *testing.T) {
 	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 1, Limit: 24, Feed: "following"})
 	if err != ErrUserIDRequired {
 		t.Fatalf("expected ErrUserIDRequired, got %v", err)
+	}
+}
+
+func TestCreateSavedCollectionTrimsName(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	collection, err := service.CreateSavedCollection(t.Context(), CreateSavedCollectionInput{
+		UserID: 2,
+		Name:   " Đà Lạt trip ",
+	})
+	if err != nil {
+		t.Fatalf("create saved collection: %v", err)
+	}
+
+	if collection.ID != 4 || collection.Name != "Đà Lạt trip" {
+		t.Fatalf("expected trimmed collection view, got %+v", collection)
+	}
+}
+
+func TestCreateSavedCollectionRequiresName(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	_, err := service.CreateSavedCollection(t.Context(), CreateSavedCollectionInput{UserID: 2})
+	if err != ErrCollectionNameRequired {
+		t.Fatalf("expected ErrCollectionNameRequired, got %v", err)
+	}
+}
+
+func TestAddPostToSavedCollectionValidatesIDs(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	err := service.AddPostToSavedCollection(t.Context(), SavedCollectionPostInput{
+		UserID: 2,
+		PostID: 3,
+	})
+	if err != ErrCollectionIDRequired {
+		t.Fatalf("expected ErrCollectionIDRequired, got %v", err)
 	}
 }

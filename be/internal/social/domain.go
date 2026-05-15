@@ -14,6 +14,7 @@ var (
 	ErrUserIDRequired        = errors.New("user id is required")
 	ErrTargetUserIDRequired  = errors.New("target user id is required")
 	ErrCannotFollowSelf      = errors.New("cannot follow self")
+	ErrCannotBlockSelf       = errors.New("cannot block self")
 	ErrUserNotFound          = errors.New("user not found")
 )
 
@@ -21,6 +22,8 @@ type Repository interface {
 	GetPublicProfile(ctx context.Context, userID uint64, viewerUserID uint64) (PublicProfile, error)
 	Follow(ctx context.Context, followerID uint64, followingID uint64) (bool, error)
 	Unfollow(ctx context.Context, followerID uint64, followingID uint64) error
+	Block(ctx context.Context, blockerID uint64, blockedID uint64) error
+	Unblock(ctx context.Context, blockerID uint64, blockedID uint64) error
 	ListFollowerIDs(ctx context.Context, userID uint64) ([]uint64, error)
 }
 

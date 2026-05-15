@@ -72,6 +72,38 @@ func mapPostError(err error) share.ApiError {
 			Code:    "FORBIDDEN",
 			Detail:  "You can only edit your own comments",
 		}
+	case errors.Is(err, ErrCollectionIDRequired):
+		return share.Required("collection_id", "collection id is required")
+	case errors.Is(err, ErrCollectionNameRequired):
+		return share.Required("name", "collection name is required")
+	case errors.Is(err, ErrCollectionNameTooLong):
+		return share.BadRequest("name", "collection name must not exceed 120 characters")
+	case errors.Is(err, ErrCollectionNameTaken):
+		return share.BadRequest("name", "collection name already exists")
+	case errors.Is(err, ErrCollectionNotFound):
+		return share.NotFound("Collection not found", "Requested saved collection does not exist")
+	case errors.Is(err, ErrPostUpdateForbidden):
+		return share.ApiError{
+			Status:  http.StatusForbidden,
+			Message: "Forbidden",
+			Code:    "FORBIDDEN",
+			Detail:  "You can only edit your own posts",
+		}
+	case errors.Is(err, ErrPostModerationForbidden):
+		return share.ApiError{
+			Status:  http.StatusForbidden,
+			Message: "Forbidden",
+			Code:    "FORBIDDEN",
+			Detail:  "You cannot moderate this content",
+		}
+	case errors.Is(err, ErrInvalidPostSort):
+		return share.BadRequest("sort", "sort must be newest, popular, trending, or nearby")
+	case errors.Is(err, ErrNearbyCoordinatesRequired):
+		return share.BadRequest("lat", "nearby sort requires valid lat and lng query params")
+	case errors.Is(err, ErrReportReasonRequired):
+		return share.Required("reason", "reason is required")
+	case errors.Is(err, ErrReportReasonTooLong):
+		return share.BadRequest("reason", "reason must not exceed 500 characters")
 	case errors.Is(err, ErrNotFound):
 		return share.NotFound("Post not found", "Requested post does not exist")
 	case errors.Is(err, ErrDependencyUnavailable):

@@ -10,11 +10,16 @@ import {
 import type {
   CreatePostCommentPayload,
   CreatePostPayload,
+  CreateSavedCollectionPayload,
   Post,
   PostComment,
   PostCommentCreatedEvent,
   PostCreatedEvent,
+  PostSort,
+  ReportContentPayload,
+  SavedCollection,
   UpdatePostCommentPayload,
+  UpdatePostPayload,
   UploadedImage,
 } from "./types";
 
@@ -54,6 +59,10 @@ export async function getPostsApi(params?: {
   search?: string;
   categorySlug?: string;
   feed?: "following";
+  sort?: PostSort;
+  latitude?: number;
+  longitude?: number;
+  radiusMeters?: number;
 }): Promise<Post[]> {
   initializeAuthHeader();
 
@@ -66,6 +75,10 @@ export async function getPostsApi(params?: {
       ...(search ? { search } : {}),
       ...(categorySlug ? { category_slug: categorySlug } : {}),
       ...(params?.feed ? { feed: params.feed } : {}),
+      ...(params?.sort ? { sort: params.sort } : {}),
+      ...(typeof params?.latitude === "number" ? { lat: params.latitude } : {}),
+      ...(typeof params?.longitude === "number" ? { lng: params.longitude } : {}),
+      ...(params?.radiusMeters ? { radius_meters: params.radiusMeters } : {}),
     },
   });
 }
@@ -95,6 +108,37 @@ export async function createPostApi(payload: CreatePostPayload): Promise<Post> {
   return apiPost<Post>(POSTS_ENDPOINT, payload);
 }
 
+export async function updatePostApi(payload: UpdatePostPayload): Promise<Post> {
+  initializeAuthHeader();
+
+  const { postId, ...body } = payload;
+  return apiPut<Post>(endpointPath(POSTS_ENDPOINT, postId), body);
+}
+
+export async function deletePostApi(postId: number): Promise<void> {
+  initializeAuthHeader();
+
+  await apiDelete(endpointPath(POSTS_ENDPOINT, postId));
+}
+
+export async function hidePostApi(
+  postId: number,
+  payload: ReportContentPayload,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiPost(endpointPath(POSTS_ENDPOINT, postId, "hide"), payload);
+}
+
+export async function reportPostApi(
+  postId: number,
+  payload: ReportContentPayload,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiPost(endpointPath(POSTS_ENDPOINT, postId, "report"), payload);
+}
+
 export async function likePostApi(postId: number): Promise<void> {
   initializeAuthHeader();
 
@@ -117,6 +161,73 @@ export async function unsavePostApi(postId: number): Promise<void> {
   initializeAuthHeader();
 
   await apiDelete(endpointPath(POSTS_ENDPOINT, postId, "save"));
+}
+
+export async function getSavedPostsApi(): Promise<Post[]> {
+  initializeAuthHeader();
+
+  return apiGet<Post[]>(endpointPath(POSTS_ENDPOINT, "saved"));
+}
+
+export async function getSavedCollectionsApi(): Promise<SavedCollection[]> {
+  initializeAuthHeader();
+
+  return apiGet<SavedCollection[]>(
+    endpointPath(POSTS_ENDPOINT, "saved-collections"),
+  );
+}
+
+export async function createSavedCollectionApi(
+  payload: CreateSavedCollectionPayload,
+): Promise<SavedCollection> {
+  initializeAuthHeader();
+
+  return apiPost<SavedCollection>(
+    endpointPath(POSTS_ENDPOINT, "saved-collections"),
+    payload,
+  );
+}
+
+export async function addPostToSavedCollectionApi(
+  collectionId: number,
+  postId: number,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiPost(
+    endpointPath(
+      POSTS_ENDPOINT,
+      "saved-collections",
+      collectionId,
+      "posts",
+      postId,
+    ),
+  );
+}
+
+export async function removePostFromSavedCollectionApi(
+  collectionId: number,
+  postId: number,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiDelete(
+    endpointPath(
+      POSTS_ENDPOINT,
+      "saved-collections",
+      collectionId,
+      "posts",
+      postId,
+    ),
+  );
+}
+
+export async function deleteSavedCollectionApi(
+  collectionId: number,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiDelete(endpointPath(POSTS_ENDPOINT, "saved-collections", collectionId));
 }
 
 export async function getPostCommentsApi(
@@ -248,5 +359,40 @@ export async function updatePostCommentApi(
     {
       content: params.content,
     },
+  );
+}
+
+export async function deletePostCommentApi(
+  postId: number,
+  commentId: number,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiDelete(endpointPath(POSTS_ENDPOINT, postId, "comments", commentId));
+}
+
+export async function hidePostCommentApi(
+  postId: number,
+  commentId: number,
+  payload: ReportContentPayload,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiPost(
+    endpointPath(POSTS_ENDPOINT, postId, "comments", commentId, "hide"),
+    payload,
+  );
+}
+
+export async function reportPostCommentApi(
+  postId: number,
+  commentId: number,
+  payload: ReportContentPayload,
+): Promise<void> {
+  initializeAuthHeader();
+
+  await apiPost(
+    endpointPath(POSTS_ENDPOINT, postId, "comments", commentId, "report"),
+    payload,
   );
 }

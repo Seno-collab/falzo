@@ -2,12 +2,14 @@
 
 import {
   Bookmark,
+  Flag,
   Heart,
   Maximize2,
   MessageCircle,
   Pencil,
   Reply,
   Send,
+  Trash2,
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -35,6 +37,8 @@ type PostCardProps = {
   onOpen: (postId: number) => void;
   onLike: (postId: number) => void;
   onSave: (postId: number) => void;
+  onDelete: (postId: number) => void;
+  onReport: (postId: number) => void;
   onToggleComments: (postId: number) => void;
   onCommentChange: (postId: number, value: string) => void;
   onCancelReply: (postId: number) => void;
@@ -291,6 +295,8 @@ export function ExplorePostCard({
   onOpen,
   onLike,
   onSave,
+  onDelete,
+  onReport,
   onToggleComments,
   onCommentChange,
   onCancelReply,
@@ -434,6 +440,29 @@ export function ExplorePostCard({
                 className={cn("size-4", isSaved ? "fill-current" : "")}
               />
             </Button>
+            {currentUserId === post.user_id ? (
+              <Button
+                aria-label="Delete post"
+                className="rounded-full text-[#b4233f]"
+                onClick={() => onDelete(post.id)}
+                size="icon-sm"
+                type="button"
+                variant="outline"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                aria-label="Report post"
+                className="rounded-full"
+                onClick={() => onReport(post.id)}
+                size="icon-sm"
+                type="button"
+                variant="outline"
+              >
+                <Flag className="size-4" />
+              </Button>
+            )}
           </div>
         </div>
 

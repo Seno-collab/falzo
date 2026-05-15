@@ -65,6 +65,40 @@ func (s *Service) Unfollow(ctx context.Context, input FollowInput) error {
 	return s.repository.Unfollow(ctx, input.FollowerID, input.FollowingID)
 }
 
+func (s *Service) Block(ctx context.Context, input FollowInput) error {
+	if s.repository == nil {
+		return ErrDependencyUnavailable
+	}
+	if input.FollowerID == 0 {
+		return ErrUserIDRequired
+	}
+	if input.FollowingID == 0 {
+		return ErrTargetUserIDRequired
+	}
+	if input.FollowerID == input.FollowingID {
+		return ErrCannotBlockSelf
+	}
+
+	return s.repository.Block(ctx, input.FollowerID, input.FollowingID)
+}
+
+func (s *Service) Unblock(ctx context.Context, input FollowInput) error {
+	if s.repository == nil {
+		return ErrDependencyUnavailable
+	}
+	if input.FollowerID == 0 {
+		return ErrUserIDRequired
+	}
+	if input.FollowingID == 0 {
+		return ErrTargetUserIDRequired
+	}
+	if input.FollowerID == input.FollowingID {
+		return ErrCannotBlockSelf
+	}
+
+	return s.repository.Unblock(ctx, input.FollowerID, input.FollowingID)
+}
+
 func (s *Service) ListFollowerIDs(ctx context.Context, userID uint64) ([]uint64, error) {
 	if s.repository == nil {
 		return nil, ErrDependencyUnavailable

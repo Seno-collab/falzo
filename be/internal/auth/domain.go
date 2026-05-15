@@ -157,6 +157,7 @@ func (p PasswordHash) String() string { return string(p) }
 type AuthenticatedUser struct {
 	UserID    uint64
 	Username  string
+	Roles     []string
 	Subject   string
 	SessionID string
 	ExpiresAt *time.Time

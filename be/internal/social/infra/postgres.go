@@ -110,6 +110,58 @@ func (r *PostgresRepository) Unfollow(ctx context.Context, followerID uint64, fo
 	return nil
 }
 
+func (r *PostgresRepository) Block(ctx context.Context, blockerID uint64, blockedID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return social.ErrDependencyUnavailable
+	}
+	if err := r.ensureUserExists(ctx, blockedID); err != nil {
+		return err
+	}
+
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return mapDBError(ctx, "social.block.begin", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO user_blocks (blocker_user_id, blocked_user_id)
+		VALUES ($1, $2)
+		ON CONFLICT (blocker_user_id, blocked_user_id) DO NOTHING
+	`, blockerID, blockedID); err != nil {
+		return mapDBError(ctx, "social.block", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM user_follows
+		WHERE (follower_id = $1 AND following_id = $2)
+			OR (follower_id = $2 AND following_id = $1)
+	`, blockerID, blockedID); err != nil {
+		return mapDBError(ctx, "social.block.unfollow", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return mapDBError(ctx, "social.block.commit", err)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) Unblock(ctx context.Context, blockerID uint64, blockedID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return social.ErrDependencyUnavailable
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		DELETE FROM user_blocks
+		WHERE blocker_user_id = $1 AND blocked_user_id = $2
+	`, blockerID, blockedID); err != nil {
+		return mapDBError(ctx, "social.unblock", err)
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) ListFollowerIDs(ctx context.Context, userID uint64) ([]uint64, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, social.ErrDependencyUnavailable
@@ -175,11 +227,17 @@ func (r *PostgresRepository) getUserPosts(ctx context.Context, userID uint64, vi
 				FROM post_saves
 				WHERE post_saves.post_id = posts.id AND post_saves.user_id = $2
 			),
+			posts.status,
+			(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
+			(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
+			(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
 			posts.created_at, posts.updated_at
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
 		LEFT JOIN categories ON categories.id = posts.category_id
 		WHERE posts.user_id = $1
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
 		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT 60
 	`, userID, viewerUserID)
@@ -206,6 +264,10 @@ func (r *PostgresRepository) getUserPosts(ctx context.Context, userID uint64, vi
 			&item.Longitude,
 			&item.IsLiked,
 			&item.IsSaved,
+			&item.Status,
+			&item.LikesCount,
+			&item.CommentsCount,
+			&item.SavesCount,
 			&item.CreatedAt,
 			&updatedAt,
 		); err != nil {

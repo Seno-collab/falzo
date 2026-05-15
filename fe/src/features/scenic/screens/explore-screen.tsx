@@ -3,7 +3,9 @@
 import {
   Bookmark,
   Camera,
-  ChevronDown,
+  Clock3,
+  Flame,
+  LocateFixed,
   MapIcon,
   Menu,
   Plus,
@@ -61,6 +63,7 @@ import {
 import type { AppNotification } from "@/features/notifications/types";
 import {
   createPostCommentApi,
+  deletePostApi,
   getPostCommentEventsUrl,
   getPostCommentsApi,
   getPostDetailApi,
@@ -70,11 +73,13 @@ import {
   parsePostCommentCreatedEvent,
   parsePostCreatedEvent,
   savePostApi,
+  reportPostApi,
   unlikePostApi,
   unsavePostApi,
   updatePostCommentApi,
 } from "@/features/posts/api";
 import type { Post, PostComment } from "@/features/posts/types";
+import type { PostSort } from "@/features/posts/types";
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
 import { PostDetailDialog } from "@/features/scenic/components/explore-detail-dialogs";
 import {
@@ -220,6 +225,11 @@ export function ExploreScreen() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeCollection, setActiveCollection] = useState("All");
+  const [feedSort, setFeedSort] = useState<PostSort>("newest");
+  const [nearbyCoords, setNearbyCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [searchValue, setSearchValue] = useState("");
   const [showSavedBoard, setShowSavedBoard] = useState(false);
   const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
@@ -271,7 +281,15 @@ export function ExploreScreen() {
     activeCollection === FOLLOWING_COLLECTION ? "following" : undefined;
 
   const postsQuery = useInfiniteQuery({
-    queryKey: ["posts", "explore", activeSearch, activeCategorySlug, activeFeed],
+    queryKey: [
+      "posts",
+      "explore",
+      activeSearch,
+      activeCategorySlug,
+      activeFeed,
+      feedSort,
+      nearbyCoords,
+    ],
     queryFn: ({ pageParam }) =>
       getPostsApi({
         page: pageParam,
@@ -279,6 +297,10 @@ export function ExploreScreen() {
         search: activeSearch,
         categorySlug: activeCategorySlug,
         feed: activeFeed,
+        sort: feedSort,
+        latitude: nearbyCoords?.latitude,
+        longitude: nearbyCoords?.longitude,
+        radiusMeters: feedSort === "nearby" ? 25_000 : undefined,
       }),
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.length < postsPageSize ? undefined : lastPageParam + 1,
@@ -414,7 +436,15 @@ export function ExploreScreen() {
       }
 
       queryClient.setQueryData<PostsInfiniteData>(
-        ["posts", "explore", activeSearch, activeCategorySlug, activeFeed],
+        [
+          "posts",
+          "explore",
+          activeSearch,
+          activeCategorySlug,
+          activeFeed,
+          feedSort,
+          nearbyCoords,
+        ],
         (current) => {
           if (!current) {
             return {
@@ -449,6 +479,8 @@ export function ExploreScreen() {
     activeCategorySlug,
     activeFeed,
     activeSearch,
+    feedSort,
+    nearbyCoords,
     queryClient,
   ]);
 
@@ -500,6 +532,23 @@ export function ExploreScreen() {
         [variables.postId]: nextIsSaved,
       }));
     },
+  });
+
+  const deletePostMutation = useMutation({
+    mutationFn: deletePostApi,
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+      setSelectedPostId(null);
+      toast.success("Post deleted.");
+    },
+  });
+
+  const reportPostMutation = useMutation({
+    mutationFn: ({ postId, reason }: { postId: number; reason: string }) =>
+      reportPostApi(postId, { reason }),
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onSuccess: () => toast.success("Report sent."),
   });
 
   const commentMutation = useMutation({
@@ -808,12 +857,38 @@ export function ExploreScreen() {
     saveMutation.mutate({ isSaved: isPostSaved(post, savedPosts), postId });
   }
 
-  function toggleSavedBoard() {
-    if (!showSavedBoard && !requireAuth()) {
+  function handleDeletePost(postId: number) {
+    if (!requireAuth() || deletePostMutation.isPending) {
+      return;
+    }
+    if (!globalThis.window?.confirm("Delete this post?")) {
       return;
     }
 
-    setShowSavedBoard((current) => !current);
+    deletePostMutation.mutate(postId);
+  }
+
+  function handleReportPost(postId: number) {
+    if (!requireAuth() || reportPostMutation.isPending) {
+      return;
+    }
+
+    const reason = globalThis.window
+      ?.prompt("Why are you reporting this post?")
+      ?.trim();
+    if (!reason) {
+      return;
+    }
+
+    reportPostMutation.mutate({ postId, reason });
+  }
+
+  function toggleSavedBoard() {
+    if (!requireAuth()) {
+      return;
+    }
+
+    router.push(ROUTES.saved);
   }
 
   function changeCollection(collection: string) {
@@ -823,6 +898,30 @@ export function ExploreScreen() {
 
     setShowSavedBoard(false);
     setActiveCollection(collection);
+  }
+
+  function changeFeedSort(nextSort: PostSort) {
+    if (nextSort !== "nearby") {
+      setFeedSort(nextSort);
+      return;
+    }
+
+    if (!globalThis.navigator?.geolocation) {
+      toast.error("Location is not available in this browser.");
+      return;
+    }
+
+    globalThis.navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setNearbyCoords({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setFeedSort("nearby");
+      },
+      () => toast.error("Location permission is required for nearby feed."),
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
+    );
   }
 
   function submitComment(postId: number) {
@@ -889,7 +988,9 @@ export function ExploreScreen() {
       <ExploreHero
         activeCollection={activeCollection}
         collections={collections}
+        feedSort={feedSort}
         onCollectionChange={changeCollection}
+        onSortChange={changeFeedSort}
         onToggleSavedBoard={toggleSavedBoard}
         savedBoardCount={savedBoardPosts.length}
         showSavedBoard={showSavedBoard}
@@ -961,8 +1062,10 @@ export function ExploreScreen() {
               onCancelReply={cancelReply}
               onCommentChange={updateComment}
               onEditComment={editComment}
+              onDelete={handleDeletePost}
               onLike={handleLikePost}
               onOpen={openPostDetail}
+              onReport={handleReportPost}
               onRegisterCommentInput={(postId, node) => {
                 commentInputRefs.current[postId] = node;
               }}
@@ -1130,6 +1233,12 @@ function ExploreTopbar({
               Locations
             </Link>
           </Button>
+          <Button asChild className="rounded-full" size="sm" variant="ghost">
+            <Link href={ROUTES.saved}>
+              <Bookmark className="size-4" />
+              Saved
+            </Link>
+          </Button>
         </nav>
 
         <div className="relative ml-1 flex-1">
@@ -1236,6 +1345,18 @@ function ExploreTopbar({
                     buttonVariants({ size: "default", variant: "outline" }),
                     "w-full justify-start rounded-full",
                   )}
+                  href={ROUTES.saved}
+                >
+                  <Bookmark className="size-4" />
+                  Saved
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <Link
+                  className={cn(
+                    buttonVariants({ size: "default", variant: "outline" }),
+                    "w-full justify-start rounded-full",
+                  )}
                   href={ROUTES.upload}
                 >
                   <Plus className="size-4" />
@@ -1280,14 +1401,18 @@ function ExploreTopbar({
 function ExploreHero({
   activeCollection,
   collections,
+  feedSort,
   onCollectionChange,
+  onSortChange,
   onToggleSavedBoard,
   savedBoardCount,
   showSavedBoard,
 }: Readonly<{
   activeCollection: string;
   collections: string[];
+  feedSort: PostSort;
   onCollectionChange: (collection: string) => void;
+  onSortChange: (sort: PostSort) => void;
   onToggleSavedBoard: () => void;
   savedBoardCount: number;
   showSavedBoard: boolean;
@@ -1305,15 +1430,29 @@ function ExploreHero({
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 lg:justify-end">
-          <Button
-            className="rounded-full border-black/8 bg-white"
-            type="button"
-            variant="outline"
-          >
-            Trending
-            <ChevronDown className="size-4" />
-          </Button>
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          {[
+            { icon: <Clock3 className="size-4" />, label: "Newest", value: "newest" as const },
+            { icon: <Flame className="size-4" />, label: "Popular", value: "popular" as const },
+            { icon: <Flame className="size-4" />, label: "Trending", value: "trending" as const },
+            { icon: <LocateFixed className="size-4" />, label: "Nearby", value: "nearby" as const },
+          ].map((item) => (
+            <Button
+              className={cn(
+                "rounded-full border-black/8",
+                feedSort === item.value
+                  ? "bg-[#111] text-white hover:bg-[#222]"
+                  : "bg-white",
+              )}
+              key={item.value}
+              onClick={() => onSortChange(item.value)}
+              type="button"
+              variant={feedSort === item.value ? "default" : "outline"}
+            >
+              {item.icon}
+              {item.label}
+            </Button>
+          ))}
           <Button
             aria-pressed={showSavedBoard}
             className={cn(

@@ -12,7 +12,22 @@ export type Post = {
   longitude: number;
   is_liked: boolean;
   is_saved: boolean;
+  status?: string;
+  likes_count?: number;
+  comments_count?: number;
+  saves_count?: number;
   created_at: string;
+};
+
+export type SavedCollection = {
+  id: number;
+  user_id: number;
+  name: string;
+  posts: Post[];
+  post_count: number;
+  created_at: string;
+  updated_at: string;
+  status?: string;
 };
 
 export type UploadedImage = {
@@ -48,6 +63,10 @@ export type CreatePostPayload = {
   longitude: number;
 };
 
+export type UpdatePostPayload = CreatePostPayload & {
+  postId: number;
+};
+
 export type CreatePostCommentPayload = {
   postId: number;
   content: string;
@@ -59,3 +78,13 @@ export type UpdatePostCommentPayload = {
   commentId: number;
   content: string;
 };
+
+export type CreateSavedCollectionPayload = {
+  name: string;
+};
+
+export type ReportContentPayload = {
+  reason: string;
+};
+
+export type PostSort = "newest" | "popular" | "trending" | "nearby";

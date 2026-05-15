@@ -15,9 +15,10 @@ type JWTManager struct {
 }
 
 type claims struct {
-	UserID    uint64 `json:"user_id"`
-	Username  string `json:"user_name"`
-	SessionID string `json:"session_id"`
+	UserID    uint64   `json:"user_id"`
+	Username  string   `json:"user_name"`
+	Roles     []string `json:"roles,omitempty"`
+	SessionID string   `json:"session_id"`
 	jwt.RegisteredClaims
 }
 
@@ -30,6 +31,7 @@ func (m *JWTManager) Issue(principal auth.AuthenticatedUser) (string, error) {
 	tokenClaims := claims{
 		UserID:    principal.UserID,
 		Username:  principal.Username,
+		Roles:     append([]string(nil), principal.Roles...),
 		SessionID: principal.SessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        principal.SessionID,
@@ -65,6 +67,7 @@ func (m *JWTManager) Authenticate(rawToken string) (*auth.AuthenticatedUser, err
 	return &auth.AuthenticatedUser{
 		UserID:    tokenClaims.UserID,
 		Username:  tokenClaims.Username,
+		Roles:     append([]string(nil), tokenClaims.Roles...),
 		Subject:   tokenClaims.Subject,
 		SessionID: tokenClaims.SessionID,
 		ExpiresAt: expiresAt,

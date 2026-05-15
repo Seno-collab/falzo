@@ -10,6 +10,9 @@ import (
 	"falzo-be/internal/post"
 	"falzo-be/internal/share"
 	"falzo-be/pkg/database"
+	"falzo-be/pkg/dberr"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type PostgresRepository struct {
@@ -20,6 +23,47 @@ const postRepoService = "post"
 
 func NewPostgresRepository(db database.Client) *PostgresRepository {
 	return &PostgresRepository{db: db}
+}
+
+func postSelectSQL(viewerParam string) string {
+	return `
+		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
+				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
+				EXISTS (
+					SELECT 1
+					FROM post_likes
+					WHERE post_likes.post_id = posts.id AND post_likes.user_id = ` + viewerParam + `
+				),
+				EXISTS (
+					SELECT 1
+					FROM post_saves
+					WHERE post_saves.post_id = posts.id AND post_saves.user_id = ` + viewerParam + `
+				),
+				posts.status,
+				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
+				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
+				(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
+				posts.created_at, posts.updated_at
+		FROM posts
+		INNER JOIN users ON users.id = posts.user_id
+		LEFT JOIN categories ON categories.id = posts.category_id
+	`
+}
+
+func (r *PostgresRepository) loadPost(ctx context.Context, postID uint64, viewerUserID uint64) (post.Post, error) {
+	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2")+`
+		WHERE posts.id = $1
+		LIMIT 1
+	`, postID, viewerUserID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return post.Post{}, post.ErrNotFound
+		}
+		return post.Post{}, share.MapDBError(ctx, postRepoService, "posts.load", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return item, nil
 }
 
 func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error {
@@ -63,6 +107,102 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 	}
 
 	return nil
+}
+
+func (r *PostgresRepository) UpdatePost(ctx context.Context, postID uint64, userID uint64, update post.PostUpdate) (post.Post, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.Post{}, post.ErrDependencyUnavailable
+	}
+	if update.CategoryID != 0 {
+		if err := r.ensureCategoryExists(ctx, update.CategoryID); err != nil {
+			return post.Post{}, err
+		}
+	}
+	if err := r.ensurePostExists(ctx, postID); err != nil {
+		return post.Post{}, err
+	}
+
+	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2")+`
+		WHERE posts.id = $1
+			AND posts.user_id = $2
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
+		LIMIT 1
+	`, postID, userID))
+	if err == nil {
+		_, err = r.db.Pool().Exec(ctx, `
+			UPDATE posts
+			SET caption = $3,
+				location_name = $4,
+				latitude = $5,
+				longitude = $6,
+				category_id = NULLIF($7, 0),
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+		`, postID, userID, update.Caption.String(), update.LocationName.String(), update.Latitude, update.Longitude, update.CategoryID)
+		if err != nil {
+			return post.Post{}, share.MapDBError(ctx, postRepoService, "posts.update", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+
+		return r.loadPost(ctx, postID, userID)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return post.Post{}, post.ErrPostUpdateForbidden
+	}
+
+	return item, share.MapDBError(ctx, postRepoService, "posts.update_owner", err, post.ErrDependencyUnavailable, post.ErrInternal)
+}
+
+func (r *PostgresRepository) DeletePost(ctx context.Context, postID uint64, actor post.ModerationActor) error {
+	return r.moderatePost(ctx, postID, actor, "", true)
+}
+
+func (r *PostgresRepository) HidePost(ctx context.Context, postID uint64, actor post.ModerationActor, reason post.ReportReason) error {
+	return r.moderatePost(ctx, postID, actor, reason.String(), false)
+}
+
+func (r *PostgresRepository) ReportPost(ctx context.Context, report post.ContentReport) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensurePostExists(ctx, report.PostID); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		INSERT INTO content_reports (reporter_user_id, post_id, reason)
+		VALUES ($1, $2, $3)
+	`, report.ReporterUserID, report.PostID, report.Reason.String()); err != nil {
+		return share.MapDBError(ctx, postRepoService, "content_reports.post_insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) ReportComment(ctx context.Context, report post.ContentReport) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensureCommentBelongsToPost(ctx, report.CommentID, report.PostID); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		INSERT INTO content_reports (reporter_user_id, post_id, comment_id, reason)
+		VALUES ($1, $2, $3, $4)
+	`, report.ReporterUserID, report.PostID, report.CommentID, report.Reason.String()); err != nil {
+		return share.MapDBError(ctx, postRepoService, "content_reports.comment_insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor) error {
+	return r.moderateComment(ctx, postID, commentID, actor, "", true)
+}
+
+func (r *PostgresRepository) HideComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor, reason post.ReportReason) error {
+	return r.moderateComment(ctx, postID, commentID, actor, reason.String(), false)
 }
 
 func (r *PostgresRepository) Like(ctx context.Context, postID uint64, userID uint64) error {
@@ -134,6 +274,198 @@ func (r *PostgresRepository) Unsave(ctx context.Context, postID uint64, userID u
 		WHERE post_id = $1 AND user_id = $2
 	`, postID, userID); err != nil {
 		return share.MapDBError(ctx, postRepoService, "posts.unsave", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) CreateSavedCollection(ctx context.Context, collection *post.SavedCollection) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if collection == nil {
+		return post.ErrInternal
+	}
+
+	err := r.db.Pool().QueryRow(ctx, `
+		INSERT INTO saved_collections (user_id, name)
+		VALUES ($1, $2)
+		RETURNING id, created_at, updated_at
+	`, collection.UserID, collection.Name.String()).Scan(&collection.ID, &collection.CreatedAt, &collection.UpdatedAt)
+	if err != nil {
+		if dberr.IsUniqueViolation(err) {
+			return post.ErrCollectionNameTaken
+		}
+		return share.MapDBError(ctx, postRepoService, "saved_collections.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) ListSavedCollections(ctx context.Context, userID uint64) ([]post.SavedCollection, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return nil, post.ErrDependencyUnavailable
+	}
+
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT id, user_id, name, created_at, updated_at
+		FROM saved_collections
+		WHERE user_id = $1
+		ORDER BY created_at DESC, id DESC
+	`, userID)
+	if err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "saved_collections.list", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	defer rows.Close()
+
+	collections := make([]post.SavedCollection, 0)
+	for rows.Next() {
+		var item post.SavedCollection
+		var rawName string
+		if err := rows.Scan(&item.ID, &item.UserID, &rawName, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, share.MapDBError(ctx, postRepoService, "saved_collections.list.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+		name, err := post.NewSavedCollectionName(rawName)
+		if err != nil {
+			return nil, err
+		}
+		item.Name = name
+
+		posts, err := r.listSavedCollectionPosts(ctx, item.ID, userID)
+		if err != nil {
+			return nil, err
+		}
+		item.Posts = posts
+		collections = append(collections, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "saved_collections.list.iterate", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return collections, nil
+}
+
+func (r *PostgresRepository) ListSavedPosts(ctx context.Context, userID uint64) ([]post.Post, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return nil, post.ErrDependencyUnavailable
+	}
+
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
+				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
+				EXISTS (
+					SELECT 1
+					FROM post_likes
+					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $1
+				),
+				true,
+				posts.status,
+				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
+				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
+				(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
+				posts.created_at, posts.updated_at
+		FROM post_saves
+		INNER JOIN posts ON posts.id = post_saves.post_id
+		INNER JOIN users ON users.id = posts.user_id
+		LEFT JOIN categories ON categories.id = posts.category_id
+		WHERE post_saves.user_id = $1
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
+		ORDER BY post_saves.created_at DESC, post_saves.id DESC
+		LIMIT 200
+	`, userID)
+	if err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "saved_posts.list", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	defer rows.Close()
+
+	posts := make([]post.Post, 0)
+	for rows.Next() {
+		item, err := scanPost(rows)
+		if err != nil {
+			return nil, share.MapDBError(ctx, postRepoService, "saved_posts.list.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+		posts = append(posts, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "saved_posts.list.iterate", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return posts, nil
+}
+
+func (r *PostgresRepository) AddPostToSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensureSavedCollectionOwner(ctx, collectionID, userID); err != nil {
+		return err
+	}
+	if err := r.ensurePostExists(ctx, postID); err != nil {
+		return err
+	}
+
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collection_posts.begin", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO post_saves (post_id, user_id)
+		VALUES ($1, $2)
+		ON CONFLICT (post_id, user_id) DO NOTHING
+	`, postID, userID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collection_posts.ensure_save", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO saved_collection_posts (collection_id, post_id, user_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (collection_id, post_id) DO NOTHING
+	`, collectionID, postID, userID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collection_posts.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collection_posts.commit", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) RemovePostFromSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensureSavedCollectionOwner(ctx, collectionID, userID); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		DELETE FROM saved_collection_posts
+		WHERE collection_id = $1 AND post_id = $2 AND user_id = $3
+	`, collectionID, postID, userID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collection_posts.delete", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) DeleteSavedCollection(ctx context.Context, collectionID uint64, userID uint64) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if err := r.ensureSavedCollectionOwner(ctx, collectionID, userID); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		DELETE FROM saved_collections
+		WHERE id = $1 AND user_id = $2
+	`, collectionID, userID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collections.delete", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
 
 	return nil
@@ -213,12 +545,12 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 		SELECT EXISTS (
 			SELECT 1
 			FROM post_comments
-			WHERE id = $1 AND post_id = $2
+			WHERE id = $1 AND post_id = $2 AND deleted_at IS NULL
 		),
 		COALESCE((
 			SELECT user_id
 			FROM post_comments
-			WHERE id = $1 AND post_id = $2
+			WHERE id = $1 AND post_id = $2 AND deleted_at IS NULL
 			LIMIT 1
 		), 0)
 	`, commentID, postID).Scan(&exists, &ownerUserID)
@@ -244,10 +576,10 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 		WITH updated AS (
 			UPDATE post_comments
 			SET content = $4, updated_at = CURRENT_TIMESTAMP
-			WHERE id = $1 AND post_id = $2 AND user_id = $3
-			RETURNING id, post_id, user_id, content, parent_comment_id, created_at, updated_at
+			WHERE id = $1 AND post_id = $2 AND user_id = $3 AND deleted_at IS NULL AND status = 'visible'
+			RETURNING id, post_id, user_id, content, parent_comment_id, created_at, updated_at, status
 		)
-		SELECT updated.id, updated.post_id, updated.user_id, users.user_name, updated.content, updated.created_at, updated.updated_at,
+		SELECT updated.id, updated.post_id, updated.user_id, users.user_name, updated.content, updated.created_at, updated.updated_at, updated.status,
 			parent.id, parent.user_id, parent_user.user_name, parent.content
 		FROM updated
 		INNER JOIN users ON users.id = updated.user_id
@@ -261,6 +593,7 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 		&rawContent,
 		&comment.CreatedAt,
 		&comment.UpdatedAt,
+		&comment.Status,
 		&rawReplyToCommentID,
 		&rawReplyToUserID,
 		&rawReplyToUserName,
@@ -277,35 +610,26 @@ func (r *PostgresRepository) UpdateComment(ctx context.Context, postID uint64, c
 	return comment, nil
 }
 
-func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string, categorySlug string, feed string) ([]post.Post, error) {
+func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListFilter) ([]post.Post, error) {
 	if r.db == nil || r.db.Pool() == nil {
 		return nil, post.ErrDependencyUnavailable
 	}
 
-	offset := (page - 1) * limit
-	searchPattern := "%" + strings.TrimSpace(search) + "%"
-	categorySlug = strings.TrimSpace(categorySlug)
-	rows, err := r.db.Pool().Query(ctx, `
-		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
-				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
-				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
-				EXISTS (
-					SELECT 1
-					FROM post_likes
-					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $3
-				),
-				EXISTS (
-					SELECT 1
-					FROM post_saves
-					WHERE post_saves.post_id = posts.id AND post_saves.user_id = $3
-				),
-				posts.created_at, posts.updated_at
-		FROM posts
-		INNER JOIN users ON users.id = posts.user_id
-		LEFT JOIN categories ON categories.id = posts.category_id
+	offset := (filter.Page - 1) * filter.Limit
+	searchPattern := "%" + strings.TrimSpace(filter.Search) + "%"
+	categorySlug := strings.TrimSpace(filter.CategorySlug)
+	sort := strings.TrimSpace(filter.Sort)
+	radiusDegrees := float64(filter.RadiusMeters) / 111000
+	if radiusDegrees <= 0 {
+		radiusDegrees = 50.0 / 111.0
+	}
+
+	rows, err := r.db.Pool().Query(ctx, postSelectSQL("$3")+`
 		WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4
 			OR categories.name ILIKE $4 OR categories.slug ILIKE $4)
 			AND ($5 = '' OR categories.slug = $5)
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
 			AND (
 				$6 = ''
 				OR (
@@ -318,9 +642,40 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, page int, limit int, 
 					)
 				)
 			)
-		ORDER BY posts.created_at DESC, posts.id DESC
+			AND (
+				$7 <> 'nearby'
+				OR (
+					((COALESCE(posts.latitude, 0)::double precision - $8::double precision) * (COALESCE(posts.latitude, 0)::double precision - $8::double precision))
+					+ ((COALESCE(posts.longitude, 0)::double precision - $9::double precision) * (COALESCE(posts.longitude, 0)::double precision - $9::double precision))
+				) <= ($10::double precision * $10::double precision)
+			)
+			AND (
+				$3 = 0
+				OR NOT EXISTS (
+					SELECT 1
+					FROM user_blocks
+					WHERE (blocker_user_id = $3 AND blocked_user_id = posts.user_id)
+						OR (blocker_user_id = posts.user_id AND blocked_user_id = $3)
+				)
+			)
+		ORDER BY
+			CASE WHEN $7 = 'nearby' THEN
+				((COALESCE(posts.latitude, 0)::double precision - $8::double precision) * (COALESCE(posts.latitude, 0)::double precision - $8::double precision))
+				+ ((COALESCE(posts.longitude, 0)::double precision - $9::double precision) * (COALESCE(posts.longitude, 0)::double precision - $9::double precision))
+			END ASC,
+			CASE WHEN $7 = 'popular' THEN (
+				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id) * 3
+				+ (SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible') * 2
+				+ (SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id)
+			) END DESC,
+			CASE WHEN $7 = 'trending' THEN (
+				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id) * 3
+				+ (SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible') * 2
+				+ (SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id)
+			) / (1 + EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - posts.created_at)) / 86400) END DESC,
+			posts.created_at DESC, posts.id DESC
 		LIMIT $1 OFFSET $2
-	`, limit, offset, viewerUserID, searchPattern, categorySlug, strings.TrimSpace(feed))
+	`, filter.Limit, offset, filter.ViewerUserID, searchPattern, categorySlug, strings.TrimSpace(filter.Feed), sort, filter.Latitude, filter.Longitude, radiusDegrees)
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -353,12 +708,15 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT post_comments.id, post_comments.post_id, post_comments.user_id, users.user_name, post_comments.content, post_comments.created_at,
 			post_comments.updated_at,
+			post_comments.status,
 			parent.id, parent.user_id, parent_user.user_name, parent.content
 		FROM post_comments
 		INNER JOIN users ON users.id = post_comments.user_id
 		LEFT JOIN post_comments parent ON parent.id = post_comments.parent_comment_id
 		LEFT JOIN users parent_user ON parent_user.id = parent.user_id
 		WHERE post_comments.post_id = $1
+			AND post_comments.deleted_at IS NULL
+			AND post_comments.status = 'visible'
 		ORDER BY post_comments.created_at ASC, post_comments.id ASC
 		LIMIT $2 OFFSET $3
 	`, postID, limit, offset)
@@ -385,6 +743,7 @@ func (r *PostgresRepository) GetComments(ctx context.Context, postID uint64, pag
 			&rawContent,
 			&item.CreatedAt,
 			&item.UpdatedAt,
+			&item.Status,
 			&rawReplyToCommentID,
 			&rawReplyToUserID,
 			&rawReplyToUserName,
@@ -410,25 +769,10 @@ func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64, v
 		return nil, post.ErrDependencyUnavailable
 	}
 
-	item, err := scanPost(r.db.Pool().QueryRow(ctx, `
-		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
-				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
-				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
-				EXISTS (
-					SELECT 1
-					FROM post_likes
-					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $2
-				),
-				EXISTS (
-					SELECT 1
-					FROM post_saves
-					WHERE post_saves.post_id = posts.id AND post_saves.user_id = $2
-				),
-				posts.created_at, posts.updated_at
-		FROM posts
-		INNER JOIN users ON users.id = posts.user_id
-		LEFT JOIN categories ON categories.id = posts.category_id
+	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2")+`
 		WHERE posts.id = $1
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
 		LIMIT 1
 	`, postID, viewerUserID))
 	if err != nil {
@@ -447,17 +791,10 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 	}
 
 	pattern := "%" + strings.TrimSpace(locationName.String()) + "%"
-	rows, err := r.db.Pool().Query(ctx, `
-		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
-				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
-				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
-				false,
-				false,
-				posts.created_at, posts.updated_at
-		FROM posts
-		INNER JOIN users ON users.id = posts.user_id
-		LEFT JOIN categories ON categories.id = posts.category_id
+	rows, err := r.db.Pool().Query(ctx, postSelectSQL("0")+`
 		WHERE posts.location_name ILIKE $1
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
 		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT 100
 	`, pattern)
@@ -500,6 +837,118 @@ func (r *PostgresRepository) ensureCommentBelongsToPost(ctx context.Context, com
 	return nil
 }
 
+func (r *PostgresRepository) moderatePost(ctx context.Context, postID uint64, actor post.ModerationActor, reason string, deleted bool) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if actor.UserID == 0 {
+		return post.ErrUserIDRequired
+	}
+
+	var result pgconn.CommandTag
+	var err error
+	if deleted {
+		result, err = r.db.Pool().Exec(ctx, `
+			UPDATE posts
+			SET status = 'deleted',
+				deleted_at = CURRENT_TIMESTAMP,
+				deleted_by = $2,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+				AND deleted_at IS NULL
+				AND ($3 OR user_id = $2)
+		`, postID, actor.UserID, actor.IsAdmin)
+	} else {
+		result, err = r.db.Pool().Exec(ctx, `
+			UPDATE posts
+			SET status = 'hidden',
+				hidden_at = CURRENT_TIMESTAMP,
+				hidden_by = $2,
+				moderation_reason = $4,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+				AND deleted_at IS NULL
+				AND ($3 OR user_id = $2)
+		`, postID, actor.UserID, actor.IsAdmin, reason)
+	}
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.moderate", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if result.RowsAffected() == 0 {
+		if err := r.ensurePostExists(ctx, postID); err != nil {
+			return err
+		}
+		return post.ErrPostModerationForbidden
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) moderateComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor, reason string, deleted bool) error {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.ErrDependencyUnavailable
+	}
+	if actor.UserID == 0 {
+		return post.ErrUserIDRequired
+	}
+
+	var result pgconn.CommandTag
+	var err error
+	if deleted {
+		result, err = r.db.Pool().Exec(ctx, `
+			UPDATE post_comments
+			SET status = 'deleted',
+				deleted_at = CURRENT_TIMESTAMP,
+				deleted_by = $3,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+				AND post_id = $1
+				AND deleted_at IS NULL
+				AND (
+					$4
+					OR user_id = $3
+					OR EXISTS (
+						SELECT 1
+						FROM posts
+						WHERE posts.id = post_comments.post_id AND posts.user_id = $3
+					)
+				)
+		`, postID, commentID, actor.UserID, actor.IsAdmin)
+	} else {
+		result, err = r.db.Pool().Exec(ctx, `
+			UPDATE post_comments
+			SET status = 'hidden',
+				hidden_at = CURRENT_TIMESTAMP,
+				hidden_by = $3,
+				moderation_reason = $5,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+				AND post_id = $1
+				AND deleted_at IS NULL
+				AND (
+					$4
+					OR user_id = $3
+					OR EXISTS (
+						SELECT 1
+						FROM posts
+						WHERE posts.id = post_comments.post_id AND posts.user_id = $3
+					)
+				)
+		`, postID, commentID, actor.UserID, actor.IsAdmin, reason)
+	}
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "comments.moderate", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if result.RowsAffected() == 0 {
+		if err := r.ensureCommentBelongsToPost(ctx, commentID, postID); err != nil {
+			return err
+		}
+		return post.ErrPostModerationForbidden
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) ensureCategoryExists(ctx context.Context, categoryID uint64) error {
 	var exists bool
 	err := r.db.Pool().QueryRow(ctx, `
@@ -536,6 +985,72 @@ func (r *PostgresRepository) ensurePostExists(ctx context.Context, postID uint64
 	}
 
 	return nil
+}
+
+func (r *PostgresRepository) ensureSavedCollectionOwner(ctx context.Context, collectionID uint64, userID uint64) error {
+	var exists bool
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM saved_collections
+			WHERE id = $1 AND user_id = $2
+		)
+	`, collectionID, userID).Scan(&exists)
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "saved_collections.owner", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	if !exists {
+		return post.ErrCollectionNotFound
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, collectionID uint64, userID uint64) ([]post.Post, error) {
+	rows, err := r.db.Pool().Query(ctx, `
+		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
+				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
+				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
+				EXISTS (
+					SELECT 1
+					FROM post_likes
+					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $2
+				),
+				true,
+				posts.status,
+				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
+				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
+				(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
+				posts.created_at, posts.updated_at
+		FROM saved_collection_posts
+		INNER JOIN posts ON posts.id = saved_collection_posts.post_id
+		INNER JOIN users ON users.id = posts.user_id
+		LEFT JOIN categories ON categories.id = posts.category_id
+		WHERE saved_collection_posts.collection_id = $1
+			AND saved_collection_posts.user_id = $2
+			AND posts.deleted_at IS NULL
+			AND posts.status = 'visible'
+		ORDER BY saved_collection_posts.created_at DESC, saved_collection_posts.id DESC
+		LIMIT 200
+	`, collectionID, userID)
+	if err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "saved_collection_posts.list", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	defer rows.Close()
+
+	posts := make([]post.Post, 0)
+	for rows.Next() {
+		item, err := scanPost(rows)
+		if err != nil {
+			return nil, share.MapDBError(ctx, postRepoService, "saved_collection_posts.list.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+		posts = append(posts, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, share.MapDBError(ctx, postRepoService, "saved_collection_posts.list.iterate", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return posts, nil
 }
 
 func applyScannedCommentContent(comment *post.Comment, rawContent string) error {
@@ -595,6 +1110,10 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		&item.Longitude,
 		&item.IsLiked,
 		&item.IsSaved,
+		&item.Status,
+		&item.LikesCount,
+		&item.CommentsCount,
+		&item.SavesCount,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)

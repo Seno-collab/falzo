@@ -9,95 +9,131 @@ import (
 )
 
 var (
-	ErrNotFound               = errors.New("post not found")
-	ErrDependencyUnavailable  = errors.New("post dependency unavailable")
-	ErrInternal               = errors.New("post internal error")
-	ErrUserIDRequired         = errors.New("user id is required")
-	ErrPostIDRequired         = errors.New("post id is required")
-	ErrPageMustBePositive     = errors.New("page must be greater than 0")
-	ErrLimitMustBePositive    = errors.New("limit must be greater than 0")
-	ErrLimitTooLarge          = errors.New("limit exceeds maximum")
-	ErrInvalidFeed            = errors.New("invalid feed")
-	ErrLocationNameRequired   = errors.New("location name is required")
-	ErrLatitudeOutOfRange     = errors.New("latitude must be between -90 and 90")
-	ErrLongitudeOutOfRange    = errors.New("longitude must be between -180 and 180")
-	ErrImageURLRequired       = errors.New("image url is required")
-	ErrInvalidImageURL        = errors.New("invalid image url")
-	ErrCaptionTooLong         = errors.New("caption exceeds max length")
-	ErrLocationNameTooLong    = errors.New("location name exceeds max length")
-	ErrCategoryNotFound       = errors.New("category not found")
-	ErrCommentRequired        = errors.New("comment content is required")
-	ErrCommentTooLong         = errors.New("comment content exceeds max length")
-	ErrReplyCommentNotFound   = errors.New("reply comment not found")
-	ErrCommentNotFound        = errors.New("comment not found")
-	ErrCommentUpdateForbidden = errors.New("comment update forbidden")
+	ErrNotFound                  = errors.New("post not found")
+	ErrDependencyUnavailable     = errors.New("post dependency unavailable")
+	ErrInternal                  = errors.New("post internal error")
+	ErrUserIDRequired            = errors.New("user id is required")
+	ErrPostIDRequired            = errors.New("post id is required")
+	ErrPageMustBePositive        = errors.New("page must be greater than 0")
+	ErrLimitMustBePositive       = errors.New("limit must be greater than 0")
+	ErrLimitTooLarge             = errors.New("limit exceeds maximum")
+	ErrInvalidFeed               = errors.New("invalid feed")
+	ErrLocationNameRequired      = errors.New("location name is required")
+	ErrLatitudeOutOfRange        = errors.New("latitude must be between -90 and 90")
+	ErrLongitudeOutOfRange       = errors.New("longitude must be between -180 and 180")
+	ErrImageURLRequired          = errors.New("image url is required")
+	ErrInvalidImageURL           = errors.New("invalid image url")
+	ErrCaptionTooLong            = errors.New("caption exceeds max length")
+	ErrLocationNameTooLong       = errors.New("location name exceeds max length")
+	ErrCategoryNotFound          = errors.New("category not found")
+	ErrCommentRequired           = errors.New("comment content is required")
+	ErrCommentTooLong            = errors.New("comment content exceeds max length")
+	ErrReplyCommentNotFound      = errors.New("reply comment not found")
+	ErrCommentNotFound           = errors.New("comment not found")
+	ErrCommentUpdateForbidden    = errors.New("comment update forbidden")
+	ErrCollectionIDRequired      = errors.New("collection id is required")
+	ErrCollectionNameRequired    = errors.New("collection name is required")
+	ErrCollectionNameTooLong     = errors.New("collection name exceeds max length")
+	ErrCollectionNameTaken       = errors.New("collection name already exists")
+	ErrCollectionNotFound        = errors.New("collection not found")
+	ErrPostUpdateForbidden       = errors.New("post update forbidden")
+	ErrPostModerationForbidden   = errors.New("post moderation forbidden")
+	ErrInvalidPostSort           = errors.New("invalid post sort")
+	ErrNearbyCoordinatesRequired = errors.New("nearby coordinates are required")
+	ErrReportReasonRequired      = errors.New("report reason is required")
+	ErrReportReasonTooLong       = errors.New("report reason exceeds max length")
 )
 
 type Repository interface {
 	Create(ctx context.Context, post *Post) error
+	UpdatePost(ctx context.Context, postID uint64, userID uint64, update PostUpdate) (Post, error)
+	DeletePost(ctx context.Context, postID uint64, actor ModerationActor) error
+	HidePost(ctx context.Context, postID uint64, actor ModerationActor, reason ReportReason) error
+	ReportPost(ctx context.Context, report ContentReport) error
+	ReportComment(ctx context.Context, report ContentReport) error
+	DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor ModerationActor) error
+	HideComment(ctx context.Context, postID uint64, commentID uint64, actor ModerationActor, reason ReportReason) error
 	Comment(ctx context.Context, comment *Comment) error
 	UpdateComment(ctx context.Context, postID uint64, commentID uint64, userID uint64, content Content) (Comment, error)
 	Like(ctx context.Context, postID uint64, userID uint64) error
 	Unlike(ctx context.Context, postID uint64, userID uint64) error
 	Save(ctx context.Context, postID uint64, userID uint64) error
 	Unsave(ctx context.Context, postID uint64, userID uint64) error
-	GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string, categorySlug string, feed string) ([]Post, error)
+	CreateSavedCollection(ctx context.Context, collection *SavedCollection) error
+	ListSavedCollections(ctx context.Context, userID uint64) ([]SavedCollection, error)
+	ListSavedPosts(ctx context.Context, userID uint64) ([]Post, error)
+	AddPostToSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error
+	RemovePostFromSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error
+	DeleteSavedCollection(ctx context.Context, collectionID uint64, userID uint64) error
+	GetPosts(ctx context.Context, filter PostListFilter) ([]Post, error)
 	GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*Post, error)
 	GetPostsByLocation(ctx context.Context, locationName LocationName) ([]Post, error)
 	GetComments(ctx context.Context, postID uint64, page int, limit int) ([]Comment, error)
 }
 
 type Post struct {
-	ID           uint64       `json:"id"`
-	UserID       uint64       `json:"user_id"`
-	UserName     string       `json:"user_name"`
-	CategoryID   uint64       `json:"category_id,omitempty"`
-	CategoryName string       `json:"category_name,omitempty"`
-	CategorySlug string       `json:"category_slug,omitempty"`
-	ImageURL     ImageURL     `json:"-"`
-	Caption      Caption      `json:"-"`
-	LocationName LocationName `json:"-"`
-	Latitude     float64      `json:"latitude"`
-	Longitude    float64      `json:"longitude"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"-"`
-	IsLiked      bool         `json:"is_liked"`
-	IsSaved      bool         `json:"is_saved"`
+	ID            uint64       `json:"id"`
+	UserID        uint64       `json:"user_id"`
+	UserName      string       `json:"user_name"`
+	CategoryID    uint64       `json:"category_id,omitempty"`
+	CategoryName  string       `json:"category_name,omitempty"`
+	CategorySlug  string       `json:"category_slug,omitempty"`
+	ImageURL      ImageURL     `json:"-"`
+	Caption       Caption      `json:"-"`
+	LocationName  LocationName `json:"-"`
+	Latitude      float64      `json:"latitude"`
+	Longitude     float64      `json:"longitude"`
+	CreatedAt     time.Time    `json:"created_at"`
+	UpdatedAt     time.Time    `json:"-"`
+	IsLiked       bool         `json:"is_liked"`
+	IsSaved       bool         `json:"is_saved"`
+	Status        string       `json:"status"`
+	LikesCount    int          `json:"likes_count"`
+	CommentsCount int          `json:"comments_count"`
+	SavesCount    int          `json:"saves_count"`
 }
 
 type PostView struct {
-	ID           uint64    `json:"id"`
-	UserID       uint64    `json:"user_id"`
-	UserName     string    `json:"user_name"`
-	CategoryID   uint64    `json:"category_id,omitempty"`
-	CategoryName string    `json:"category_name,omitempty"`
-	CategorySlug string    `json:"category_slug,omitempty"`
-	ImageURL     string    `json:"image_url"`
-	Caption      string    `json:"caption"`
-	LocationName string    `json:"location_name"`
-	Latitude     float64   `json:"latitude"`
-	Longitude    float64   `json:"longitude"`
-	CreatedAt    time.Time `json:"created_at"`
-	IsLiked      bool      `json:"is_liked"`
-	IsSaved      bool      `json:"is_saved"`
+	ID            uint64    `json:"id"`
+	UserID        uint64    `json:"user_id"`
+	UserName      string    `json:"user_name"`
+	CategoryID    uint64    `json:"category_id,omitempty"`
+	CategoryName  string    `json:"category_name,omitempty"`
+	CategorySlug  string    `json:"category_slug,omitempty"`
+	ImageURL      string    `json:"image_url"`
+	Caption       string    `json:"caption"`
+	LocationName  string    `json:"location_name"`
+	Latitude      float64   `json:"latitude"`
+	Longitude     float64   `json:"longitude"`
+	CreatedAt     time.Time `json:"created_at"`
+	IsLiked       bool      `json:"is_liked"`
+	IsSaved       bool      `json:"is_saved"`
+	Status        string    `json:"status"`
+	LikesCount    int       `json:"likes_count"`
+	CommentsCount int       `json:"comments_count"`
+	SavesCount    int       `json:"saves_count"`
 }
 
 func (p Post) View() PostView {
 	return PostView{
-		ID:           p.ID,
-		UserID:       p.UserID,
-		UserName:     p.UserName,
-		CategoryID:   p.CategoryID,
-		CategoryName: p.CategoryName,
-		CategorySlug: p.CategorySlug,
-		ImageURL:     p.ImageURL.String(),
-		Caption:      p.Caption.String(),
-		LocationName: p.LocationName.String(),
-		Latitude:     p.Latitude,
-		Longitude:    p.Longitude,
-		CreatedAt:    p.CreatedAt,
-		IsLiked:      p.IsLiked,
-		IsSaved:      p.IsSaved,
+		ID:            p.ID,
+		UserID:        p.UserID,
+		UserName:      p.UserName,
+		CategoryID:    p.CategoryID,
+		CategoryName:  p.CategoryName,
+		CategorySlug:  p.CategorySlug,
+		ImageURL:      p.ImageURL.String(),
+		Caption:       p.Caption.String(),
+		LocationName:  p.LocationName.String(),
+		Latitude:      p.Latitude,
+		Longitude:     p.Longitude,
+		CreatedAt:     p.CreatedAt,
+		IsLiked:       p.IsLiked,
+		IsSaved:       p.IsSaved,
+		Status:        p.Status,
+		LikesCount:    p.LikesCount,
+		CommentsCount: p.CommentsCount,
+		SavesCount:    p.SavesCount,
 	}
 }
 
@@ -109,6 +145,99 @@ type NewPostInput struct {
 	LocationName string
 	Latitude     float64
 	Longitude    float64
+}
+
+type PostUpdate struct {
+	Caption      Caption
+	LocationName LocationName
+	Latitude     float64
+	Longitude    float64
+	CategoryID   uint64
+}
+
+type ModerationActor struct {
+	UserID  uint64
+	IsAdmin bool
+}
+
+type ContentReport struct {
+	ReporterUserID uint64
+	PostID         uint64
+	CommentID      uint64
+	Reason         ReportReason
+}
+
+type PostListFilter struct {
+	Page         int
+	Limit        int
+	ViewerUserID uint64
+	Search       string
+	CategorySlug string
+	Feed         string
+	Sort         string
+	Latitude     float64
+	Longitude    float64
+	RadiusMeters int
+}
+
+type SavedCollection struct {
+	ID        uint64              `json:"id"`
+	UserID    uint64              `json:"user_id"`
+	Name      SavedCollectionName `json:"-"`
+	Posts     []Post              `json:"-"`
+	CreatedAt time.Time           `json:"created_at"`
+	UpdatedAt time.Time           `json:"updated_at"`
+}
+
+type SavedCollectionView struct {
+	ID        uint64     `json:"id"`
+	UserID    uint64     `json:"user_id"`
+	Name      string     `json:"name"`
+	Posts     []PostView `json:"posts"`
+	PostCount int        `json:"post_count"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+func (c SavedCollection) View() SavedCollectionView {
+	posts := make([]PostView, 0, len(c.Posts))
+	for _, item := range c.Posts {
+		posts = append(posts, item.View())
+	}
+
+	return SavedCollectionView{
+		ID:        c.ID,
+		UserID:    c.UserID,
+		Name:      c.Name.String(),
+		Posts:     posts,
+		PostCount: len(posts),
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+	}
+}
+
+type NewSavedCollectionInput struct {
+	UserID uint64
+	Name   string
+}
+
+func NewSavedCollection(input NewSavedCollectionInput) (SavedCollection, error) {
+	if input.UserID == 0 {
+		return SavedCollection{}, ErrUserIDRequired
+	}
+
+	name, err := NewSavedCollectionName(input.Name)
+	if err != nil {
+		return SavedCollection{}, err
+	}
+
+	now := time.Now().UTC()
+	return SavedCollection{
+		UserID:    input.UserID,
+		Name:      name,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}, nil
 }
 
 type Comment struct {
@@ -123,6 +252,7 @@ type Comment struct {
 	ReplyToContent   string    `json:"reply_to_content,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	Status           string    `json:"status"`
 }
 
 type CommentView struct {
@@ -137,6 +267,7 @@ type CommentView struct {
 	ReplyToContent   string    `json:"reply_to_content,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	Status           string    `json:"status"`
 }
 
 func (c Comment) View() CommentView {
@@ -152,6 +283,7 @@ func (c Comment) View() CommentView {
 		ReplyToContent:   c.ReplyToContent,
 		CreatedAt:        c.CreatedAt,
 		UpdatedAt:        c.UpdatedAt,
+		Status:           c.Status,
 	}
 }
 
@@ -181,6 +313,7 @@ func NewComment(input NewCommentInput) (Comment, error) {
 		Content:          content,
 		ReplyToCommentID: input.ReplyToCommentID,
 		CreatedAt:        time.Now().UTC(),
+		Status:           "visible",
 	}, nil
 }
 
@@ -219,6 +352,33 @@ func NewPost(input NewPostInput) (Post, error) {
 		Longitude:    input.Longitude,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		Status:       "visible",
+	}, nil
+}
+
+func NewPostUpdate(input NewPostInput) (PostUpdate, error) {
+	if input.Latitude < -90 || input.Latitude > 90 {
+		return PostUpdate{}, ErrLatitudeOutOfRange
+	}
+	if input.Longitude < -180 || input.Longitude > 180 {
+		return PostUpdate{}, ErrLongitudeOutOfRange
+	}
+
+	caption, err := NewCaption(input.Caption)
+	if err != nil {
+		return PostUpdate{}, err
+	}
+	locationName, err := NewLocationName(input.LocationName)
+	if err != nil {
+		return PostUpdate{}, err
+	}
+
+	return PostUpdate{
+		Caption:      caption,
+		LocationName: locationName,
+		Latitude:     input.Latitude,
+		Longitude:    input.Longitude,
+		CategoryID:   input.CategoryID,
 	}, nil
 }
 
@@ -272,6 +432,24 @@ func (l LocationName) String() string {
 	return string(l)
 }
 
+type SavedCollectionName string
+
+func NewSavedCollectionName(raw string) (SavedCollectionName, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", ErrCollectionNameRequired
+	}
+	if len(value) > 120 {
+		return "", ErrCollectionNameTooLong
+	}
+
+	return SavedCollectionName(value), nil
+}
+
+func (n SavedCollectionName) String() string {
+	return string(n)
+}
+
 type Content string
 
 func NewContent(raw string) (Content, error) {
@@ -288,4 +466,22 @@ func NewContent(raw string) (Content, error) {
 
 func (c Content) String() string {
 	return string(c)
+}
+
+type ReportReason string
+
+func NewReportReason(raw string) (ReportReason, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", ErrReportReasonRequired
+	}
+	if len(value) > 500 {
+		return "", ErrReportReasonTooLong
+	}
+
+	return ReportReason(value), nil
+}
+
+func (r ReportReason) String() string {
+	return string(r)
 }

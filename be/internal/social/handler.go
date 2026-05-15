@@ -19,6 +19,8 @@ type handlerService interface {
 	GetPublicProfile(ctx context.Context, input PublicProfileInput) (PublicProfile, error)
 	Follow(ctx context.Context, input FollowInput) (bool, error)
 	Unfollow(ctx context.Context, input FollowInput) error
+	Block(ctx context.Context, input FollowInput) error
+	Unblock(ctx context.Context, input FollowInput) error
 }
 
 type Handler struct {
@@ -61,6 +63,8 @@ func (h *Handler) Routes() chi.Router {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Post("/{id}/follow", h.Follow)
 		protected.Delete("/{id}/follow", h.Unfollow)
+		protected.Post("/{id}/block", h.Block)
+		protected.Delete("/{id}/block", h.Unblock)
 	})
 	return r
 }
@@ -131,6 +135,52 @@ func (h *Handler) Unfollow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "User unfollowed successfully", map[string]bool{"is_following": false}, r)
+}
+
+func (h *Handler) Block(w http.ResponseWriter, r *http.Request) {
+	targetUserID, ok := h.parseUserID(w, r, "block_user")
+	if !ok {
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "block_user", mapSocialError)
+		return
+	}
+
+	if err := h.service.Block(r.Context(), FollowInput{
+		FollowerID:  principal.UserID,
+		FollowingID: targetUserID,
+	}); err != nil {
+		share.WriteError(w, r, err, "block_user", mapSocialError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "User blocked successfully", map[string]bool{"is_blocked": true}, r)
+}
+
+func (h *Handler) Unblock(w http.ResponseWriter, r *http.Request) {
+	targetUserID, ok := h.parseUserID(w, r, "unblock_user")
+	if !ok {
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "unblock_user", mapSocialError)
+		return
+	}
+
+	if err := h.service.Unblock(r.Context(), FollowInput{
+		FollowerID:  principal.UserID,
+		FollowingID: targetUserID,
+	}); err != nil {
+		share.WriteError(w, r, err, "unblock_user", mapSocialError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "User unblocked successfully", map[string]bool{"is_blocked": false}, r)
 }
 
 func (h *Handler) parseUserID(w http.ResponseWriter, r *http.Request, operation string) (uint64, bool) {

@@ -20,12 +20,25 @@ import (
 
 type handlerService interface {
 	CreatePost(ctx context.Context, input CreatePostInput) (PostView, error)
+	UpdatePost(ctx context.Context, input UpdatePostInput) (PostView, error)
+	DeletePost(ctx context.Context, input ModerationInput) error
+	HidePost(ctx context.Context, input ModerationInput) error
+	ReportPost(ctx context.Context, input ReportInput) error
 	LikePost(ctx context.Context, input PostActionInput) error
 	UnlikePost(ctx context.Context, input PostActionInput) error
 	SavePost(ctx context.Context, input PostActionInput) error
 	UnsavePost(ctx context.Context, input PostActionInput) error
+	CreateSavedCollection(ctx context.Context, input CreateSavedCollectionInput) (SavedCollectionView, error)
+	ListSavedCollections(ctx context.Context, input SavedCollectionInput) ([]SavedCollectionView, error)
+	ListSavedPosts(ctx context.Context, input SavedCollectionInput) ([]PostView, error)
+	AddPostToSavedCollection(ctx context.Context, input SavedCollectionPostInput) error
+	RemovePostFromSavedCollection(ctx context.Context, input SavedCollectionPostInput) error
+	DeleteSavedCollection(ctx context.Context, input SavedCollectionInput) error
 	CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error)
 	UpdateComment(ctx context.Context, input UpdateCommentInput) (CommentView, error)
+	DeleteComment(ctx context.Context, input ModerationInput) error
+	HideComment(ctx context.Context, input ModerationInput) error
+	ReportComment(ctx context.Context, input ReportInput) error
 	GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error)
 	GetPostDetail(ctx context.Context, input GetPostDetailInput) (*PostView, error)
 	GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]PostView, error)
@@ -101,17 +114,30 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/location", h.GetPostsByLocation)
 	r.Get("/{id}/comments/events", h.StreamComments)
 	r.Get("/{id}/comments", h.GetComments)
-	r.Get("/{id}", h.GetPostDetail)
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
+		protected.Get("/saved", h.ListSavedPosts)
+		protected.Get("/saved-collections", h.ListSavedCollections)
+		protected.Post("/saved-collections", h.CreateSavedCollection)
+		protected.Delete("/saved-collections/{collectionID}", h.DeleteSavedCollection)
+		protected.Post("/saved-collections/{collectionID}/posts/{postID}", h.AddPostToSavedCollection)
+		protected.Delete("/saved-collections/{collectionID}/posts/{postID}", h.RemovePostFromSavedCollection)
 		protected.Post("/", h.CreatePost)
+		protected.Put("/{id}", h.UpdatePost)
+		protected.Delete("/{id}", h.DeletePost)
+		protected.Post("/{id}/hide", h.HidePost)
+		protected.Post("/{id}/report", h.ReportPost)
 		protected.Post("/{id}/like", h.LikePost)
 		protected.Delete("/{id}/like", h.UnlikePost)
 		protected.Post("/{id}/save", h.SavePost)
 		protected.Delete("/{id}/save", h.UnsavePost)
 		protected.Post("/{id}/comments", h.CommentPost)
 		protected.Put("/{id}/comments/{commentID}", h.UpdateComment)
+		protected.Delete("/{id}/comments/{commentID}", h.DeleteComment)
+		protected.Post("/{id}/comments/{commentID}/hide", h.HideComment)
+		protected.Post("/{id}/comments/{commentID}/report", h.ReportComment)
 	})
+	r.Get("/{id}", h.GetPostDetail)
 	return r
 }
 
@@ -131,6 +157,18 @@ type CommentPostRequest struct {
 
 type UpdateCommentRequest struct {
 	Content string `json:"content"`
+}
+
+type ModerateContentRequest struct {
+	Reason string `json:"reason"`
+}
+
+type ReportContentRequest struct {
+	Reason string `json:"reason"`
+}
+
+type CreateSavedCollectionRequest struct {
+	Name string `json:"name"`
 }
 
 func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +206,81 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	h.publishFollowerPostNotifications(r.Context(), principal, post)
 
 	httpResponse.Success(w, http.StatusCreated, "Post created successfully", post, r)
+}
+
+func (h *Handler) UpdatePost(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseRouteUint(r, "id")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, "update_post", mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "update_post", mapPostError)
+		return
+	}
+
+	var req CreatePostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "update_post", mapPostError)
+		return
+	}
+
+	item, err := h.service.UpdatePost(r.Context(), UpdatePostInput{
+		PostID:       postID,
+		UserID:       principal.UserID,
+		CategoryID:   req.CategoryID,
+		Caption:      req.Caption,
+		LocationName: req.LocationName,
+		Latitude:     req.Latitude,
+		Longitude:    req.Longitude,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "update_post", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Post updated successfully", item, r)
+}
+
+func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
+	h.handlePostModerationAction(w, r, "delete_post", "Post deleted successfully", false, h.service.DeletePost)
+}
+
+func (h *Handler) HidePost(w http.ResponseWriter, r *http.Request) {
+	h.handlePostModerationAction(w, r, "hide_post", "Post hidden successfully", true, h.service.HidePost)
+}
+
+func (h *Handler) ReportPost(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseRouteUint(r, "id")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, "report_post", mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "report_post", mapPostError)
+		return
+	}
+
+	var req ReportContentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "report_post", mapPostError)
+		return
+	}
+
+	if err := h.service.ReportPost(r.Context(), ReportInput{
+		PostID:         postID,
+		ReporterUserID: principal.UserID,
+		Reason:         req.Reason,
+	}); err != nil {
+		share.WriteError(w, r, err, "report_post", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusCreated, "Post reported successfully", nil, r)
 }
 
 func (h *Handler) GetPostDetail(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +386,15 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sort := r.URL.Query().Get("sort")
+	latRaw := r.URL.Query().Get("lat")
+	lngRaw := r.URL.Query().Get("lng")
+	latitude := parseOptionalFloat(latRaw)
+	longitude := parseOptionalFloat(lngRaw)
+	if strings.TrimSpace(sort) == postSortNearby && (strings.TrimSpace(latRaw) == "" || strings.TrimSpace(lngRaw) == "") {
+		latitude = 999
+	}
+
 	posts, err := h.service.GetPosts(r.Context(), ListPostsInput{
 		Page:         page,
 		Limit:        limit,
@@ -280,6 +402,10 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 		Search:       r.URL.Query().Get("search"),
 		CategorySlug: r.URL.Query().Get("category_slug"),
 		Feed:         r.URL.Query().Get("feed"),
+		Sort:         sort,
+		Latitude:     latitude,
+		Longitude:    longitude,
+		RadiusMeters: parseOptionalInt(r.URL.Query().Get("radius_meters")),
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "get_posts", mapPostError)
@@ -392,6 +518,183 @@ func (h *Handler) UnsavePost(w http.ResponseWriter, r *http.Request) {
 	h.handlePostAction(w, r, "unsave_post", "Post unsaved successfully", "post unsaved", h.service.UnsavePost)
 }
 
+func (h *Handler) CreateSavedCollection(w http.ResponseWriter, r *http.Request) {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "create_saved_collection", mapPostError)
+		return
+	}
+
+	var req CreateSavedCollectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "create_saved_collection", mapPostError)
+		return
+	}
+
+	collection, err := h.service.CreateSavedCollection(r.Context(), CreateSavedCollectionInput{
+		UserID: principal.UserID,
+		Name:   req.Name,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "create_saved_collection", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusCreated, "Saved collection created successfully", collection, r)
+}
+
+func (h *Handler) ListSavedCollections(w http.ResponseWriter, r *http.Request) {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "list_saved_collections", mapPostError)
+		return
+	}
+
+	collections, err := h.service.ListSavedCollections(r.Context(), SavedCollectionInput{UserID: principal.UserID})
+	if err != nil {
+		share.WriteError(w, r, err, "list_saved_collections", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Saved collections fetched successfully", collections, r)
+}
+
+func (h *Handler) ListSavedPosts(w http.ResponseWriter, r *http.Request) {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "list_saved_posts", mapPostError)
+		return
+	}
+
+	posts, err := h.service.ListSavedPosts(r.Context(), SavedCollectionInput{UserID: principal.UserID})
+	if err != nil {
+		share.WriteError(w, r, err, "list_saved_posts", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Saved posts fetched successfully", posts, r)
+}
+
+func (h *Handler) AddPostToSavedCollection(w http.ResponseWriter, r *http.Request) {
+	h.handleSavedCollectionPostAction(
+		w,
+		r,
+		"add_saved_collection_post",
+		"Post added to saved collection successfully",
+		h.service.AddPostToSavedCollection,
+	)
+}
+
+func (h *Handler) RemovePostFromSavedCollection(w http.ResponseWriter, r *http.Request) {
+	h.handleSavedCollectionPostAction(
+		w,
+		r,
+		"remove_saved_collection_post",
+		"Post removed from saved collection successfully",
+		h.service.RemovePostFromSavedCollection,
+	)
+}
+
+func (h *Handler) DeleteSavedCollection(w http.ResponseWriter, r *http.Request) {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "delete_saved_collection", mapPostError)
+		return
+	}
+
+	collectionID, err := parseRouteUint(r, "collectionID")
+	if err != nil {
+		share.WriteError(w, r, ErrCollectionIDRequired, "delete_saved_collection", mapPostError)
+		return
+	}
+
+	if err := h.service.DeleteSavedCollection(r.Context(), SavedCollectionInput{
+		CollectionID: collectionID,
+		UserID:       principal.UserID,
+	}); err != nil {
+		share.WriteError(w, r, err, "delete_saved_collection", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Saved collection deleted successfully", nil, r)
+}
+
+func (h *Handler) handleSavedCollectionPostAction(
+	w http.ResponseWriter,
+	r *http.Request,
+	operation string,
+	successMessage string,
+	action func(context.Context, SavedCollectionPostInput) error,
+) {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, operation, mapPostError)
+		return
+	}
+
+	collectionID, err := parseRouteUint(r, "collectionID")
+	if err != nil {
+		share.WriteError(w, r, ErrCollectionIDRequired, operation, mapPostError)
+		return
+	}
+
+	postID, err := parseRouteUint(r, "postID")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, operation, mapPostError)
+		return
+	}
+
+	if err := action(r.Context(), SavedCollectionPostInput{
+		CollectionID: collectionID,
+		PostID:       postID,
+		UserID:       principal.UserID,
+	}); err != nil {
+		share.WriteError(w, r, err, operation, mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, successMessage, nil, r)
+}
+
+func parseRouteUint(r *http.Request, name string) (uint64, error) {
+	value, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, name)), 10, 64)
+	if err != nil || value == 0 {
+		return 0, errInvalidPostIDParam
+	}
+
+	return value, nil
+}
+
+func parseOptionalFloat(raw string) float64 {
+	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return 0
+	}
+
+	return value
+}
+
+func parseOptionalInt(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+
+	return value
+}
+
+func moderationActorFromPrincipal(principal *auth.AuthenticatedUser) ModerationActor {
+	actor := ModerationActor{UserID: principal.UserID}
+	for _, role := range principal.Roles {
+		if role == "admin" || role == "moderator" {
+			actor.IsAdmin = true
+			break
+		}
+	}
+
+	return actor
+}
+
 func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 	postID, err := strconv.ParseUint(strings.TrimSpace(chi.URLParam(r, "id")), 10, 64)
 	if err != nil || postID == 0 {
@@ -476,6 +779,145 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Comment updated successfully", comment, r)
+}
+
+func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
+	h.handleCommentModerationAction(w, r, "delete_comment", "Comment deleted successfully", false, h.service.DeleteComment)
+}
+
+func (h *Handler) HideComment(w http.ResponseWriter, r *http.Request) {
+	h.handleCommentModerationAction(w, r, "hide_comment", "Comment hidden successfully", true, h.service.HideComment)
+}
+
+func (h *Handler) ReportComment(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseRouteUint(r, "id")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, "report_comment", mapPostError)
+		return
+	}
+	commentID, err := parseRouteUint(r, "commentID")
+	if err != nil {
+		share.WriteError(w, r, ErrCommentNotFound, "report_comment", mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "report_comment", mapPostError)
+		return
+	}
+
+	var req ReportContentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "report_comment", mapPostError)
+		return
+	}
+
+	if err := h.service.ReportComment(r.Context(), ReportInput{
+		PostID:         postID,
+		CommentID:      commentID,
+		ReporterUserID: principal.UserID,
+		Reason:         req.Reason,
+	}); err != nil {
+		share.WriteError(w, r, err, "report_comment", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusCreated, "Comment reported successfully", nil, r)
+}
+
+func (h *Handler) handlePostModerationAction(
+	w http.ResponseWriter,
+	r *http.Request,
+	operation string,
+	successMessage string,
+	needsReason bool,
+	action func(context.Context, ModerationInput) error,
+) {
+	postID, err := parseRouteUint(r, "id")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, operation, mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, operation, mapPostError)
+		return
+	}
+
+	reason, ok := h.readModerationReason(w, r, operation, needsReason)
+	if !ok {
+		return
+	}
+
+	if err := action(r.Context(), ModerationInput{
+		PostID: postID,
+		Actor:  moderationActorFromPrincipal(principal),
+		Reason: reason,
+	}); err != nil {
+		share.WriteError(w, r, err, operation, mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, successMessage, nil, r)
+}
+
+func (h *Handler) handleCommentModerationAction(
+	w http.ResponseWriter,
+	r *http.Request,
+	operation string,
+	successMessage string,
+	needsReason bool,
+	action func(context.Context, ModerationInput) error,
+) {
+	postID, err := parseRouteUint(r, "id")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, operation, mapPostError)
+		return
+	}
+	commentID, err := parseRouteUint(r, "commentID")
+	if err != nil {
+		share.WriteError(w, r, ErrCommentNotFound, operation, mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, operation, mapPostError)
+		return
+	}
+
+	reason, ok := h.readModerationReason(w, r, operation, needsReason)
+	if !ok {
+		return
+	}
+
+	if err := action(r.Context(), ModerationInput{
+		PostID:    postID,
+		CommentID: commentID,
+		Actor:     moderationActorFromPrincipal(principal),
+		Reason:    reason,
+	}); err != nil {
+		share.WriteError(w, r, err, operation, mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, successMessage, nil, r)
+}
+
+func (h *Handler) readModerationReason(w http.ResponseWriter, r *http.Request, operation string, required bool) (string, bool) {
+	if !required {
+		return "", true
+	}
+
+	var req ModerateContentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, operation, mapPostError)
+		return "", false
+	}
+
+	return req.Reason, true
 }
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, event string, payload any) error {

@@ -51,6 +51,34 @@ func (r *EngagementStreamRepository) Create(ctx context.Context, item *post.Post
 	return r.next.Create(ctx, item)
 }
 
+func (r *EngagementStreamRepository) UpdatePost(ctx context.Context, postID uint64, userID uint64, update post.PostUpdate) (post.Post, error) {
+	return r.next.UpdatePost(ctx, postID, userID, update)
+}
+
+func (r *EngagementStreamRepository) DeletePost(ctx context.Context, postID uint64, actor post.ModerationActor) error {
+	return r.next.DeletePost(ctx, postID, actor)
+}
+
+func (r *EngagementStreamRepository) HidePost(ctx context.Context, postID uint64, actor post.ModerationActor, reason post.ReportReason) error {
+	return r.next.HidePost(ctx, postID, actor, reason)
+}
+
+func (r *EngagementStreamRepository) ReportPost(ctx context.Context, report post.ContentReport) error {
+	return r.next.ReportPost(ctx, report)
+}
+
+func (r *EngagementStreamRepository) ReportComment(ctx context.Context, report post.ContentReport) error {
+	return r.next.ReportComment(ctx, report)
+}
+
+func (r *EngagementStreamRepository) DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor) error {
+	return r.next.DeleteComment(ctx, postID, commentID, actor)
+}
+
+func (r *EngagementStreamRepository) HideComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor, reason post.ReportReason) error {
+	return r.next.HideComment(ctx, postID, commentID, actor, reason)
+}
+
 func (r *EngagementStreamRepository) Like(ctx context.Context, postID uint64, userID uint64) error {
 	return r.publishEngagement(ctx, engagementActionLike, postID, userID)
 }
@@ -67,6 +95,30 @@ func (r *EngagementStreamRepository) Unsave(ctx context.Context, postID uint64, 
 	return r.publishEngagement(ctx, engagementActionUnsave, postID, userID)
 }
 
+func (r *EngagementStreamRepository) CreateSavedCollection(ctx context.Context, collection *post.SavedCollection) error {
+	return r.next.CreateSavedCollection(ctx, collection)
+}
+
+func (r *EngagementStreamRepository) ListSavedCollections(ctx context.Context, userID uint64) ([]post.SavedCollection, error) {
+	return r.next.ListSavedCollections(ctx, userID)
+}
+
+func (r *EngagementStreamRepository) ListSavedPosts(ctx context.Context, userID uint64) ([]post.Post, error) {
+	return r.next.ListSavedPosts(ctx, userID)
+}
+
+func (r *EngagementStreamRepository) AddPostToSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error {
+	return r.next.AddPostToSavedCollection(ctx, collectionID, postID, userID)
+}
+
+func (r *EngagementStreamRepository) RemovePostFromSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error {
+	return r.next.RemovePostFromSavedCollection(ctx, collectionID, postID, userID)
+}
+
+func (r *EngagementStreamRepository) DeleteSavedCollection(ctx context.Context, collectionID uint64, userID uint64) error {
+	return r.next.DeleteSavedCollection(ctx, collectionID, userID)
+}
+
 func (r *EngagementStreamRepository) Comment(ctx context.Context, comment *post.Comment) error {
 	return r.next.Comment(ctx, comment)
 }
@@ -75,8 +127,8 @@ func (r *EngagementStreamRepository) UpdateComment(ctx context.Context, postID u
 	return r.next.UpdateComment(ctx, postID, commentID, userID, content)
 }
 
-func (r *EngagementStreamRepository) GetPosts(ctx context.Context, page int, limit int, viewerUserID uint64, search string, categorySlug string, feed string) ([]post.Post, error) {
-	return r.next.GetPosts(ctx, page, limit, viewerUserID, search, categorySlug, feed)
+func (r *EngagementStreamRepository) GetPosts(ctx context.Context, filter post.PostListFilter) ([]post.Post, error) {
+	return r.next.GetPosts(ctx, filter)
 }
 
 func (r *EngagementStreamRepository) GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*post.Post, error) {

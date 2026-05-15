@@ -25,6 +25,14 @@ func mapSocialError(err error) share.ApiError {
 			Detail:  "You cannot follow yourself",
 			Field:   "target_user_id",
 		}
+	case errors.Is(err, ErrCannotBlockSelf):
+		return share.ApiError{
+			Status:  http.StatusBadRequest,
+			Message: share.ValidationField,
+			Code:    share.INVALID_FORMAT,
+			Detail:  "You cannot block yourself",
+			Field:   "target_user_id",
+		}
 	case errors.Is(err, ErrUserNotFound):
 		return share.NotFound("User not found", "Requested user does not exist")
 	case errors.Is(err, ErrDependencyUnavailable):
