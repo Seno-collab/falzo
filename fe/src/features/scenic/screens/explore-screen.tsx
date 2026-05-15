@@ -53,6 +53,7 @@ import { getCategoriesApi } from "@/features/categories/api";
 import type { Category } from "@/features/categories/types";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import {
+  cleanNotificationIds,
   getNotificationsApi,
   markNotificationsReadApi,
   subscribeNotificationEvents,
@@ -317,7 +318,7 @@ export function ExploreScreen() {
   }, []);
 
   const markNotificationIdsRead = useCallback((ids: string[]) => {
-    const cleanIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    const cleanIds = cleanNotificationIds(ids);
     if (cleanIds.length === 0) {
       return;
     }

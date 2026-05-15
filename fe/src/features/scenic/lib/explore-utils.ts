@@ -14,7 +14,7 @@ export function showsCommunityFeed(collection: string) {
 
 export function getExploreCollections(categories: Category[] | undefined) {
   const names = [...(categories ?? []).map((category) => category.name)]
-    .map((name) => name.trim())
+    .map((name) => (typeof name === "string" ? name.trim() : ""))
     .filter(
       (name) =>
         name.length > 0 &&

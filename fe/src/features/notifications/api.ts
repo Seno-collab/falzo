@@ -72,16 +72,38 @@ function parseSSEBlock(block: string) {
   return { event, data: data.join("\n") };
 }
 
+function trimText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function cleanNotificationIds(ids: unknown[]) {
+  return Array.from(
+    new Set(
+      ids
+        .map((id) => {
+          if (typeof id === "string") {
+            return id.trim();
+          }
+          if (typeof id === "number" && Number.isFinite(id)) {
+            return String(id);
+          }
+          return "";
+        })
+        .filter(Boolean),
+    ),
+  );
+}
+
 export function createPostUploadNotification(post: {
   id: number;
   user_id: number;
-  user_name: string;
-  caption: string;
-  location_name: string;
+  user_name?: string | null;
+  caption?: string | null;
+  location_name?: string | null;
   created_at: string;
 }): AppNotification {
-  const actor = post.user_name.trim() || "Someone";
-  const detail = post.caption.trim() || post.location_name.trim();
+  const actor = trimText(post.user_name) || "Someone";
+  const detail = trimText(post.caption) || trimText(post.location_name);
 
   return {
     id: `post.created:${post.id}`,
@@ -106,7 +128,7 @@ export function getNotificationsApi(limit = 30) {
 
 export async function markNotificationsReadApi(ids: string[]) {
   initializeAuthHeader();
-  const cleanIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  const cleanIds = cleanNotificationIds(ids);
   if (cleanIds.length === 0) {
     return;
   }
