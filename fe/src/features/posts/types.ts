@@ -54,6 +54,10 @@ export type PostCommentCreatedEvent = PostComment;
 
 export type PostCreatedEvent = Post;
 
+export type PostDeletedEvent = {
+  id: number;
+};
+
 export type CreatePostPayload = {
   image_url: string;
   caption: string;

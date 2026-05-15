@@ -72,6 +72,7 @@ import {
   likePostApi,
   parsePostCommentCreatedEvent,
   parsePostCreatedEvent,
+  parsePostDeletedEvent,
   savePostApi,
   reportPostApi,
   unlikePostApi,
@@ -469,10 +470,50 @@ export function ExploreScreen() {
         },
       );
     };
+    const handlePostDeleted = (event: Event) => {
+      const deleted = parsePostDeletedEvent(event as MessageEvent<string>);
+      if (!deleted) {
+        return;
+      }
+
+      queryClient.setQueriesData<PostsInfiniteData>(
+        { queryKey: ["posts", "explore"] },
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            pages: current.pages.map((page) =>
+              page.filter((item) => item.id !== deleted.id),
+            ),
+          };
+        },
+      );
+      queryClient.removeQueries({ queryKey: ["posts", "detail", deleted.id] });
+      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+      setSelectedPostId((current) =>
+        current === deleted.id ? null : current,
+      );
+      setSelectedChatPostId((current) =>
+        current === deleted.id ? null : current,
+      );
+      setCommentsByPost((current) => {
+        if (!(deleted.id in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[deleted.id];
+        return next;
+      });
+    };
 
     source.addEventListener("post.created", handlePostCreated);
+    source.addEventListener("post.deleted", handlePostDeleted);
     return () => {
       source.removeEventListener("post.created", handlePostCreated);
+      source.removeEventListener("post.deleted", handlePostDeleted);
       source.close();
     };
   }, [

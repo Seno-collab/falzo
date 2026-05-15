@@ -245,11 +245,11 @@ func (h *Handler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
-	h.handlePostModerationAction(w, r, "delete_post", "Post deleted successfully", false, h.service.DeletePost)
+	h.handlePostModerationAction(w, r, "delete_post", "Post deleted successfully", false, h.service.DeletePost, h.publishPostDeleted)
 }
 
 func (h *Handler) HidePost(w http.ResponseWriter, r *http.Request) {
-	h.handlePostModerationAction(w, r, "hide_post", "Post hidden successfully", true, h.service.HidePost)
+	h.handlePostModerationAction(w, r, "hide_post", "Post hidden successfully", true, h.service.HidePost, h.publishPostDeleted)
 }
 
 func (h *Handler) ReportPost(w http.ResponseWriter, r *http.Request) {
@@ -447,11 +447,11 @@ func (h *Handler) StreamPosts(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case post, ok := <-posts:
+		case event, ok := <-posts:
 			if !ok {
 				return
 			}
-			if err := writeSSE(w, flusher, "post.created", post); err != nil {
+			if err := writeSSE(w, flusher, event.Type, event.Post); err != nil {
 				return
 			}
 		case <-heartbeat.C:
@@ -833,6 +833,7 @@ func (h *Handler) handlePostModerationAction(
 	successMessage string,
 	needsReason bool,
 	action func(context.Context, ModerationInput) error,
+	afterSuccess func(context.Context, uint64),
 ) {
 	postID, err := parseRouteUint(r, "id")
 	if err != nil {
@@ -858,6 +859,9 @@ func (h *Handler) handlePostModerationAction(
 	}); err != nil {
 		share.WriteError(w, r, err, operation, mapPostError)
 		return
+	}
+	if afterSuccess != nil {
+		afterSuccess(r.Context(), postID)
 	}
 
 	httpResponse.Success(w, http.StatusOK, successMessage, nil, r)
@@ -1083,6 +1087,15 @@ func (h *Handler) publishFollowerPostNotifications(ctx context.Context, principa
 		}); err != nil {
 			log.Warn().Err(err).Uint64("post_id", item.ID).Uint64("user_id", userID).Msg("post follower notification publish failed")
 		}
+	}
+}
+
+func (h *Handler) publishPostDeleted(ctx context.Context, postID uint64) {
+	if h.postPublisher == nil || postID == 0 {
+		return
+	}
+	if err := h.postPublisher.PublishPostDeleted(ctx, postID); err != nil {
+		log.Warn().Err(err).Uint64("post_id", postID).Msg("post deleted event publish failed")
 	}
 }
 

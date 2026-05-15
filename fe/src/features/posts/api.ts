@@ -15,6 +15,7 @@ import type {
   PostComment,
   PostCommentCreatedEvent,
   PostCreatedEvent,
+  PostDeletedEvent,
   PostSort,
   ReportContentPayload,
   SavedCollection,
@@ -327,6 +328,21 @@ export function parsePostCreatedEvent(
       is_liked: Boolean(payload.is_liked),
       is_saved: Boolean(payload.is_saved),
     } as PostCreatedEvent;
+  } catch {
+    return null;
+  }
+}
+
+export function parsePostDeletedEvent(
+  event: MessageEvent<string>,
+): PostDeletedEvent | null {
+  try {
+    const payload = JSON.parse(event.data) as Partial<PostDeletedEvent>;
+    if (typeof payload.id !== "number" || payload.id <= 0) {
+      return null;
+    }
+
+    return { id: payload.id };
   } catch {
     return null;
   }

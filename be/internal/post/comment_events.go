@@ -21,10 +21,16 @@ type CommentEvent struct {
 
 type PostEventPublisher interface {
 	PublishPostCreated(ctx context.Context, post PostView) error
+	PublishPostDeleted(ctx context.Context, postID uint64) error
 }
 
 type PostEventSubscriber interface {
-	SubscribePosts(ctx context.Context) (<-chan PostView, func())
+	SubscribePosts(ctx context.Context) (<-chan PostEvent, func())
+}
+
+type PostEvent struct {
+	Type string
+	Post PostView
 }
 
 type CommentEventBroker struct {
@@ -108,11 +114,11 @@ var _ CommentEventSubscriber = (*CommentEventBroker)(nil)
 
 type PostEventBroker struct {
 	mu          sync.RWMutex
-	subscribers map[chan PostView]struct{}
+	subscribers map[chan PostEvent]struct{}
 }
 
 func NewPostEventBroker() *PostEventBroker {
-	return &PostEventBroker{subscribers: make(map[chan PostView]struct{})}
+	return &PostEventBroker{subscribers: make(map[chan PostEvent]struct{})}
 }
 
 func (b *PostEventBroker) PublishPostCreated(_ context.Context, post PostView) error {
@@ -120,8 +126,13 @@ func (b *PostEventBroker) PublishPostCreated(_ context.Context, post PostView) e
 	return nil
 }
 
-func (b *PostEventBroker) SubscribePosts(ctx context.Context) (<-chan PostView, func()) {
-	ch := make(chan PostView, 16)
+func (b *PostEventBroker) PublishPostDeleted(_ context.Context, postID uint64) error {
+	b.BroadcastPostDeleted(postID)
+	return nil
+}
+
+func (b *PostEventBroker) SubscribePosts(ctx context.Context) (<-chan PostEvent, func()) {
+	ch := make(chan PostEvent, 16)
 
 	b.mu.Lock()
 	b.subscribers[ch] = struct{}{}
@@ -147,12 +158,21 @@ func (b *PostEventBroker) SubscribePosts(ctx context.Context) (<-chan PostView, 
 }
 
 func (b *PostEventBroker) BroadcastPostCreated(post PostView) {
+	b.broadcastPostEvent("post.created", post)
+}
+
+func (b *PostEventBroker) BroadcastPostDeleted(postID uint64) {
+	b.broadcastPostEvent("post.deleted", PostView{ID: postID})
+}
+
+func (b *PostEventBroker) broadcastPostEvent(eventType string, post PostView) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	for ch := range b.subscribers {
+		event := PostEvent{Type: eventType, Post: post}
 		select {
-		case ch <- post:
+		case ch <- event:
 		default:
 		}
 	}

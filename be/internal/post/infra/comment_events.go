@@ -16,6 +16,7 @@ const (
 	commentCreatedChannel = "post:comments:created"
 	commentUpdatedChannel = "post:comments:updated"
 	postCreatedChannel    = "posts:created"
+	postDeletedChannel    = "posts:deleted"
 )
 
 type RedisCommentEventPublisher struct {
@@ -144,9 +145,25 @@ func NewRedisPostEventPublisher(cache pkgcache.Client, fallback post.PostEventPu
 }
 
 func (p *RedisPostEventPublisher) PublishPostCreated(ctx context.Context, item post.PostView) error {
+	return p.publishPostEvent(ctx, postCreatedChannel, item, func() {
+		if p.fallback != nil {
+			_ = p.fallback.PublishPostCreated(ctx, item)
+		}
+	})
+}
+
+func (p *RedisPostEventPublisher) PublishPostDeleted(ctx context.Context, postID uint64) error {
+	return p.publishPostEvent(ctx, postDeletedChannel, post.PostView{ID: postID}, func() {
+		if p.fallback != nil {
+			_ = p.fallback.PublishPostDeleted(ctx, postID)
+		}
+	})
+}
+
+func (p *RedisPostEventPublisher) publishPostEvent(ctx context.Context, channel string, item post.PostView, fallback func()) error {
 	if p == nil || p.client == nil {
-		if p != nil && p.fallback != nil {
-			return p.fallback.PublishPostCreated(ctx, item)
+		if fallback != nil {
+			fallback()
 		}
 		return nil
 	}
@@ -156,9 +173,9 @@ func (p *RedisPostEventPublisher) PublishPostCreated(ctx context.Context, item p
 		return err
 	}
 
-	if err := p.client.Publish(ctx, postCreatedChannel, payload).Err(); err != nil {
-		if p.fallback != nil {
-			_ = p.fallback.PublishPostCreated(ctx, item)
+	if err := p.client.Publish(ctx, channel, payload).Err(); err != nil {
+		if fallback != nil {
+			fallback()
 		}
 		return err
 	}
@@ -171,7 +188,7 @@ func RunRedisPostEventSubscriber(ctx context.Context, broker *post.PostEventBrok
 		return
 	}
 
-	pubsub := cache.Client().Subscribe(ctx, postCreatedChannel)
+	pubsub := cache.Client().Subscribe(ctx, postCreatedChannel, postDeletedChannel)
 	defer pubsub.Close()
 
 	if _, err := pubsub.Receive(ctx); err != nil {
@@ -201,7 +218,12 @@ func RunRedisPostEventSubscriber(ctx context.Context, broker *post.PostEventBrok
 				continue
 			}
 
-			broker.BroadcastPostCreated(item)
+			switch message.Channel {
+			case postDeletedChannel:
+				broker.BroadcastPostDeleted(item.ID)
+			default:
+				broker.BroadcastPostCreated(item)
+			}
 		}
 	}
 }
