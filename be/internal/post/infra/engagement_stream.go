@@ -326,11 +326,22 @@ func (w engagementStreamWorker) handleReadError(ctx context.Context, err error) 
 		return
 	}
 
+	if isRedisNoGroupError(err) {
+		if ensureErr := w.ensureGroup(ctx); ensureErr != nil {
+			log.Error().Err(ensureErr).Msg("post engagement stream group restore failed")
+		}
+		return
+	}
+
 	log.Error().Err(err).Msg("post engagement stream read failed")
 	select {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 	}
+}
+
+func isRedisNoGroupError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "NOGROUP")
 }
 
 func (w engagementStreamWorker) handleProcessingFailure(ctx context.Context, message goredis.XMessage, cause error) {
