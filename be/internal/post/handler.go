@@ -34,6 +34,8 @@ type handlerService interface {
 	AddPostToSavedCollection(ctx context.Context, input SavedCollectionPostInput) error
 	RemovePostFromSavedCollection(ctx context.Context, input SavedCollectionPostInput) error
 	DeleteSavedCollection(ctx context.Context, input SavedCollectionInput) error
+	UpdateSavedCollectionVisibility(ctx context.Context, input UpdateSavedCollectionVisibilityInput) (SavedCollectionView, error)
+	GetPublicSavedCollection(ctx context.Context, input PublicSavedCollectionInput) (*SavedCollectionView, error)
 	CommentPost(ctx context.Context, input CommentPostInput) (CommentView, error)
 	UpdateComment(ctx context.Context, input UpdateCommentInput) (CommentView, error)
 	DeleteComment(ctx context.Context, input ModerationInput) error
@@ -112,6 +114,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/", h.GetPosts)
 	r.Get("/events", h.StreamPosts)
 	r.Get("/location", h.GetPostsByLocation)
+	r.Get("/saved-collections/public/{shareSlug}", h.GetPublicSavedCollection)
 	r.Get("/{id}/comments/events", h.StreamComments)
 	r.Get("/{id}/comments", h.GetComments)
 	r.Group(func(protected chi.Router) {
@@ -119,6 +122,7 @@ func (h *Handler) Routes() chi.Router {
 		protected.Get("/saved", h.ListSavedPosts)
 		protected.Get("/saved-collections", h.ListSavedCollections)
 		protected.Post("/saved-collections", h.CreateSavedCollection)
+		protected.Patch("/saved-collections/{collectionID}", h.UpdateSavedCollectionVisibility)
 		protected.Delete("/saved-collections/{collectionID}", h.DeleteSavedCollection)
 		protected.Post("/saved-collections/{collectionID}/posts/{postID}", h.AddPostToSavedCollection)
 		protected.Delete("/saved-collections/{collectionID}/posts/{postID}", h.RemovePostFromSavedCollection)
@@ -168,7 +172,12 @@ type ReportContentRequest struct {
 }
 
 type CreateSavedCollectionRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	IsPublic bool   `json:"is_public"`
+}
+
+type UpdateSavedCollectionRequest struct {
+	IsPublic *bool `json:"is_public"`
 }
 
 func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
@@ -532,8 +541,9 @@ func (h *Handler) CreateSavedCollection(w http.ResponseWriter, r *http.Request) 
 	}
 
 	collection, err := h.service.CreateSavedCollection(r.Context(), CreateSavedCollectionInput{
-		UserID: principal.UserID,
-		Name:   req.Name,
+		UserID:   principal.UserID,
+		Name:     req.Name,
+		IsPublic: req.IsPublic,
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "create_saved_collection", mapPostError)
@@ -573,6 +583,55 @@ func (h *Handler) ListSavedPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Saved posts fetched successfully", posts, r)
+}
+
+func (h *Handler) UpdateSavedCollectionVisibility(w http.ResponseWriter, r *http.Request) {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "update_saved_collection", mapPostError)
+		return
+	}
+
+	collectionID, err := parseRouteUint(r, "collectionID")
+	if err != nil {
+		share.WriteError(w, r, ErrCollectionIDRequired, "update_saved_collection", mapPostError)
+		return
+	}
+
+	var req UpdateSavedCollectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "update_saved_collection", mapPostError)
+		return
+	}
+	if req.IsPublic == nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "update_saved_collection", mapPostError)
+		return
+	}
+
+	collection, err := h.service.UpdateSavedCollectionVisibility(r.Context(), UpdateSavedCollectionVisibilityInput{
+		CollectionID: collectionID,
+		UserID:       principal.UserID,
+		IsPublic:     *req.IsPublic,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "update_saved_collection", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Saved collection updated successfully", collection, r)
+}
+
+func (h *Handler) GetPublicSavedCollection(w http.ResponseWriter, r *http.Request) {
+	collection, err := h.service.GetPublicSavedCollection(r.Context(), PublicSavedCollectionInput{
+		ShareSlug:    strings.TrimSpace(chi.URLParam(r, "shareSlug")),
+		ViewerUserID: h.viewerUserID(r),
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "get_public_saved_collection", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Public saved collection fetched successfully", collection, r)
 }
 
 func (h *Handler) AddPostToSavedCollection(w http.ResponseWriter, r *http.Request) {

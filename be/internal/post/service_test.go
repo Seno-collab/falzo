@@ -16,6 +16,7 @@ type fakePostRepository struct {
 	categorySlug     string
 	feed             string
 	sort             string
+	radiusMeters     int
 }
 
 func (f *fakePostRepository) Create(_ context.Context, post *Post) error {
@@ -78,6 +79,32 @@ func (f *fakePostRepository) DeleteSavedCollection(context.Context, uint64, uint
 	return nil
 }
 
+func (f *fakePostRepository) UpdateSavedCollectionVisibility(_ context.Context, collectionID uint64, userID uint64, isPublic bool) (SavedCollection, error) {
+	name, _ := NewSavedCollectionName("Shared route")
+	return SavedCollection{
+		ID:        collectionID,
+		UserID:    userID,
+		Name:      name,
+		ShareSlug: "shared-route-test",
+		IsPublic:  isPublic,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+
+func (f *fakePostRepository) GetPublicSavedCollection(_ context.Context, shareSlug string, _ uint64) (*SavedCollection, error) {
+	name, _ := NewSavedCollectionName("Shared route")
+	return &SavedCollection{
+		ID:        9,
+		UserID:    2,
+		Name:      name,
+		ShareSlug: shareSlug,
+		IsPublic:  true,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+
 func (f *fakePostRepository) Comment(_ context.Context, comment *Comment) error {
 	f.commentReplyToID = comment.ReplyToCommentID
 	comment.ID = 10
@@ -103,6 +130,7 @@ func (f *fakePostRepository) GetPosts(_ context.Context, filter PostListFilter) 
 	f.categorySlug = filter.CategorySlug
 	f.feed = filter.Feed
 	f.sort = filter.Sort
+	f.radiusMeters = filter.RadiusMeters
 	return nil, nil
 }
 
@@ -230,6 +258,22 @@ func TestGetFollowingFeedRequiresViewer(t *testing.T) {
 	}
 }
 
+func TestGetPostsRejectsNearbyRadiusAbove1000Km(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	_, err := service.GetPosts(t.Context(), ListPostsInput{
+		Page:         1,
+		Limit:        24,
+		Sort:         "nearby",
+		Latitude:     10.7769,
+		Longitude:    106.7009,
+		RadiusMeters: maxNearbyRadiusMeters + 1,
+	})
+	if err != ErrNearbyRadiusTooLarge {
+		t.Fatalf("expected ErrNearbyRadiusTooLarge, got %v", err)
+	}
+}
+
 func TestCreateSavedCollectionTrimsName(t *testing.T) {
 	service := NewService(&fakePostRepository{})
 
@@ -264,5 +308,31 @@ func TestAddPostToSavedCollectionValidatesIDs(t *testing.T) {
 	})
 	if err != ErrCollectionIDRequired {
 		t.Fatalf("expected ErrCollectionIDRequired, got %v", err)
+	}
+}
+
+func TestUpdateSavedCollectionVisibility(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	collection, err := service.UpdateSavedCollectionVisibility(t.Context(), UpdateSavedCollectionVisibilityInput{
+		CollectionID: 4,
+		UserID:       2,
+		IsPublic:     true,
+	})
+	if err != nil {
+		t.Fatalf("update saved collection visibility: %v", err)
+	}
+
+	if !collection.IsPublic || collection.ShareSlug == "" {
+		t.Fatalf("expected public collection with share slug, got %+v", collection)
+	}
+}
+
+func TestGetPublicSavedCollectionRequiresSlug(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	_, err := service.GetPublicSavedCollection(t.Context(), PublicSavedCollectionInput{})
+	if err != ErrCollectionSlugRequired {
+		t.Fatalf("expected ErrCollectionSlugRequired, got %v", err)
 	}
 }

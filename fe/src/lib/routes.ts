@@ -5,6 +5,8 @@ export const ROUTES = {
   dashboard: "/dashboard",
   explore: "/",
   saved: "/saved",
+  savedCollection: (shareSlug: string) =>
+    `/shared?collection=${encodeURIComponent(shareSlug)}`,
   locations: "/locations",
   upload: "/upload",
   profile: "/profile",

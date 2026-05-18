@@ -2,10 +2,14 @@ package post
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 var (
@@ -36,10 +40,12 @@ var (
 	ErrCollectionNameTooLong     = errors.New("collection name exceeds max length")
 	ErrCollectionNameTaken       = errors.New("collection name already exists")
 	ErrCollectionNotFound        = errors.New("collection not found")
+	ErrCollectionSlugRequired    = errors.New("collection share slug is required")
 	ErrPostUpdateForbidden       = errors.New("post update forbidden")
 	ErrPostModerationForbidden   = errors.New("post moderation forbidden")
 	ErrInvalidPostSort           = errors.New("invalid post sort")
 	ErrNearbyCoordinatesRequired = errors.New("nearby coordinates are required")
+	ErrNearbyRadiusTooLarge      = errors.New("nearby radius exceeds maximum")
 	ErrReportReasonRequired      = errors.New("report reason is required")
 	ErrReportReasonTooLong       = errors.New("report reason exceeds max length")
 )
@@ -65,6 +71,8 @@ type Repository interface {
 	AddPostToSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error
 	RemovePostFromSavedCollection(ctx context.Context, collectionID uint64, postID uint64, userID uint64) error
 	DeleteSavedCollection(ctx context.Context, collectionID uint64, userID uint64) error
+	UpdateSavedCollectionVisibility(ctx context.Context, collectionID uint64, userID uint64, isPublic bool) (SavedCollection, error)
+	GetPublicSavedCollection(ctx context.Context, shareSlug string, viewerUserID uint64) (*SavedCollection, error)
 	GetPosts(ctx context.Context, filter PostListFilter) ([]Post, error)
 	GetPostDetail(ctx context.Context, postID uint64, viewerUserID uint64) (*Post, error)
 	GetPostsByLocation(ctx context.Context, locationName LocationName) ([]Post, error)
@@ -184,6 +192,8 @@ type SavedCollection struct {
 	ID        uint64              `json:"id"`
 	UserID    uint64              `json:"user_id"`
 	Name      SavedCollectionName `json:"-"`
+	ShareSlug string              `json:"share_slug"`
+	IsPublic  bool                `json:"is_public"`
 	Posts     []Post              `json:"-"`
 	CreatedAt time.Time           `json:"created_at"`
 	UpdatedAt time.Time           `json:"updated_at"`
@@ -193,6 +203,8 @@ type SavedCollectionView struct {
 	ID        uint64     `json:"id"`
 	UserID    uint64     `json:"user_id"`
 	Name      string     `json:"name"`
+	ShareSlug string     `json:"share_slug"`
+	IsPublic  bool       `json:"is_public"`
 	Posts     []PostView `json:"posts"`
 	PostCount int        `json:"post_count"`
 	CreatedAt time.Time  `json:"created_at"`
@@ -209,6 +221,8 @@ func (c SavedCollection) View() SavedCollectionView {
 		ID:        c.ID,
 		UserID:    c.UserID,
 		Name:      c.Name.String(),
+		ShareSlug: c.ShareSlug,
+		IsPublic:  c.IsPublic,
 		Posts:     posts,
 		PostCount: len(posts),
 		CreatedAt: c.CreatedAt,
@@ -217,8 +231,9 @@ func (c SavedCollection) View() SavedCollectionView {
 }
 
 type NewSavedCollectionInput struct {
-	UserID uint64
-	Name   string
+	UserID   uint64
+	Name     string
+	IsPublic bool
 }
 
 func NewSavedCollection(input NewSavedCollectionInput) (SavedCollection, error) {
@@ -235,6 +250,8 @@ func NewSavedCollection(input NewSavedCollectionInput) (SavedCollection, error) 
 	return SavedCollection{
 		UserID:    input.UserID,
 		Name:      name,
+		ShareSlug: GenerateSavedCollectionShareSlug(name.String()),
+		IsPublic:  input.IsPublic,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
@@ -448,6 +465,41 @@ func NewSavedCollectionName(raw string) (SavedCollectionName, error) {
 
 func (n SavedCollectionName) String() string {
 	return string(n)
+}
+
+func GenerateSavedCollectionShareSlug(name string) string {
+	base := slugifySavedCollectionName(name)
+	if base == "" {
+		base = "collection"
+	}
+
+	return base + "-" + randomSlugSuffix()
+}
+
+func slugifySavedCollectionName(name string) string {
+	var builder strings.Builder
+	lastDash := false
+	for _, value := range strings.ToLower(strings.TrimSpace(name)) {
+		switch {
+		case value <= 127 && (unicode.IsLetter(value) || unicode.IsDigit(value)):
+			builder.WriteRune(value)
+			lastDash = false
+		case !lastDash && builder.Len() > 0:
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	return strings.Trim(builder.String(), "-")
+}
+
+func randomSlugSuffix() string {
+	var value [4]byte
+	if _, err := rand.Read(value[:]); err == nil {
+		return hex.EncodeToString(value[:])
+	}
+
+	return strconv.FormatInt(time.Now().UTC().UnixNano(), 36)
 }
 
 type Content string

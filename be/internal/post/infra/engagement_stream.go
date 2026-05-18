@@ -119,6 +119,14 @@ func (r *EngagementStreamRepository) DeleteSavedCollection(ctx context.Context, 
 	return r.next.DeleteSavedCollection(ctx, collectionID, userID)
 }
 
+func (r *EngagementStreamRepository) UpdateSavedCollectionVisibility(ctx context.Context, collectionID uint64, userID uint64, isPublic bool) (post.SavedCollection, error) {
+	return r.next.UpdateSavedCollectionVisibility(ctx, collectionID, userID, isPublic)
+}
+
+func (r *EngagementStreamRepository) GetPublicSavedCollection(ctx context.Context, shareSlug string, viewerUserID uint64) (*post.SavedCollection, error) {
+	return r.next.GetPublicSavedCollection(ctx, shareSlug, viewerUserID)
+}
+
 func (r *EngagementStreamRepository) Comment(ctx context.Context, comment *post.Comment) error {
 	return r.next.Comment(ctx, comment)
 }

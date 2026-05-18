@@ -34,6 +34,8 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import MapClient from "@/components/map";
+import type { Coordinates, MapPoint } from "@/components/map";
 import {
   Sheet,
   SheetClose,
@@ -53,6 +55,10 @@ import type { AuthUser } from "@/features/auth/types";
 import { getAuthUserDisplayName } from "@/features/auth/user-display";
 import { getCategoriesApi } from "@/features/categories/api";
 import type { Category } from "@/features/categories/types";
+import {
+  normalizeLocationSearchQuery,
+  searchLocationsWithFallbackApi,
+} from "@/features/locations/search";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import {
   cleanNotificationIds,
@@ -97,6 +103,54 @@ type PostsInfiniteData = InfiniteData<Post[], number>;
 
 const postsPageSize = 24;
 const maxNotifications = 30;
+const maxNearbyRadiusMeters = 1_000_000;
+const nearbyRadiusOptions = [
+  5_000,
+  10_000,
+  25_000,
+  50_000,
+  100_000,
+  300_000,
+  500_000,
+  1_000_000,
+] as const;
+
+function clampNearbyRadiusMeters(radiusMeters: number) {
+  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+    return 25_000;
+  }
+
+  return Math.min(Math.round(radiusMeters), maxNearbyRadiusMeters);
+}
+
+function formatRadiusLabel(radiusMeters: number) {
+  return radiusMeters >= 1000
+    ? `${Math.round(radiusMeters / 1000)} km`
+    : `${radiusMeters} m`;
+}
+
+function getDistanceMeters(
+  origin: Coordinates | null,
+  target: Coordinates,
+) {
+  if (!origin) {
+    return undefined;
+  }
+
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const deltaLatitude = toRadians(target.latitude - origin.latitude);
+  const deltaLongitude = toRadians(target.longitude - origin.longitude);
+  const originLatitude = toRadians(origin.latitude);
+  const targetLatitude = toRadians(target.latitude);
+  const haversine =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(originLatitude) *
+      Math.cos(targetLatitude) *
+      Math.sin(deltaLongitude / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
 
 function getCommentTime(comment: PostComment) {
   const timestamp = new Date(comment.created_at).getTime();
@@ -231,6 +285,11 @@ export function ExploreScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [nearbyPlaceName, setNearbyPlaceName] = useState<string | null>(null);
+  const [nearbyRadiusMeters, setNearbyRadiusMeters] = useState(50_000);
+  const [selectedMapPostId, setSelectedMapPostId] = useState<number | null>(
+    null,
+  );
   const [searchValue, setSearchValue] = useState("");
   const [showSavedBoard, setShowSavedBoard] = useState(false);
   const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
@@ -290,6 +349,7 @@ export function ExploreScreen() {
       activeFeed,
       feedSort,
       nearbyCoords,
+      nearbyRadiusMeters,
     ],
     queryFn: ({ pageParam }) =>
       getPostsApi({
@@ -301,7 +361,7 @@ export function ExploreScreen() {
         sort: feedSort,
         latitude: nearbyCoords?.latitude,
         longitude: nearbyCoords?.longitude,
-        radiusMeters: feedSort === "nearby" ? 25_000 : undefined,
+        radiusMeters: feedSort === "nearby" ? nearbyRadiusMeters : undefined,
       }),
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.length < postsPageSize ? undefined : lastPageParam + 1,
@@ -445,6 +505,7 @@ export function ExploreScreen() {
           activeFeed,
           feedSort,
           nearbyCoords,
+          nearbyRadiusMeters,
         ],
         (current) => {
           if (!current) {
@@ -522,6 +583,7 @@ export function ExploreScreen() {
     activeSearch,
     feedSort,
     nearbyCoords,
+    nearbyRadiusMeters,
     queryClient,
   ]);
 
@@ -675,6 +737,80 @@ export function ExploreScreen() {
   const searchResultsLabel = hasSearch
     ? `${visiblePosts.length} result${searchResultsPluralSuffix}`
     : null;
+  const exploreMapPoints = useMemo<MapPoint[]>(
+    () => {
+      const clusters = new Map<
+        string,
+        {
+          posts: Post[];
+          latitude: number;
+          longitude: number;
+        }
+      >();
+
+      for (const post of visiblePosts) {
+        if (
+          !Number.isFinite(post.latitude) ||
+          !Number.isFinite(post.longitude)
+        ) {
+          continue;
+        }
+
+        const key = `${post.latitude.toFixed(3)},${post.longitude.toFixed(3)}`;
+        const cluster = clusters.get(key);
+        if (cluster) {
+          cluster.posts.push(post);
+          continue;
+        }
+
+        clusters.set(key, {
+          posts: [post],
+          latitude: post.latitude,
+          longitude: post.longitude,
+        });
+      }
+
+      return Array.from(clusters.values()).map((cluster) => {
+        const [firstPost] = cluster.posts;
+        const postCount = cluster.posts.length;
+        const locationName =
+          firstPost.location_name || firstPost.caption || "Falzo post";
+
+        return {
+          id: String(firstPost.id),
+          name:
+            postCount > 1
+              ? `${postCount} posts near ${locationName}`
+              : locationName,
+          address: firstPost.caption || firstPost.user_name,
+          count: postCount,
+          imageUrl: firstPost.image_url,
+          latitude: cluster.latitude,
+          longitude: cluster.longitude,
+          distanceMeters: getDistanceMeters(nearbyCoords, {
+            latitude: cluster.latitude,
+            longitude: cluster.longitude,
+          }),
+        };
+      });
+    },
+    [nearbyCoords, visiblePosts],
+  );
+  const selectedMapPointId =
+    selectedMapPostId !== null &&
+    visiblePosts.some((post) => post.id === selectedMapPostId)
+      ? String(selectedMapPostId)
+      : null;
+  const lastExploreMapPointsRef = useRef<MapPoint[]>([]);
+  useEffect(() => {
+    if (exploreMapPoints.length > 0) {
+      lastExploreMapPointsRef.current = exploreMapPoints;
+    }
+  }, [exploreMapPoints]);
+  const displayedExploreMapPoints =
+    exploreMapPoints.length > 0 || !postsQuery.isFetching
+      ? exploreMapPoints
+      : lastExploreMapPointsRef.current;
 
   const selectedPost = useMemo(() => {
     if (selectedPostId === null) {
@@ -942,12 +1078,7 @@ export function ExploreScreen() {
     setActiveCollection(collection);
   }
 
-  function changeFeedSort(nextSort: PostSort) {
-    if (nextSort !== "nearby") {
-      setFeedSort(nextSort);
-      return;
-    }
-
+  function locateNearbyFeed() {
     if (!globalThis.navigator?.geolocation) {
       toast.error("Location is not available in this browser.");
       return;
@@ -959,11 +1090,21 @@ export function ExploreScreen() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
+        setNearbyPlaceName("Your location");
         setFeedSort("nearby");
       },
       () => toast.error("Location permission is required for nearby feed."),
       { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
     );
+  }
+
+  function changeFeedSort(nextSort: PostSort) {
+    if (nextSort !== "nearby") {
+      setFeedSort(nextSort);
+      return;
+    }
+
+    locateNearbyFeed();
   }
 
   function submitComment(postId: number) {
@@ -1049,6 +1190,39 @@ export function ExploreScreen() {
       ) : null}
 
       <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
+        <ExploreMapPanel
+          currentPosition={nearbyCoords}
+          feedSort={feedSort}
+          onClearNearby={() => {
+            setNearbyCoords(null);
+            setNearbyPlaceName(null);
+            if (feedSort === "nearby") {
+              setFeedSort("newest");
+            }
+          }}
+          onLocate={locateNearbyFeed}
+          onMapCenterChange={(coordinates) => {
+            setNearbyCoords(coordinates);
+            setNearbyPlaceName("Selected map area");
+            setFeedSort("nearby");
+          }}
+          onPlaceSearch={(coordinates, placeName) => {
+            setNearbyCoords(coordinates);
+            setNearbyPlaceName(placeName);
+            setFeedSort("nearby");
+          }}
+          onPostSelect={(postId) => {
+            setSelectedMapPostId(postId);
+            openPostDetail(postId);
+          }}
+          onRadiusChange={setNearbyRadiusMeters}
+          points={displayedExploreMapPoints}
+          placeName={nearbyPlaceName}
+          radiusMeters={nearbyRadiusMeters}
+          selectedPointId={selectedMapPointId}
+          totalPosts={visiblePosts.length}
+        />
+
         {showSavedBoard || searchResultsLabel ? (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)]">
             <div>
@@ -1437,6 +1611,250 @@ function ExploreTopbar({
         </Sheet>
       </div>
     </header>
+  );
+}
+
+function ExploreMapPanel({
+  currentPosition,
+  feedSort,
+  onClearNearby,
+  onLocate,
+  onMapCenterChange,
+  onPlaceSearch,
+  onPostSelect,
+  onRadiusChange,
+  placeName,
+  points,
+  radiusMeters,
+  selectedPointId,
+  totalPosts,
+}: Readonly<{
+  currentPosition: Coordinates | null;
+  feedSort: PostSort;
+  onClearNearby: () => void;
+  onLocate: () => void;
+  onMapCenterChange: (coordinates: Coordinates) => void;
+  onPlaceSearch: (coordinates: Coordinates, placeName: string) => void;
+  onPostSelect: (postId: number) => void;
+  onRadiusChange: (radiusMeters: number) => void;
+  placeName: string | null;
+  points: MapPoint[];
+  radiusMeters: number;
+  selectedPointId: string | null;
+  totalPosts: number;
+}>) {
+  const hasNearbyCenter = currentPosition !== null;
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [isSearchingPlace, setIsSearchingPlace] = useState(false);
+  const [customRadiusKm, setCustomRadiusKm] = useState(
+    String(Math.round(radiusMeters / 1000)),
+  );
+
+  useEffect(() => {
+    setCustomRadiusKm(String(Math.round(radiusMeters / 1000)));
+  }, [radiusMeters]);
+
+  function applyCustomRadius(value: string) {
+    const radiusKm = Number(value);
+    const nextRadiusMeters = clampNearbyRadiusMeters(radiusKm * 1000);
+    setCustomRadiusKm(String(Math.round(nextRadiusMeters / 1000)));
+    onRadiusChange(nextRadiusMeters);
+  }
+
+  async function searchPlace() {
+    const query = normalizeLocationSearchQuery(placeQuery);
+    if (!query) {
+      return;
+    }
+
+    setIsSearchingPlace(true);
+    try {
+      const [location] = await searchLocationsWithFallbackApi(query);
+      if (!location) {
+        toast.error("No city or province found.");
+        return;
+      }
+
+      onPlaceSearch(
+        {
+          latitude: location.latitude,
+          longitude: location.longitude,
+        },
+        location.name,
+      );
+    } catch (error) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setIsSearchingPlace(false);
+    }
+  }
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-3xl border border-black/6 bg-white shadow-[0_18px_46px_-36px_rgb(0_0_0/0.55)]">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-h-0">
+          <MapClient
+            className="rounded-none border-0 shadow-none"
+            currentPosition={currentPosition}
+            currentPositionLabel={placeName ?? "Selected area"}
+            height="compact"
+            onSelectCoordinates={onMapCenterChange}
+            onSelectPoint={(point) => {
+              const postId = Number(point.id);
+              if (Number.isFinite(postId) && postId > 0) {
+                onPostSelect(postId);
+              }
+            }}
+            points={points}
+            selectedPointId={selectedPointId}
+            zoom={feedSort === "nearby" ? 12 : 5}
+          />
+        </div>
+
+        <aside className="flex flex-col justify-between gap-5 border-black/6 border-t p-5 lg:border-l lg:border-t-0">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+              Map discovery
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-normal text-[#111]">
+              Explore posts by place
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#666]">
+              Tap a marker to open a post, or tap the map to search around a
+              new center.
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            <form
+              className="rounded-2xl border border-black/6 bg-[#f7f7f5] p-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void searchPlace();
+              }}
+            >
+              <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
+                City / province
+              </label>
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <input
+                  className="h-10 min-w-0 rounded-full border border-black/8 bg-white px-3 text-sm font-semibold text-[#333] outline-none transition placeholder:text-[#999] focus:border-black/20"
+                  onChange={(event) => setPlaceQuery(event.target.value)}
+                  placeholder="Da Nang, Ha Noi, Bangkok"
+                  type="search"
+                  value={placeQuery}
+                />
+                <Button
+                  className="rounded-full"
+                  disabled={isSearchingPlace}
+                  size="sm"
+                  type="submit"
+                  variant="outline"
+                >
+                  <Search className="size-4" />
+                  Search
+                </Button>
+              </div>
+            </form>
+
+            <div className="rounded-2xl border border-black/6 bg-[#f7f7f5] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
+                Visible
+              </p>
+              <p className="mt-1 text-lg font-semibold text-[#111]">
+                {totalPosts} post{totalPosts === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            {hasNearbyCenter ? (
+              <div className="rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-4 py-3 text-sm text-[#385c80]">
+                <p className="font-semibold">
+                  {placeName ?? "Nearby center"}
+                </p>
+                <p className="mt-1">
+                  {currentPosition.latitude.toFixed(5)},{" "}
+                  {currentPosition.longitude.toFixed(5)}
+                </p>
+              </div>
+            ) : null}
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
+                Radius
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {nearbyRadiusOptions.map((option) => (
+                  <button
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                      radiusMeters === option
+                        ? "border-[#111] bg-[#111] text-white"
+                        : "border-black/8 bg-white text-[#444] hover:border-black/16",
+                    )}
+                    key={option}
+                    onClick={() => onRadiusChange(option)}
+                    type="button"
+                  >
+                    {formatRadiusLabel(option)}
+                  </button>
+                ))}
+              </div>
+              <form
+                className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  applyCustomRadius(customRadiusKm);
+                }}
+              >
+                <label className="min-w-0">
+                  <span className="sr-only">Custom radius in kilometers</span>
+                  <input
+                    className="h-9 w-full rounded-full border border-black/8 bg-white px-3 text-sm font-semibold text-[#333] outline-none transition placeholder:text-[#999] focus:border-black/20"
+                    inputMode="numeric"
+                    max={1000}
+                    min={1}
+                    onBlur={(event) => applyCustomRadius(event.target.value)}
+                    onChange={(event) => setCustomRadiusKm(event.target.value)}
+                    placeholder="Custom km"
+                    type="number"
+                    value={customRadiusKm}
+                  />
+                </label>
+                <Button
+                  className="rounded-full"
+                  size="sm"
+                  type="submit"
+                  variant="outline"
+                >
+                  Apply
+                </Button>
+              </form>
+              <p className="mt-2 text-xs font-medium text-[#777]">
+                Custom radius supports up to 1000 km.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={onLocate} type="button">
+              <LocateFixed className="size-4" />
+              Near me
+            </Button>
+            {hasNearbyCenter ? (
+              <Button
+                className="rounded-full"
+                onClick={onClearNearby}
+                type="button"
+                variant="outline"
+              >
+                <X className="size-4" />
+                Clear
+              </Button>
+            ) : null}
+          </div>
+        </aside>
+      </div>
+    </section>
   );
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { DomEvent, latLngBounds } from "leaflet";
+import { divIcon, DomEvent, latLngBounds } from "leaflet";
 import { useEffect, useMemo } from "react";
 import {
   CircleMarker,
   MapContainer,
+  Marker,
   Popup,
   TileLayer,
   useMap as useLeafletMap,
@@ -17,6 +18,34 @@ import {
 } from "./map-utils";
 import styles from "./map.module.css";
 import type { Coordinates, FalzoMapProps, MapPoint } from "./types";
+
+function escapeHtml(value: string) {
+  return value.replaceAll(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character] ?? character,
+  );
+}
+
+function photoMarkerHtml(point: MapPoint, selected: boolean) {
+  const markerClass = selected
+    ? "falzo-photo-marker falzo-photo-marker-selected"
+    : "falzo-photo-marker";
+  const countBadge =
+    point.count && point.count > 1
+      ? `<span class="falzo-photo-marker-count">${point.count}</span>`
+      : "";
+
+  return `<div class="${markerClass}"><img alt="" src="${escapeHtml(
+    point.imageUrl ?? "",
+  )}" />${countBadge}</div>`;
+}
 
 function ViewportController({
   currentPosition,
@@ -39,11 +68,16 @@ function ViewportController({
       return;
     }
 
-    const positions = points.map(coordinatesToLatLng);
-
     if (currentPosition) {
-      positions.push(coordinatesToLatLng(currentPosition));
+      if (points.length === 0) {
+        map.flyTo(coordinatesToLatLng(currentPosition), zoom, {
+          duration: 0.65,
+        });
+      }
+      return;
     }
+
+    const positions = points.map(coordinatesToLatLng);
 
     if (positions.length > 1) {
       map.fitBounds(latLngBounds(positions), {
@@ -64,8 +98,10 @@ function ViewportController({
 
 function CurrentPositionMarker({
   currentPosition,
+  label,
 }: Readonly<{
   currentPosition?: Coordinates | null;
+  label?: string;
 }>) {
   if (!currentPosition) {
     return null;
@@ -84,7 +120,7 @@ function CurrentPositionMarker({
       radius={14}
     >
       <Popup>
-        <strong>Your position</strong>
+        <strong>{label ?? "Selected area"}</strong>
       </Popup>
     </CircleMarker>
   );
@@ -118,6 +154,37 @@ function LocationMarker({
 }>) {
   const distance = formatDistance(point.distanceMeters);
 
+  if (point.imageUrl) {
+    const icon = divIcon({
+      className: "falzo-photo-marker-shell",
+      html: photoMarkerHtml(point, selected),
+      iconAnchor: [24, 24],
+      iconSize: [48, 48],
+      popupAnchor: [0, -24],
+    });
+
+    return (
+      <Marker
+        eventHandlers={{
+          click: (event) => {
+            DomEvent.stopPropagation(event.originalEvent);
+            onSelect?.(point);
+          },
+        }}
+        icon={icon}
+        position={coordinatesToLatLng(point)}
+      >
+        <Popup>
+          <div className={styles.popup}>
+            <strong>{point.name}</strong>
+            {point.address ? <span>{point.address}</span> : null}
+            {distance ? <span>{distance}</span> : null}
+          </div>
+        </Popup>
+      </Marker>
+    );
+  }
+
   return (
     <CircleMarker
       center={coordinatesToLatLng(point)}
@@ -149,6 +216,7 @@ function LocationMarker({
 export default function FalzoMap({
   className,
   currentPosition,
+  currentPositionLabel,
   height = "default",
   onSelectCoordinates,
   onSelectPoint,
@@ -185,7 +253,10 @@ export default function FalzoMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <CurrentPositionMarker currentPosition={currentPosition} />
+        <CurrentPositionMarker
+          currentPosition={currentPosition}
+          label={currentPositionLabel}
+        />
         {points.map((point) => (
           <LocationMarker
             key={point.id}

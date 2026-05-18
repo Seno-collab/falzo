@@ -82,6 +82,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("name", "collection name already exists")
 	case errors.Is(err, ErrCollectionNotFound):
 		return share.NotFound("Collection not found", "Requested saved collection does not exist")
+	case errors.Is(err, ErrCollectionSlugRequired):
+		return share.Required("share_slug", "collection share slug is required")
 	case errors.Is(err, ErrPostUpdateForbidden):
 		return share.ApiError{
 			Status:  http.StatusForbidden,
@@ -100,6 +102,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("sort", "sort must be newest, popular, trending, or nearby")
 	case errors.Is(err, ErrNearbyCoordinatesRequired):
 		return share.BadRequest("lat", "nearby sort requires valid lat and lng query params")
+	case errors.Is(err, ErrNearbyRadiusTooLarge):
+		return share.BadRequest("radius_meters", "nearby radius must not exceed 1000 km")
 	case errors.Is(err, ErrReportReasonRequired):
 		return share.Required("reason", "reason is required")
 	case errors.Is(err, ErrReportReasonTooLong):

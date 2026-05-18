@@ -23,6 +23,8 @@ export type SavedCollection = {
   id: number;
   user_id: number;
   name: string;
+  share_slug: string;
+  is_public: boolean;
   posts: Post[];
   post_count: number;
   created_at: string;
@@ -85,6 +87,12 @@ export type UpdatePostCommentPayload = {
 
 export type CreateSavedCollectionPayload = {
   name: string;
+  is_public?: boolean;
+};
+
+export type UpdateSavedCollectionPayload = {
+  collectionId: number;
+  isPublic: boolean;
 };
 
 export type ReportContentPayload = {

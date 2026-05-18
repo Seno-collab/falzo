@@ -288,10 +288,10 @@ func (r *PostgresRepository) CreateSavedCollection(ctx context.Context, collecti
 	}
 
 	err := r.db.Pool().QueryRow(ctx, `
-		INSERT INTO saved_collections (user_id, name)
-		VALUES ($1, $2)
+		INSERT INTO saved_collections (user_id, name, share_slug, is_public)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at, updated_at
-	`, collection.UserID, collection.Name.String()).Scan(&collection.ID, &collection.CreatedAt, &collection.UpdatedAt)
+	`, collection.UserID, collection.Name.String(), collection.ShareSlug, collection.IsPublic).Scan(&collection.ID, &collection.CreatedAt, &collection.UpdatedAt)
 	if err != nil {
 		if dberr.IsUniqueViolation(err) {
 			return post.ErrCollectionNameTaken
@@ -308,7 +308,7 @@ func (r *PostgresRepository) ListSavedCollections(ctx context.Context, userID ui
 	}
 
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT id, user_id, name, created_at, updated_at
+		SELECT id, user_id, name, share_slug, is_public, created_at, updated_at
 		FROM saved_collections
 		WHERE user_id = $1
 		ORDER BY created_at DESC, id DESC
@@ -322,7 +322,7 @@ func (r *PostgresRepository) ListSavedCollections(ctx context.Context, userID ui
 	for rows.Next() {
 		var item post.SavedCollection
 		var rawName string
-		if err := rows.Scan(&item.ID, &item.UserID, &rawName, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &rawName, &item.ShareSlug, &item.IsPublic, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, share.MapDBError(ctx, postRepoService, "saved_collections.list.scan", err, post.ErrDependencyUnavailable, post.ErrInternal)
 		}
 		name, err := post.NewSavedCollectionName(rawName)
@@ -331,7 +331,7 @@ func (r *PostgresRepository) ListSavedCollections(ctx context.Context, userID ui
 		}
 		item.Name = name
 
-		posts, err := r.listSavedCollectionPosts(ctx, item.ID, userID)
+		posts, err := r.listSavedCollectionPosts(ctx, item.ID, userID, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -469,6 +469,45 @@ func (r *PostgresRepository) DeleteSavedCollection(ctx context.Context, collecti
 	}
 
 	return nil
+}
+
+func (r *PostgresRepository) UpdateSavedCollectionVisibility(ctx context.Context, collectionID uint64, userID uint64, isPublic bool) (post.SavedCollection, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.SavedCollection{}, post.ErrDependencyUnavailable
+	}
+	if err := r.ensureSavedCollectionOwner(ctx, collectionID, userID); err != nil {
+		return post.SavedCollection{}, err
+	}
+
+	item, err := r.loadSavedCollection(ctx, userID, `
+		UPDATE saved_collections
+		SET is_public = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, name, share_slug, is_public, created_at, updated_at
+	`, collectionID, userID, isPublic)
+	if err != nil {
+		return post.SavedCollection{}, err
+	}
+
+	return item, nil
+}
+
+func (r *PostgresRepository) GetPublicSavedCollection(ctx context.Context, shareSlug string, viewerUserID uint64) (*post.SavedCollection, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return nil, post.ErrDependencyUnavailable
+	}
+
+	item, err := r.loadSavedCollection(ctx, viewerUserID, `
+		SELECT id, user_id, name, share_slug, is_public, created_at, updated_at
+		FROM saved_collections
+		WHERE share_slug = $1 AND is_public = TRUE
+		LIMIT 1
+	`, strings.TrimSpace(shareSlug))
+	if err != nil {
+		return nil, err
+	}
+
+	return &item, nil
 }
 
 func (r *PostgresRepository) Comment(ctx context.Context, comment *post.Comment) error {
@@ -1006,7 +1045,40 @@ func (r *PostgresRepository) ensureSavedCollectionOwner(ctx context.Context, col
 	return nil
 }
 
-func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, collectionID uint64, userID uint64) ([]post.Post, error) {
+func (r *PostgresRepository) loadSavedCollection(ctx context.Context, viewerUserID uint64, query string, args ...any) (post.SavedCollection, error) {
+	var item post.SavedCollection
+	var rawName string
+	if err := r.db.Pool().QueryRow(ctx, query, args...).Scan(
+		&item.ID,
+		&item.UserID,
+		&rawName,
+		&item.ShareSlug,
+		&item.IsPublic,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return post.SavedCollection{}, post.ErrCollectionNotFound
+		}
+		return post.SavedCollection{}, share.MapDBError(ctx, postRepoService, "saved_collections.load", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	name, err := post.NewSavedCollectionName(rawName)
+	if err != nil {
+		return post.SavedCollection{}, err
+	}
+	item.Name = name
+
+	posts, err := r.listSavedCollectionPosts(ctx, item.ID, item.UserID, viewerUserID)
+	if err != nil {
+		return post.SavedCollection{}, err
+	}
+	item.Posts = posts
+
+	return item, nil
+}
+
+func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, collectionID uint64, ownerUserID uint64, viewerUserID uint64) ([]post.Post, error) {
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, posts.image_url, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
@@ -1014,9 +1086,13 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 				EXISTS (
 					SELECT 1
 					FROM post_likes
-					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $2
+					WHERE post_likes.post_id = posts.id AND post_likes.user_id = $3
 				),
-				true,
+				EXISTS (
+					SELECT 1
+					FROM post_saves
+					WHERE post_saves.post_id = posts.id AND post_saves.user_id = $3
+				),
 				posts.status,
 				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
 				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
@@ -1032,7 +1108,7 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 			AND posts.status = 'visible'
 		ORDER BY saved_collection_posts.created_at DESC, saved_collection_posts.id DESC
 		LIMIT 200
-	`, collectionID, userID)
+	`, collectionID, ownerUserID, viewerUserID)
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "saved_collection_posts.list", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}

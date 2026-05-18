@@ -4,11 +4,14 @@ import {
   ArrowLeft,
   Bookmark,
   Camera,
+  Copy,
   Folder,
   FolderPlus,
+  Globe2,
   Loader2,
   MapPin,
   Plus,
+  Share2,
   Trash2,
   X,
 } from "lucide-react";
@@ -29,6 +32,7 @@ import {
   getSavedPostsApi,
   removePostFromSavedCollectionApi,
   unsavePostApi,
+  updateSavedCollectionApi,
 } from "@/features/posts/api";
 import type { Post, SavedCollection } from "@/features/posts/types";
 import { getApiErrorMessage, hasAuthSession } from "@/features/auth/api";
@@ -39,6 +43,17 @@ const allSavedKey = "all";
 
 function getCollectionPostIds(collection: SavedCollection | null) {
   return new Set((collection?.posts ?? []).map((post) => post.id));
+}
+
+function getShareUrl(collection: SavedCollection) {
+  if (globalThis.window === undefined) {
+    return ROUTES.savedCollection(collection.share_slug);
+  }
+
+  return new URL(
+    ROUTES.savedCollection(collection.share_slug),
+    globalThis.window.location.origin,
+  ).toString();
 }
 
 function PostTile({
@@ -270,6 +285,19 @@ export function SavedCollectionsScreen() {
     },
   });
 
+  const updateCollectionMutation = useMutation({
+    mutationFn: updateSavedCollectionApi,
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onSuccess: (collection) => {
+      invalidateSavedData();
+      toast.success(
+        collection.is_public
+          ? "Collection is public."
+          : "Collection is private.",
+      );
+    },
+  });
+
   const unsaveMutation = useMutation({
     mutationFn: unsavePostApi,
     onError: (error) => toast.error(getApiErrorMessage(error)),
@@ -284,6 +312,7 @@ export function SavedCollectionsScreen() {
     addPostMutation.isPending ||
     removePostMutation.isPending ||
     deleteCollectionMutation.isPending ||
+    updateCollectionMutation.isPending ||
     unsaveMutation.isPending;
   const isLoading = savedPostsQuery.isLoading || collectionsQuery.isLoading;
 
@@ -295,6 +324,19 @@ export function SavedCollectionsScreen() {
     }
 
     createCollectionMutation.mutate({ name: nextName });
+  }
+
+  function copyCollectionLink(collection: SavedCollection) {
+    if (!collection.is_public) {
+      toast.error("Publish this collection before sharing it.");
+      return;
+    }
+
+    const shareUrl = getShareUrl(collection);
+    void globalThis.navigator?.clipboard
+      ?.writeText(shareUrl)
+      .then(() => toast.success("Share link copied."))
+      .catch(() => toast.error("Unable to copy share link."));
   }
 
   return (
@@ -408,20 +450,77 @@ export function SavedCollectionsScreen() {
               </h2>
             </div>
             {activeCollection ? (
-              <Button
-                className="rounded-full"
-                disabled={deleteCollectionMutation.isPending}
-                onClick={() =>
-                  deleteCollectionMutation.mutate(activeCollection.id)
-                }
-                type="button"
-                variant="outline"
-              >
-                <Trash2 className="size-4" />
-                Delete collection
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  className="rounded-full"
+                  disabled={updateCollectionMutation.isPending}
+                  onClick={() =>
+                    updateCollectionMutation.mutate({
+                      collectionId: activeCollection.id,
+                      isPublic: !activeCollection.is_public,
+                    })
+                  }
+                  type="button"
+                  variant={activeCollection.is_public ? "default" : "outline"}
+                >
+                  <Globe2 className="size-4" />
+                  {activeCollection.is_public ? "Public" : "Publish"}
+                </Button>
+                <Button
+                  className="rounded-full"
+                  disabled={!activeCollection.is_public}
+                  onClick={() => copyCollectionLink(activeCollection)}
+                  type="button"
+                  variant="outline"
+                >
+                  <Copy className="size-4" />
+                  Copy link
+                </Button>
+                {activeCollection.is_public ? (
+                  <Button
+                    asChild
+                    className="rounded-full"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Link href={ROUTES.savedCollection(activeCollection.share_slug)}>
+                      <Share2 className="size-4" />
+                      View itinerary
+                    </Link>
+                  </Button>
+                ) : null}
+                <Button
+                  className="rounded-full"
+                  disabled={deleteCollectionMutation.isPending}
+                  onClick={() =>
+                    deleteCollectionMutation.mutate(activeCollection.id)
+                  }
+                  type="button"
+                  variant="outline"
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </div>
             ) : null}
           </div>
+
+          {activeCollection ? (
+            <div className="rounded-2xl border border-black/6 bg-white px-4 py-3 text-sm text-[#555]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="font-semibold text-[#111]">
+                  {activeCollection.is_public
+                    ? "Anyone with the link can view this itinerary."
+                    : "This collection is private."}
+                </span>
+                {activeCollection.is_public ? (
+                  <span className="truncate text-xs font-semibold text-[#777]">
+                    {getShareUrl(activeCollection)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {activeCollection && collectionCandidates.length > 0 ? (
             <section className="rounded-2xl border border-black/6 bg-white p-4">

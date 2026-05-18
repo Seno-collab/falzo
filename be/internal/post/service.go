@@ -6,6 +6,7 @@ import (
 )
 
 const maxPostListLimit = 50
+const maxNearbyRadiusMeters = 1000000
 const feedFollowing = "following"
 const (
 	postSortNewest   = "newest"
@@ -100,6 +101,17 @@ type SavedCollectionPostInput struct {
 type SavedCollectionInput struct {
 	CollectionID uint64
 	UserID       uint64
+}
+
+type UpdateSavedCollectionVisibilityInput struct {
+	CollectionID uint64
+	UserID       uint64
+	IsPublic     bool
+}
+
+type PublicSavedCollectionInput struct {
+	ShareSlug    string
+	ViewerUserID uint64
 }
 
 func (s *Service) CreatePost(ctx context.Context, input CreatePostInput) (PostView, error) {
@@ -301,6 +313,43 @@ func (s *Service) DeleteSavedCollection(ctx context.Context, input SavedCollecti
 	return s.posts.DeleteSavedCollection(ctx, input.CollectionID, input.UserID)
 }
 
+func (s *Service) UpdateSavedCollectionVisibility(ctx context.Context, input UpdateSavedCollectionVisibilityInput) (SavedCollectionView, error) {
+	if s.posts == nil {
+		return SavedCollectionView{}, ErrDependencyUnavailable
+	}
+	if input.UserID == 0 {
+		return SavedCollectionView{}, ErrUserIDRequired
+	}
+	if input.CollectionID == 0 {
+		return SavedCollectionView{}, ErrCollectionIDRequired
+	}
+
+	item, err := s.posts.UpdateSavedCollectionVisibility(ctx, input.CollectionID, input.UserID, input.IsPublic)
+	if err != nil {
+		return SavedCollectionView{}, err
+	}
+
+	return item.View(), nil
+}
+
+func (s *Service) GetPublicSavedCollection(ctx context.Context, input PublicSavedCollectionInput) (*SavedCollectionView, error) {
+	if s.posts == nil {
+		return nil, ErrDependencyUnavailable
+	}
+	shareSlug := strings.TrimSpace(input.ShareSlug)
+	if shareSlug == "" {
+		return nil, ErrCollectionSlugRequired
+	}
+
+	item, err := s.posts.GetPublicSavedCollection(ctx, shareSlug, input.ViewerUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	mapped := item.View()
+	return &mapped, nil
+}
+
 func (s *Service) validateSavedCollectionPostInput(input SavedCollectionPostInput) error {
 	if s.posts == nil {
 		return ErrDependencyUnavailable
@@ -429,6 +478,9 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 	}
 	if sort == postSortNearby && (input.Latitude < -90 || input.Latitude > 90 || input.Longitude < -180 || input.Longitude > 180) {
 		return nil, ErrNearbyCoordinatesRequired
+	}
+	if input.RadiusMeters > maxNearbyRadiusMeters {
+		return nil, ErrNearbyRadiusTooLarge
 	}
 
 	items, err := s.posts.GetPosts(ctx, PostListFilter{

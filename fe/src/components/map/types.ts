@@ -7,12 +7,15 @@ export type MapPoint = Coordinates & {
   id: string;
   name: string;
   address?: string;
+  count?: number;
   distanceMeters?: number;
+  imageUrl?: string;
 };
 
 export type FalzoMapProps = {
   className?: string;
   currentPosition?: Coordinates | null;
+  currentPositionLabel?: string;
   height?: "default" | "compact";
   onSelectCoordinates?: (coordinates: Coordinates) => void;
   onSelectPoint?: (point: MapPoint) => void;

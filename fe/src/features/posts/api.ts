@@ -7,6 +7,7 @@ import {
 import {
   apiDelete,
   apiGet,
+  apiPatch,
   apiPost,
   apiPut,
   endpointPath,
@@ -25,6 +26,7 @@ import type {
   SavedCollection,
   UpdatePostCommentPayload,
   UpdatePostPayload,
+  UpdateSavedCollectionPayload,
   UploadedImage,
 } from "./types";
 
@@ -152,6 +154,16 @@ export async function getSavedCollectionsApi(): Promise<SavedCollection[]> {
   );
 }
 
+export async function getPublicSavedCollectionApi(
+  shareSlug: string,
+): Promise<SavedCollection> {
+  initializeAuthHeader();
+
+  return apiGet<SavedCollection>(
+    endpointPath(POSTS_ENDPOINT, "saved-collections", "public", shareSlug),
+  );
+}
+
 export async function createSavedCollectionApi(
   payload: CreateSavedCollectionPayload,
 ): Promise<SavedCollection> {
@@ -160,6 +172,17 @@ export async function createSavedCollectionApi(
   return apiPost<SavedCollection>(
     endpointPath(POSTS_ENDPOINT, "saved-collections"),
     payload,
+  );
+}
+
+export async function updateSavedCollectionApi(
+  payload: UpdateSavedCollectionPayload,
+): Promise<SavedCollection> {
+  initializeAuthHeader();
+
+  return apiPatch<SavedCollection>(
+    endpointPath(POSTS_ENDPOINT, "saved-collections", payload.collectionId),
+    { is_public: payload.isPublic },
   );
 }
 
