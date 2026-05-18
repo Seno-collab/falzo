@@ -1,11 +1,15 @@
 import { initializeAuthHeader } from "@/features/auth/api";
 import {
+  buildApiUrl,
+  IMAGE_UPLOAD_ENDPOINT,
+  POSTS_ENDPOINT,
+} from "@/lib/api-config";
+import {
   apiDelete,
   apiGet,
   apiPost,
   apiPut,
   endpointPath,
-  envEndpoint,
 } from "@/lib/api-utils";
 import type {
   CreatePostCommentPayload,
@@ -23,36 +27,6 @@ import type {
   UpdatePostPayload,
   UploadedImage,
 } from "./types";
-
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.VITE_API_BASE_URL ??
-  "/api"
-).trim();
-const POSTS_ENDPOINT = envEndpoint(
-  process.env.NEXT_PUBLIC_POSTS_ENDPOINT,
-  process.env.VITE_POSTS_ENDPOINT,
-  "/posts/",
-);
-const IMAGE_UPLOAD_ENDPOINT = envEndpoint(
-  process.env.NEXT_PUBLIC_IMAGE_UPLOAD_ENDPOINT,
-  process.env.VITE_IMAGE_UPLOAD_ENDPOINT,
-  "/images/upload",
-);
-
-function buildEventSourceUrl(path: string) {
-  if (/^https?:\/\//i.test(path)) {
-    return path;
-  }
-
-  const normalizedBase = API_BASE_URL.replace(/\/+$/, "");
-  const normalizedPath = path.replace(/^\/+/, "");
-  if (!normalizedBase || normalizedBase === "/") {
-    return `/${normalizedPath}`;
-  }
-
-  return `${normalizedBase}/${normalizedPath}`;
-}
 
 export async function getPostsApi(params?: {
   page?: number;
@@ -91,7 +65,7 @@ export async function getPostDetailApi(postId: number): Promise<Post> {
 }
 
 export function getPostEventsUrl() {
-  return buildEventSourceUrl(endpointPath(POSTS_ENDPOINT, "events"));
+  return buildApiUrl(endpointPath(POSTS_ENDPOINT, "events"));
 }
 
 export async function uploadImageApi(file: File): Promise<UploadedImage> {
@@ -246,7 +220,7 @@ export async function getPostCommentsApi(
 }
 
 export function getPostCommentEventsUrl(postId: number) {
-  return buildEventSourceUrl(
+  return buildApiUrl(
     endpointPath(POSTS_ENDPOINT, postId, "comments", "events"),
   );
 }

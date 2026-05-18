@@ -2,30 +2,12 @@ import type { AxiosRequestConfig } from "axios";
 import { http } from "@/lib/http";
 import type { ApiEnvelope } from "@/types/api/response";
 
-export function envEndpoint(
-  nextPublicValue: string | undefined,
-  viteValue: string | undefined,
-  fallback: string,
-) {
-  return nextPublicValue ?? viteValue ?? fallback;
-}
-
-export function trimTrailingSlashes(path: string) {
-  return path.replace(/\/+$/, "");
-}
-
-export function endpointPath(
-  base: string,
-  ...segments: Array<number | string>
-) {
-  const normalizedBase = trimTrailingSlashes(base);
-  const suffix = segments
-    .map((segment) => String(segment).replaceAll(/^\/+|\/+$/g, ""))
-    .filter(Boolean)
-    .join("/");
-
-  return suffix ? `${normalizedBase}/${suffix}` : normalizedBase;
-}
+export {
+  buildApiUrl,
+  endpointPath,
+  envEndpoint,
+  trimTrailingSlashes,
+} from "@/lib/api-config";
 
 export function unwrapApiData<T>(value: ApiEnvelope<T> | T): T {
   if (

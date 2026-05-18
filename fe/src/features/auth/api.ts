@@ -1,8 +1,9 @@
 import { AxiosError } from "axios";
 import type { AxiosRequestConfig } from "axios";
 import { messages } from "@/i18n/messages";
+import { AUTH_ENDPOINTS } from "@/lib/api-config";
 import { http } from "@/lib/http";
-import { apiGet, apiPost, envEndpoint } from "@/lib/api-utils";
+import { apiGet, apiPost } from "@/lib/api-utils";
 import type {
   AuthSession,
   AuthUser,
@@ -15,38 +16,6 @@ const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
 const AUTH_EXCLUDED_RETRY =
   /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
-const AUTH_ENDPOINTS = {
-  login: envEndpoint(
-    process.env.NEXT_PUBLIC_AUTH_LOGIN_ENDPOINT,
-    process.env.VITE_AUTH_LOGIN_ENDPOINT,
-    "/auth/login",
-  ),
-  register: envEndpoint(
-    process.env.NEXT_PUBLIC_AUTH_REGISTER_ENDPOINT,
-    process.env.VITE_AUTH_REGISTER_ENDPOINT,
-    "/auth/register",
-  ),
-  me: envEndpoint(
-    process.env.NEXT_PUBLIC_AUTH_ME_ENDPOINT,
-    process.env.VITE_AUTH_ME_ENDPOINT,
-    "/auth/me",
-  ),
-  refresh: envEndpoint(
-    process.env.NEXT_PUBLIC_AUTH_REFRESH_ENDPOINT,
-    process.env.VITE_AUTH_REFRESH_ENDPOINT,
-    "/auth/refresh",
-  ),
-  logout: envEndpoint(
-    process.env.NEXT_PUBLIC_AUTH_LOGOUT_ENDPOINT,
-    process.env.VITE_AUTH_LOGOUT_ENDPOINT,
-    "/auth/logout",
-  ),
-  changePassword: envEndpoint(
-    process.env.NEXT_PUBLIC_AUTH_CHANGE_PASSWORD_ENDPOINT,
-    process.env.VITE_AUTH_CHANGE_PASSWORD_ENDPOINT,
-    "/auth/change-password",
-  ),
-} as const;
 
 type StorageScope = "local" | "session";
 type RetryableRequestConfig = AxiosRequestConfig & {

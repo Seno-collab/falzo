@@ -671,8 +671,9 @@ export function ExploreScreen() {
   ]);
 
   const hasSearch = normalizedActiveSearch.length > 0;
+  const searchResultsPluralSuffix = visiblePosts.length === 1 ? "" : "s";
   const searchResultsLabel = hasSearch
-    ? `${visiblePosts.length} result${visiblePosts.length === 1 ? "" : "s"}`
+    ? `${visiblePosts.length} result${searchResultsPluralSuffix}`
     : null;
 
   const selectedPost = useMemo(() => {

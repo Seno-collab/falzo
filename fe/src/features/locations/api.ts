@@ -1,11 +1,6 @@
-import { apiGet, endpointPath, envEndpoint } from "@/lib/api-utils";
+import { LOCATIONS_ENDPOINT } from "@/lib/api-config";
+import { apiGet, endpointPath } from "@/lib/api-utils";
 import type { Location, LocationPost, NearbyLocation } from "./types";
-
-const LOCATIONS_ENDPOINT = envEndpoint(
-  process.env.NEXT_PUBLIC_LOCATIONS_ENDPOINT,
-  process.env.VITE_LOCATIONS_ENDPOINT,
-  "/locations",
-);
 
 export const searchLocationsApi = (query: string): Promise<Location[]> =>
   apiGet<Location[]>(

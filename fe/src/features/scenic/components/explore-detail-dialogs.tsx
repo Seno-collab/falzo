@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -90,10 +91,12 @@ function getCommentThreads(comments: PostComment[]) {
   }));
 }
 
-function CommentAvatar({ name }: Readonly<{ name: string }>) {
+function CommentAvatar({ name }: Readonly<{ name: string | null | undefined }>) {
+  const initial = name?.trim().charAt(0) || "U";
+
   return (
     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#111] text-xs font-bold uppercase text-white">
-      {name.trim().charAt(0) || "U"}
+      {initial}
     </span>
   );
 }
@@ -301,6 +304,48 @@ export function PostDetailDialog({
   };
   const commentPlaceholder = getCommentPlaceholder();
   const commentCount = comments.length;
+  let commentComposerNotice: ReactNode = null;
+
+  if (editingComment) {
+    commentComposerNotice = (
+      <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
+        <Pencil className="mt-0.5 size-3 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Editing comment</p>
+          <p className="mt-0.5 truncate">{editingComment.content}</p>
+        </div>
+        <button
+          aria-label="Cancel edit"
+          className="rounded-full p-0.5 text-[#8c6a1f] transition hover:bg-white hover:text-[#5e430f]"
+          onClick={onCancelEdit}
+          type="button"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    );
+  } else if (replyTarget) {
+    commentComposerNotice = (
+      <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-3 py-2 text-xs text-[#4b6682]">
+        <Reply className="mt-0.5 size-3 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">
+            Replying to{" "}
+            {replyTarget.user_name || `User #${replyTarget.user_id}`}
+          </p>
+          <p className="mt-0.5 truncate">{replyTarget.content}</p>
+        </div>
+        <button
+          aria-label="Cancel reply"
+          className="rounded-full p-0.5 text-[#5f7894] transition hover:bg-white hover:text-[#244c78]"
+          onClick={onCancelReply}
+          type="button"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
@@ -413,42 +458,7 @@ export function PostDetailDialog({
             </div>
 
             <div className="border-t border-black/8 bg-white p-4">
-              {editingComment ? (
-                <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
-                  <Pencil className="mt-0.5 size-3 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">Editing comment</p>
-                    <p className="mt-0.5 truncate">{editingComment.content}</p>
-                  </div>
-                  <button
-                    aria-label="Cancel edit"
-                    className="rounded-full p-0.5 text-[#8c6a1f] transition hover:bg-white hover:text-[#5e430f]"
-                    onClick={onCancelEdit}
-                    type="button"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              ) : replyTarget ? (
-                <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-3 py-2 text-xs text-[#4b6682]">
-                  <Reply className="mt-0.5 size-3 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">
-                      Replying to{" "}
-                      {replyTarget.user_name || `User #${replyTarget.user_id}`}
-                    </p>
-                    <p className="mt-0.5 truncate">{replyTarget.content}</p>
-                  </div>
-                  <button
-                    aria-label="Cancel reply"
-                    className="rounded-full p-0.5 text-[#5f7894] transition hover:bg-white hover:text-[#244c78]"
-                    onClick={onCancelReply}
-                    type="button"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              ) : null}
+              {commentComposerNotice}
               <div className="flex items-center gap-2">
                 <input
                   className="h-10 min-w-0 flex-1 rounded-full border border-black/8 bg-white px-4 text-sm outline-none placeholder:text-[#999] focus:border-[#111]/20"

@@ -23,8 +23,12 @@ type NominatimPlace = {
   place_id?: number;
 };
 
-export function normalizeLocationSearchQuery(query: string) {
-  const trimmed = query.trim();
+function trimString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function normalizeLocationSearchQuery(query: unknown) {
+  const trimmed = trimString(query);
   const normalized = trimmed
     .normalize("NFD")
     .replaceAll(/[\u0300-\u036f]/g, "")
@@ -86,8 +90,13 @@ function dedupeLocations(locations: Location[]) {
   const result: Location[] = [];
 
   for (const location of locations) {
+    const name = trimString(location.name);
+    if (!name) {
+      continue;
+    }
+
     const key = [
-      location.name.trim().toLowerCase(),
+      name.toLowerCase(),
       location.latitude.toFixed(4),
       location.longitude.toFixed(4),
     ].join(":");

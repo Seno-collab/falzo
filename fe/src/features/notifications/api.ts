@@ -1,32 +1,7 @@
 import { getAuthAccessToken, initializeAuthHeader } from "@/features/auth/api";
 import type { AppNotification } from "@/features/notifications/types";
-import { apiGet, apiPost, endpointPath, envEndpoint } from "@/lib/api-utils";
-
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.VITE_API_BASE_URL ??
-  "/api"
-).trim();
-
-const NOTIFICATIONS_ENDPOINT = envEndpoint(
-  process.env.NEXT_PUBLIC_NOTIFICATIONS_ENDPOINT,
-  process.env.VITE_NOTIFICATIONS_ENDPOINT,
-  "/notifications",
-);
-
-function buildApiUrl(path: string) {
-  if (/^https?:\/\//i.test(path)) {
-    return path;
-  }
-
-  const normalizedBase = API_BASE_URL.replace(/\/+$/, "");
-  const normalizedPath = path.replace(/^\/+/, "");
-  if (!normalizedBase || normalizedBase === "/") {
-    return `/${normalizedPath}`;
-  }
-
-  return `${normalizedBase}/${normalizedPath}`;
-}
+import { buildApiUrl, NOTIFICATIONS_ENDPOINT } from "@/lib/api-config";
+import { apiGet, apiPost, endpointPath } from "@/lib/api-utils";
 
 function parseNotificationPayload(data: string): AppNotification | null {
   try {

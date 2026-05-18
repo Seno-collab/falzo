@@ -1,18 +1,12 @@
 import { initializeAuthHeader } from "@/features/auth/api";
+import { USERS_ENDPOINT } from "@/lib/api-config";
 import {
   apiDelete,
   apiGet,
   apiPost,
   endpointPath,
-  envEndpoint,
 } from "@/lib/api-utils";
 import type { PublicProfile } from "./types";
-
-const USERS_ENDPOINT = envEndpoint(
-  process.env.NEXT_PUBLIC_USERS_ENDPOINT,
-  process.env.VITE_USERS_ENDPOINT,
-  "/users",
-);
 
 export async function getPublicProfileApi(userId: number) {
   initializeAuthHeader();
