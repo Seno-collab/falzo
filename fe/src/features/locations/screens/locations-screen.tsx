@@ -29,7 +29,9 @@ import {
 } from "@/features/locations/api";
 import {
   defaultLocationSearch,
+  getPostBackedLocationPostsApi,
   isGeocodedLocation,
+  isPostBackedLocation,
   normalizeLocationSearchQuery,
   searchLocationsWithFallbackApi,
 } from "@/features/locations/search";
@@ -128,9 +130,27 @@ export function LocationsScreen() {
   });
 
   const postsQuery = useQuery({
-    enabled: selectedLocation !== null && !isGeocodedLocation(selectedLocation),
-    queryKey: ["locations", selectedLocation?.id, "posts"],
-    queryFn: () => getLocationPostsApi(selectedLocation?.id ?? ""),
+    enabled:
+      selectedLocation !== null &&
+      (!isGeocodedLocation(selectedLocation) ||
+        isPostBackedLocation(selectedLocation)),
+    queryKey: [
+      "locations",
+      selectedLocation?.id,
+      selectedLocation?.post_ids,
+      "posts",
+    ],
+    queryFn: () => {
+      if (!selectedLocation) {
+        return [];
+      }
+
+      if (isPostBackedLocation(selectedLocation)) {
+        return getPostBackedLocationPostsApi(selectedLocation);
+      }
+
+      return getLocationPostsApi(selectedLocation.id);
+    },
   });
 
   const nearbyLocations = useMemo<NearbyLocation[]>(

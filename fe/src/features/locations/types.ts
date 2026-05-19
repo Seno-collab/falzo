@@ -4,6 +4,8 @@ export type Location = {
   address: string;
   latitude: number;
   longitude: number;
+  post_ids?: number[];
+  post_count?: number;
 };
 
 export type NearbyLocation = {
