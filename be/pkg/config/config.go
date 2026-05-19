@@ -17,6 +17,7 @@ type Config struct {
 	Redis      RedisConfig
 	Engagement EngagementConfig
 	Upload     UploadConfig
+	Spam       SpamConfig
 }
 
 type AppConfig struct {
@@ -81,6 +82,12 @@ type UploadConfig struct {
 	RateLimitPerMin  int
 }
 
+type SpamConfig struct {
+	CommentRateLimitPerMin int
+	ReportRateLimitPerHour int
+	CheckInRateLimitPerMin int
+}
+
 func Load() Config {
 	loadDotEnvFromWorkingDir()
 
@@ -138,6 +145,11 @@ func Load() Config {
 			MaxSize:          GetInt64("UPLOAD_MAX_SIZE", 10*1024*1024),
 			AllowedTypes:     getCSV("ALLOWED_IMAGE_TYPES", []string{"image/jpeg", "image/png", "image/webp"}),
 			RateLimitPerMin:  GetInt("UPLOAD_RATE_LIMIT_PER_MIN", 20),
+		},
+		Spam: SpamConfig{
+			CommentRateLimitPerMin: GetInt("SPAM_COMMENT_RATE_LIMIT_PER_MIN", 30),
+			ReportRateLimitPerHour: GetInt("SPAM_REPORT_RATE_LIMIT_PER_HOUR", 10),
+			CheckInRateLimitPerMin: GetInt("SPAM_CHECKIN_RATE_LIMIT_PER_MIN", 12),
 		},
 	}
 }

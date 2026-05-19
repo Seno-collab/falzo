@@ -103,6 +103,8 @@ func Run() {
 		go postInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
 	}
 	postService := post.NewService(postRepository)
+	commentRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Spam.CommentRateLimitPerMin, time.Minute, userIDRateLimitKey)
+	reportRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Spam.ReportRateLimitPerHour, time.Hour, userIDRateLimitKey)
 	postHandler := post.NewHandler(
 		postService,
 		authService,
@@ -110,6 +112,8 @@ func Run() {
 		post.WithPostEvents(postEventBroker, postEventPublisher),
 		post.WithNotifications(notificationHub),
 		post.WithFollowers(socialService),
+		post.WithCommentMiddlewares(commentRateLimit),
+		post.WithReportMiddlewares(reportRateLimit),
 	)
 	imageRepository := uploadInfra.NewPostgresRepository(db)
 	imageStorage := uploadInfra.NewSeaweedFSStorage(cfg.Upload)
@@ -119,13 +123,7 @@ func Run() {
 		upload.WithMaxSize(cfg.Upload.MaxSize),
 		upload.WithAllowedImageTypes(cfg.Upload.AllowedTypes),
 	)
-	uploadRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Upload.RateLimitPerMin, time.Minute, func(r *http.Request) string {
-		principal, ok := auth.AuthenticatedUserFromContext(r.Context())
-		if !ok || principal == nil || principal.UserID == 0 {
-			return ""
-		}
-		return strconv.FormatUint(principal.UserID, 10)
-	})
+	uploadRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Upload.RateLimitPerMin, time.Minute, userIDRateLimitKey)
 	uploadHandler := upload.NewHandler(
 		uploadService,
 		authService,
@@ -243,4 +241,13 @@ func Run() {
 	}
 
 	log.Info().Msg("shutdown complete")
+}
+
+func userIDRateLimitKey(r *http.Request) string {
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		return ""
+	}
+
+	return strconv.FormatUint(principal.UserID, 10)
 }

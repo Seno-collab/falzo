@@ -20,6 +20,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("UPLOAD_MAX_SIZE", "")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "")
 	t.Setenv("UPLOAD_RATE_LIMIT_PER_MIN", "")
+	t.Setenv("SPAM_COMMENT_RATE_LIMIT_PER_MIN", "")
+	t.Setenv("SPAM_REPORT_RATE_LIMIT_PER_HOUR", "")
+	t.Setenv("SPAM_CHECKIN_RATE_LIMIT_PER_MIN", "")
 
 	cfg := Load()
 
@@ -82,6 +85,18 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.Upload.RateLimitPerMin != 20 {
 		t.Fatalf("expected default upload rate limit, got %d", cfg.Upload.RateLimitPerMin)
 	}
+
+	if cfg.Spam.CommentRateLimitPerMin != 30 {
+		t.Fatalf("expected default comment spam rate limit, got %d", cfg.Spam.CommentRateLimitPerMin)
+	}
+
+	if cfg.Spam.ReportRateLimitPerHour != 10 {
+		t.Fatalf("expected default report spam rate limit, got %d", cfg.Spam.ReportRateLimitPerHour)
+	}
+
+	if cfg.Spam.CheckInRateLimitPerMin != 12 {
+		t.Fatalf("expected default check-in spam rate limit, got %d", cfg.Spam.CheckInRateLimitPerMin)
+	}
 }
 
 func TestLoadUsesEnvOverrides(t *testing.T) {
@@ -101,6 +116,9 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("UPLOAD_MAX_SIZE", "2048")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "image/png,image/webp")
 	t.Setenv("UPLOAD_RATE_LIMIT_PER_MIN", "3")
+	t.Setenv("SPAM_COMMENT_RATE_LIMIT_PER_MIN", "4")
+	t.Setenv("SPAM_REPORT_RATE_LIMIT_PER_HOUR", "2")
+	t.Setenv("SPAM_CHECKIN_RATE_LIMIT_PER_MIN", "6")
 
 	cfg := Load()
 
@@ -166,6 +184,18 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if cfg.Upload.RateLimitPerMin != 3 {
 		t.Fatalf("expected env upload rate limit, got %d", cfg.Upload.RateLimitPerMin)
+	}
+
+	if cfg.Spam.CommentRateLimitPerMin != 4 {
+		t.Fatalf("expected env comment spam rate limit, got %d", cfg.Spam.CommentRateLimitPerMin)
+	}
+
+	if cfg.Spam.ReportRateLimitPerHour != 2 {
+		t.Fatalf("expected env report spam rate limit, got %d", cfg.Spam.ReportRateLimitPerHour)
+	}
+
+	if cfg.Spam.CheckInRateLimitPerMin != 6 {
+		t.Fatalf("expected env check-in spam rate limit, got %d", cfg.Spam.CheckInRateLimitPerMin)
 	}
 }
 

@@ -52,12 +52,14 @@ type Handler struct {
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	}
-	commentEvents    CommentEventSubscriber
-	commentPublisher CommentEventPublisher
-	postEvents       PostEventSubscriber
-	postPublisher    PostEventPublisher
-	notifications    notification.Publisher
-	followers        FollowerLister
+	commentEvents      CommentEventSubscriber
+	commentPublisher   CommentEventPublisher
+	postEvents         PostEventSubscriber
+	postPublisher      PostEventPublisher
+	notifications      notification.Publisher
+	followers          FollowerLister
+	commentMiddlewares []func(http.Handler) http.Handler
+	reportMiddlewares  []func(http.Handler) http.Handler
 }
 
 type HandlerOption func(*Handler)
@@ -89,6 +91,18 @@ func WithNotifications(publisher notification.Publisher) HandlerOption {
 func WithFollowers(followers FollowerLister) HandlerOption {
 	return func(h *Handler) {
 		h.followers = followers
+	}
+}
+
+func WithCommentMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.commentMiddlewares = append(h.commentMiddlewares, middlewares...)
+	}
+}
+
+func WithReportMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.reportMiddlewares = append(h.reportMiddlewares, middlewares...)
 	}
 }
 
@@ -130,16 +144,16 @@ func (h *Handler) Routes() chi.Router {
 		protected.Put("/{id}", h.UpdatePost)
 		protected.Delete("/{id}", h.DeletePost)
 		protected.Post("/{id}/hide", h.HidePost)
-		protected.Post("/{id}/report", h.ReportPost)
+		protected.With(h.reportMiddlewares...).Post("/{id}/report", h.ReportPost)
 		protected.Post("/{id}/like", h.LikePost)
 		protected.Delete("/{id}/like", h.UnlikePost)
 		protected.Post("/{id}/save", h.SavePost)
 		protected.Delete("/{id}/save", h.UnsavePost)
-		protected.Post("/{id}/comments", h.CommentPost)
-		protected.Put("/{id}/comments/{commentID}", h.UpdateComment)
+		protected.With(h.commentMiddlewares...).Post("/{id}/comments", h.CommentPost)
+		protected.With(h.commentMiddlewares...).Put("/{id}/comments/{commentID}", h.UpdateComment)
 		protected.Delete("/{id}/comments/{commentID}", h.DeleteComment)
 		protected.Post("/{id}/comments/{commentID}/hide", h.HideComment)
-		protected.Post("/{id}/comments/{commentID}/report", h.ReportComment)
+		protected.With(h.reportMiddlewares...).Post("/{id}/comments/{commentID}/report", h.ReportComment)
 	})
 	r.Get("/{id}", h.GetPostDetail)
 	return r
