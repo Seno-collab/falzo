@@ -14,6 +14,10 @@ import (
 
 type fakeUploadHandlerService struct{}
 
+func (fakeUploadHandlerService) CheckImage(context.Context, CheckImageInput) (CheckImageResult, error) {
+	return CheckImageResult{Valid: true, MimeType: "image/png", Size: 67, Width: 1, Height: 1}, nil
+}
+
 func (fakeUploadHandlerService) UploadImage(context.Context, UploadImageInput) (UploadImageResult, error) {
 	return UploadImageResult{ID: 1, URL: "https://cdn.example.com/1.png", ObjectKey: "7/1.png"}, nil
 }

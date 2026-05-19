@@ -172,7 +172,18 @@ export function ProfileScreen() {
         newPassword: values.newPassword,
       });
       passwordForm.reset();
-      toast.success("Password changed successfully.");
+      toast.success("Password changed successfully. Please sign in again.");
+
+      setIsLoggingOut(true);
+      try {
+        await logoutApi();
+      } catch {
+        clearAuthSession();
+      } finally {
+        queryClient.clear();
+        setIsLoggingOut(false);
+        router.replace(ROUTES.login);
+      }
     } catch (error) {
       toast.error("Unable to change password", {
         description: getApiErrorMessage(error),

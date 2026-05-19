@@ -28,6 +28,8 @@ func mapUploadError(err error) share.ApiError {
 		return share.BadRequest("file", "file size exceeds the maximum allowed limit")
 	case errors.Is(err, ErrInvalidMimeType):
 		return share.BadRequest("file", "file mime type is invalid")
+	case errors.Is(err, ErrInvalidImageContent):
+		return share.BadRequest("file", "file content is not a valid image")
 	case errors.Is(err, ErrInvalidImageURL):
 		return share.BadRequest("url", "image URL is invalid")
 	case errors.Is(err, ErrImageNotFound):

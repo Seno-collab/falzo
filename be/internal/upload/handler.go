@@ -24,6 +24,7 @@ const (
 )
 
 type handlerService interface {
+	CheckImage(ctx context.Context, input CheckImageInput) (CheckImageResult, error)
 	UploadImage(ctx context.Context, input UploadImageInput) (UploadImageResult, error)
 	UpdateImage(ctx context.Context, input UpdateImageInput) (UpdateImageResult, error)
 }
@@ -85,6 +86,7 @@ func (h *Handler) Routes() chi.Router {
 		for _, middleware := range h.protectedMiddlewares {
 			protected.Use(middleware)
 		}
+		protected.Post("/images/check", h.CheckImage)
 		protected.Post("/images/upload", h.UploadImage)
 		protected.Put("/images/{id}", h.UpdateImage)
 	})
@@ -93,6 +95,37 @@ func (h *Handler) Routes() chi.Router {
 
 type UploadImageRequest struct {
 	File *multipart.FileHeader `form:"file" binding:"required"`
+}
+
+func (h *Handler) CheckImage(w http.ResponseWriter, r *http.Request) {
+	if !h.parseMultipartForm(w, r, "check_image") {
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		share.WriteError(w, r, ErrFileRequired, "check_image", mapUploadError)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		share.WriteError(w, r, ErrStorageFailed, "check_image", mapUploadError)
+		return
+	}
+
+	result, err := h.service.CheckImage(r.Context(), CheckImageInput{
+		File:     data,
+		MimeType: detectImageMimeType(data, header),
+		Size:     header.Size,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "check_image", mapUploadError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Image is valid", result, r)
 }
 
 func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {

@@ -74,6 +74,12 @@ export const IMAGE_UPLOAD_ENDPOINT = envEndpoint(
   "/images/upload",
 );
 
+export const IMAGE_CHECK_ENDPOINT = envEndpoint(
+  process.env.NEXT_PUBLIC_IMAGE_CHECK_ENDPOINT,
+  process.env.VITE_IMAGE_CHECK_ENDPOINT,
+  "/images/check",
+);
+
 export const CATEGORIES_ENDPOINT = envEndpoint(
   process.env.NEXT_PUBLIC_CATEGORIES_ENDPOINT,
   process.env.VITE_CATEGORIES_ENDPOINT,

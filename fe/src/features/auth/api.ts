@@ -83,8 +83,7 @@ function readMessage(data: unknown): string | null {
   const firstError = Array.isArray(payload.errors) ? payload.errors[0] : null;
   const errorNode = asRecord(firstError);
   const nestedMessage = errorNode?.message;
-  const message =
-    payload.message ?? nestedMessage ?? payload.error ?? payload.detail;
+  const message = payload.message ?? nestedMessage ?? payload.error ?? payload.detail;
   return typeof message === "string" && message.trim() ? message : null;
 }
 
@@ -165,14 +164,12 @@ function parseSession(data: unknown): AuthSession | null {
   const dataNode = extractDataNode(data);
   const accessToken =
     findFirstString(dataNode, [
-      "accessToken",
       "access_token",
       "token",
       "jwt",
       "id_token",
     ]) ??
     findFirstString(data, [
-      "accessToken",
       "access_token",
       "token",
       "jwt",

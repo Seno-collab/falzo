@@ -38,6 +38,14 @@ export type UploadedImage = {
   object_key: string;
 };
 
+export type CheckedImage = {
+  valid: boolean;
+  mime_type: string;
+  size: number;
+  width: number;
+  height: number;
+};
+
 export type PostComment = {
   id: number;
   post_id: number;

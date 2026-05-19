@@ -40,7 +40,11 @@ import {
 import { getCategoriesApi } from "@/features/categories/api";
 import type { Category } from "@/features/categories/types";
 import type { Location } from "@/features/locations/types";
-import { createPostApi, uploadImageApi } from "@/features/posts/api";
+import {
+  checkImageApi,
+  createPostApi,
+  uploadImageApi,
+} from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
 import { ROUTES } from "@/lib/routes";
 
@@ -64,9 +68,6 @@ const acceptedImageTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/jpg",
-  "image/svg+xml",
-  "image/gif",
 ]);
 
 function parseCoordinate(value: string) {
@@ -96,7 +97,7 @@ function formatFileSize(size: number) {
 
 function getImageValidationError(file: File) {
   if (!acceptedImageTypes.has(file.type)) {
-    return "Only JPG, PNG, WebP, SVG, or GIF images are supported.";
+    return "Only JPG, PNG, or WebP images are supported.";
   }
 
   if (file.size > maxImageSize) {
@@ -193,7 +194,10 @@ export function UploadImageScreen() {
   }, [previewUrl]);
 
   const uploadMutation = useMutation({
-    mutationFn: uploadImageApi,
+    mutationFn: async (file: File) => {
+      await checkImageApi(file);
+      return uploadImageApi(file);
+    },
     onError: (error, file) => {
       if (isSameFile(selectedFileRef.current, file)) {
         setUploadedImage(null);
@@ -410,6 +414,7 @@ export function UploadImageScreen() {
       throw new Error("Choose an image before publishing.");
     }
 
+    await checkImageApi(file);
     const image = await uploadImageApi(file);
     setUploadedImage(image);
     return image;
@@ -509,7 +514,7 @@ export function UploadImageScreen() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <input
-                        accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
+                        accept="image/jpeg,image/png,image/webp"
                         className="sr-only"
                         disabled={isBusy}
                         onChange={(event) => {
@@ -549,10 +554,10 @@ export function UploadImageScreen() {
                     <ImagePlus className="size-7" />
                   </span>
                   <span className="max-w-sm text-sm font-semibold text-[#315578]">
-                    Choose a JPG, PNG, or WebP, SVG, or GIF image to upload.
+                    Choose a JPG, PNG, or WebP image to upload.
                   </span>
                   <input
-                    accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
+                    accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
                     disabled={isBusy}
                     onChange={(event) => {
@@ -585,7 +590,7 @@ export function UploadImageScreen() {
             <div className="space-y-2">
               <Label htmlFor="image-file">Image</Label>
               <Input
-                accept="image/jpeg,image/png,image/webp,image/jpg,image/svg+xml,image/gif"
+                accept="image/jpeg,image/png,image/webp"
                 disabled={isBusy}
                 id="image-file"
                 onChange={(event) => {

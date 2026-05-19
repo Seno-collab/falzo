@@ -18,6 +18,7 @@ var (
 	ErrInternal              = errors.New("upload internal error")
 	ErrFileSizeTooLarge      = errors.New("file size exceeds the maximum allowed limit")
 	ErrInvalidImageURL       = errors.New("invalid image URL")
+	ErrInvalidImageContent   = errors.New("invalid image content")
 	ErrFileRequired          = errors.New("file is required")
 	ErrOwnerIDRequired       = errors.New("owner id is required")
 	ErrMissingRepository     = errors.New("image repository is unavailable")

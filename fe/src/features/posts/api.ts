@@ -1,6 +1,7 @@
 import { initializeAuthHeader } from "@/features/auth/api";
 import {
   buildApiUrl,
+  IMAGE_CHECK_ENDPOINT,
   IMAGE_UPLOAD_ENDPOINT,
   POSTS_ENDPOINT,
 } from "@/lib/api-config";
@@ -15,6 +16,7 @@ import {
 import type {
   CreatePostCommentPayload,
   CreatePostPayload,
+  CheckedImage,
   CreateSavedCollectionPayload,
   Post,
   PostComment,
@@ -77,6 +79,15 @@ export async function uploadImageApi(file: File): Promise<UploadedImage> {
   formData.append("file", file);
 
   return apiPost<UploadedImage>(IMAGE_UPLOAD_ENDPOINT, formData);
+}
+
+export async function checkImageApi(file: File): Promise<CheckedImage> {
+  initializeAuthHeader();
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiPost<CheckedImage>(IMAGE_CHECK_ENDPOINT, formData);
 }
 
 export async function createPostApi(payload: CreatePostPayload): Promise<Post> {

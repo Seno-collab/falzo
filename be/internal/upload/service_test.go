@@ -2,6 +2,7 @@ package upload
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"slices"
@@ -62,16 +63,28 @@ func (f *fakeImageStorage) Delete(ctx context.Context, objectKey string) error {
 	return nil
 }
 
+func tinyPNG(t *testing.T) []byte {
+	t.Helper()
+
+	data, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatalf("decode png fixture: %v", err)
+	}
+
+	return data
+}
+
 func TestUploadImage(t *testing.T) {
 	repo := &fakeImageRepository{}
 	storage := &fakeImageStorage{}
 	service := NewService(repo, storage)
+	file := tinyPNG(t)
 
 	result, err := service.UploadImage(t.Context(), UploadImageInput{
-		File:     []byte("png"),
+		File:     file,
 		FileName: "avatar.png",
 		MimeType: "image/png",
-		Size:     3,
+		Size:     int64(len(file)),
 		OwnerID:  "7",
 	})
 	if err != nil {
@@ -90,12 +103,13 @@ func TestUploadImageDeletesNewObjectWhenSaveFails(t *testing.T) {
 	repo := &fakeImageRepository{saveErr: errors.New("db down")}
 	storage := &fakeImageStorage{}
 	service := NewService(repo, storage)
+	file := tinyPNG(t)
 
 	_, err := service.UploadImage(t.Context(), UploadImageInput{
-		File:     []byte("png"),
+		File:     file,
 		FileName: "avatar.png",
 		MimeType: "image/png",
-		Size:     3,
+		Size:     int64(len(file)),
 		OwnerID:  "7",
 	})
 	if err == nil {
@@ -118,13 +132,14 @@ func TestUpdateImageReplacesObjectAndDeletesOldObject(t *testing.T) {
 	}}
 	storage := &fakeImageStorage{}
 	service := NewService(repo, storage)
+	file := tinyPNG(t)
 
 	result, err := service.UpdateImage(t.Context(), UpdateImageInput{
 		ImageID:  10,
-		File:     []byte("new"),
-		FileName: "avatar.webp",
-		MimeType: "image/webp",
-		Size:     3,
+		File:     file,
+		FileName: "avatar.png",
+		MimeType: "image/png",
+		Size:     int64(len(file)),
 	})
 	if err != nil {
 		t.Fatalf("update image: %v", err)
@@ -153,13 +168,14 @@ func TestUpdateImageDeletesNewObjectWhenUpdateFails(t *testing.T) {
 	}
 	storage := &fakeImageStorage{}
 	service := NewService(repo, storage)
+	file := tinyPNG(t)
 
 	_, err := service.UpdateImage(t.Context(), UpdateImageInput{
 		ImageID:  10,
-		File:     []byte("new"),
-		FileName: "avatar.webp",
-		MimeType: "image/webp",
-		Size:     3,
+		File:     file,
+		FileName: "avatar.png",
+		MimeType: "image/png",
+		Size:     int64(len(file)),
 	})
 	if err == nil {
 		t.Fatal("expected update error")
@@ -169,5 +185,36 @@ func TestUpdateImageDeletesNewObjectWhenUpdateFails(t *testing.T) {
 	}
 	if slices.Contains(storage.deleted, "7/old.png") {
 		t.Fatalf("old object must not be deleted when DB update fails, deleted=%v", storage.deleted)
+	}
+}
+
+func TestCheckImageRejectsInvalidImageContent(t *testing.T) {
+	service := NewService(nil, nil)
+
+	_, err := service.CheckImage(t.Context(), CheckImageInput{
+		File:     []byte("not an image"),
+		MimeType: "image/png",
+		Size:     int64(len("not an image")),
+	})
+	if !errors.Is(err, ErrInvalidImageContent) {
+		t.Fatalf("expected invalid image content, got %v", err)
+	}
+}
+
+func TestCheckImageReturnsDimensions(t *testing.T) {
+	service := NewService(nil, nil)
+	file := tinyPNG(t)
+
+	result, err := service.CheckImage(t.Context(), CheckImageInput{
+		File:     file,
+		MimeType: "image/png",
+		Size:     int64(len(file)),
+	})
+	if err != nil {
+		t.Fatalf("check image: %v", err)
+	}
+
+	if !result.Valid || result.Width != 1 || result.Height != 1 {
+		t.Fatalf("expected valid 1x1 image, got %+v", result)
 	}
 }

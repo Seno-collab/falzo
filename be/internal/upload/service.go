@@ -7,6 +7,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"path/filepath"
 	"strings"
 )
@@ -60,10 +63,24 @@ type UploadImageInput struct {
 	OwnerID  string
 }
 
+type CheckImageInput struct {
+	File     []byte
+	MimeType string
+	Size     int64
+}
+
 type UploadImageResult struct {
 	ID        int64  `json:"id"`
 	URL       string `json:"url"`
 	ObjectKey string `json:"object_key"`
+}
+
+type CheckImageResult struct {
+	Valid    bool   `json:"valid"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
 }
 
 type UpdateImageInput struct {
@@ -90,7 +107,7 @@ func (s *Service) UploadImage(ctx context.Context, input UploadImageInput) (Uplo
 	if s.storage == nil {
 		return UploadImageResult{}, ErrDependencyUnavailable
 	}
-	if err := s.validateFile(input.MimeType, input.Size); err != nil {
+	if _, err := s.validateImageFile(input.File, input.MimeType, input.Size); err != nil {
 		return UploadImageResult{}, err
 	}
 
@@ -131,7 +148,7 @@ func (s *Service) UpdateImage(ctx context.Context, input UpdateImageInput) (Upda
 	if s.storage == nil {
 		return UpdateImageResult{}, ErrDependencyUnavailable
 	}
-	if err := s.validateFile(input.MimeType, input.Size); err != nil {
+	if _, err := s.validateImageFile(input.File, input.MimeType, input.Size); err != nil {
 		return UpdateImageResult{}, err
 	}
 
@@ -163,6 +180,26 @@ func (s *Service) UpdateImage(ctx context.Context, input UpdateImageInput) (Upda
 	return UpdateImageResult{ID: image.ID, URL: image.URL, ObjectKey: image.ObjectKey}, nil
 }
 
+func (s *Service) CheckImage(ctx context.Context, input CheckImageInput) (CheckImageResult, error) {
+	_ = ctx
+	if len(input.File) == 0 {
+		return CheckImageResult{}, ErrFileRequired
+	}
+
+	dimensions, err := s.validateImageFile(input.File, input.MimeType, input.Size)
+	if err != nil {
+		return CheckImageResult{}, err
+	}
+
+	return CheckImageResult{
+		Valid:    true,
+		MimeType: strings.ToLower(strings.TrimSpace(input.MimeType)),
+		Size:     input.Size,
+		Width:    dimensions.width,
+		Height:   dimensions.height,
+	}, nil
+}
+
 func (s *Service) validateFile(mimeType string, size int64) error {
 	if _, err := NewFileSize(size); err != nil {
 		return err
@@ -174,6 +211,81 @@ func (s *Service) validateFile(mimeType string, size int64) error {
 		return ErrInvalidMimeType
 	}
 	return nil
+}
+
+type imageDimensions struct {
+	width  int
+	height int
+}
+
+func (s *Service) validateImageFile(file []byte, mimeType string, size int64) (imageDimensions, error) {
+	if err := s.validateFile(mimeType, size); err != nil {
+		return imageDimensions{}, err
+	}
+
+	dimensions, err := readImageDimensions(file, mimeType)
+	if err != nil {
+		return imageDimensions{}, err
+	}
+
+	if dimensions.width <= 0 || dimensions.height <= 0 {
+		return imageDimensions{}, ErrInvalidImageContent
+	}
+
+	return dimensions, nil
+}
+
+func readImageDimensions(file []byte, mimeType string) (imageDimensions, error) {
+	switch strings.ToLower(strings.TrimSpace(mimeType)) {
+	case "image/jpeg", "image/png":
+		config, _, err := image.DecodeConfig(bytes.NewReader(file))
+		if err != nil {
+			return imageDimensions{}, ErrInvalidImageContent
+		}
+
+		return imageDimensions{width: config.Width, height: config.Height}, nil
+	case "image/webp":
+		return readWebPDimensions(file)
+	default:
+		return imageDimensions{}, ErrInvalidMimeType
+	}
+}
+
+func readWebPDimensions(file []byte) (imageDimensions, error) {
+	if len(file) < 30 || string(file[0:4]) != "RIFF" || string(file[8:12]) != "WEBP" {
+		return imageDimensions{}, ErrInvalidImageContent
+	}
+
+	chunkType := string(file[12:16])
+	switch chunkType {
+	case "VP8 ":
+		if len(file) < 30 || file[23] != 0x9d || file[24] != 0x01 || file[25] != 0x2a {
+			return imageDimensions{}, ErrInvalidImageContent
+		}
+		width := int(uint16(file[26])|uint16(file[27])<<8) & 0x3fff
+		height := int(uint16(file[28])|uint16(file[29])<<8) & 0x3fff
+		return imageDimensions{width: width, height: height}, nil
+	case "VP8L":
+		if len(file) < 25 || file[20] != 0x2f {
+			return imageDimensions{}, ErrInvalidImageContent
+		}
+		b0 := uint32(file[21])
+		b1 := uint32(file[22])
+		b2 := uint32(file[23])
+		b3 := uint32(file[24])
+		width := int(1 + (((b1 & 0x3f) << 8) | b0))
+		height := int(1 + ((b3 << 6) | (b2 << 2) | ((b1 & 0xc0) >> 6)))
+		return imageDimensions{width: width, height: height}, nil
+	case "VP8X":
+		if len(file) < 30 {
+			return imageDimensions{}, ErrInvalidImageContent
+		}
+		width := 1 + int(uint32(file[24])|uint32(file[25])<<8|uint32(file[26])<<16)
+		height := 1 + int(uint32(file[27])|uint32(file[28])<<8|uint32(file[29])<<16)
+		return imageDimensions{width: width, height: height}, nil
+	default:
+		return imageDimensions{}, ErrInvalidImageContent
+	}
 }
 
 func imageObjectKey(ownerID string, fileName string, mimeType string) string {
