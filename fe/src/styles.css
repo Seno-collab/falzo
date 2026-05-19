@@ -142,7 +142,8 @@
     h6 {
         margin: 0;
         font-family: var(--font-display);
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
+        line-height: 1.18;
     }
 
     p {
@@ -183,7 +184,7 @@
     }
 
     .app-container {
-        width: min(1120px, 100% - 2rem);
+        width: min(1120px, 100% - 1.5rem);
         margin-inline: auto;
     }
 
@@ -239,11 +240,11 @@
     }
 
     .app-title {
-        @apply text-balance text-3xl font-semibold tracking-tight text-[#163357] sm:text-4xl;
+        @apply text-balance text-2xl leading-tight font-semibold tracking-normal text-[#163357] sm:text-4xl;
     }
 
     .app-subtitle {
-        @apply text-sm leading-7;
+        @apply text-sm leading-6 sm:leading-7;
         color: rgb(75 103 138);
     }
 
@@ -364,7 +365,7 @@
 
     .falzo-display {
         font-family: var(--font-display);
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
     }
 
     .falzo-glass {
@@ -391,6 +392,14 @@
 
     .falzo-float-delayed {
         animation: app-float 9s ease-in-out 0.8s infinite;
+    }
+}
+
+@media (min-width: 640px) {
+    @layer components {
+        .app-container {
+            width: min(1120px, 100% - 2rem);
+        }
     }
 }
 

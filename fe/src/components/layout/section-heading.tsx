@@ -23,7 +23,7 @@ export function SectionHeading({
     >
       <div className="space-y-1.5">
         {kicker ? <p className="app-kicker">{kicker}</p> : null}
-        <h2 className="falzo-display text-2xl font-semibold tracking-tight text-[#173457] sm:text-3xl">
+        <h2 className="falzo-display text-2xl font-semibold leading-tight tracking-normal text-[#173457] sm:text-3xl">
           {title}
         </h2>
         {description ? (

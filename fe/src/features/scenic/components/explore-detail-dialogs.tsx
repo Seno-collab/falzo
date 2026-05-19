@@ -349,9 +349,9 @@ export function PostDetailDialog({
 
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
-      <DialogContent className="h-[min(94vh,860px)] w-[min(98vw,86rem)] overflow-hidden border-white/16 bg-[#050505] p-0 text-white">
-        <div className="grid h-full min-h-0 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
-          <div className="relative min-h-[48vh] bg-black lg:min-h-0">
+      <DialogContent className="h-[min(94svh,860px)] w-[calc(100vw-1rem)] overflow-hidden border-white/16 bg-[#050505] p-0 text-white sm:w-[min(98vw,86rem)]">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
+          <div className="relative h-[42svh] min-h-0 shrink-0 bg-black lg:h-auto lg:min-h-0 lg:shrink">
             {post ? (
               <img
                 alt={post.caption || post.location_name || "Post detail"}
@@ -364,7 +364,7 @@ export function PostDetailDialog({
               </div>
             )}
 
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-5 pb-5 pt-24">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pt-20 sm:px-5 sm:pb-5 sm:pt-24">
               <div className="max-w-2xl">
                 {post ? (
                   <Link
@@ -376,7 +376,7 @@ export function PostDetailDialog({
                 ) : (
                   <p className="text-sm font-bold text-white">{authorName}</p>
                 )}
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/90">
+                <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/90 sm:line-clamp-3 sm:leading-6">
                   {post?.caption || "Community post"}
                 </p>
                 <p className="mt-2 text-xs font-semibold text-white/60">
@@ -385,11 +385,11 @@ export function PostDetailDialog({
               </div>
             </div>
 
-            <div className="absolute bottom-6 right-4 flex flex-col items-center gap-3">
+            <div className="absolute bottom-4 right-3 flex flex-col items-center gap-2 sm:bottom-6 sm:right-4 sm:gap-3">
               <button
                 aria-label={isLiked ? "Liked post" : "Like post"}
                 className={cn(
-                  "flex size-12 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20",
+                  "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
                   isLiked ? "text-[#ff4d6d]" : "",
                 )}
                 disabled={!post}
@@ -397,25 +397,25 @@ export function PostDetailDialog({
                 type="button"
               >
                 <Heart
-                  className={cn("size-5", isLiked ? "fill-current" : "")}
+                  className={cn("size-4 sm:size-5", isLiked ? "fill-current" : "")}
                 />
               </button>
               <button
                 aria-label="Open comments"
                 className={cn(
-                  "flex size-12 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20",
+                  "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
                   isChatOpen ? "bg-white text-[#111] hover:bg-white" : "",
                 )}
                 disabled={!post}
                 onClick={onLoadComments}
                 type="button"
               >
-                <MessageCircle className="size-5" />
+                <MessageCircle className="size-4 sm:size-5" />
               </button>
               <button
                 aria-label={isSaved ? "Saved post" : "Save post"}
                 className={cn(
-                  "flex size-12 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20",
+                  "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
                   isSaved ? "text-[#f8c14a]" : "",
                 )}
                 disabled={!post}
@@ -423,14 +423,14 @@ export function PostDetailDialog({
                 type="button"
               >
                 <Bookmark
-                  className={cn("size-5", isSaved ? "fill-current" : "")}
+                  className={cn("size-4 sm:size-5", isSaved ? "fill-current" : "")}
                 />
               </button>
             </div>
           </div>
 
-          <aside className="flex min-h-0 flex-col bg-white text-[#1f1f1f]">
-            <div className="border-b border-black/8 px-5 py-4">
+          <aside className="flex min-h-0 flex-1 flex-col bg-white text-[#1f1f1f] lg:flex-auto">
+            <div className="border-b border-black/8 px-4 py-3 sm:px-5 sm:py-4">
               <DialogHeader>
                 <DialogTitle className="text-lg leading-7 text-[#111]">
                   Comments
@@ -442,7 +442,7 @@ export function PostDetailDialog({
               </DialogHeader>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:py-4">
               <div className="space-y-3">
                 <DetailComments
                   comments={comments}
@@ -457,7 +457,7 @@ export function PostDetailDialog({
               </div>
             </div>
 
-            <div className="border-t border-black/8 bg-white p-4">
+            <div className="border-t border-black/8 bg-white p-3 sm:p-4">
               {commentComposerNotice}
               <div className="flex items-center gap-2">
                 <input

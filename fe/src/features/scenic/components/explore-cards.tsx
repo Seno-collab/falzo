@@ -53,7 +53,7 @@ type PostCardProps = {
 };
 
 const cardClass =
-  "group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)]";
+  "group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)] sm:rounded-[28px]";
 
 const overlayClass =
   "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.02)_48%,rgb(0_0_0/0.44)_100%)] opacity-80 transition group-hover:opacity-100";
@@ -320,7 +320,7 @@ export function ExplorePostCard({
       whileInView={{ opacity: 1, y: 0 }}
     >
       <div
-        className="relative h-96 cursor-zoom-in overflow-hidden bg-[#e9eef3]"
+        className="relative h-72 cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-96"
         onClick={() => onOpen(post.id)}
         onKeyDown={(event) => onKeyboardOpen(event, () => onOpen(post.id))}
         role="button"
@@ -372,17 +372,17 @@ export function ExplorePostCard({
           </div>
         </div>
         <div className="absolute inset-x-4 bottom-4 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
+          <p className="line-clamp-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
             {location}
           </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-normal">
+          <h2 className="mt-1 line-clamp-3 text-xl font-semibold leading-tight tracking-normal sm:text-2xl">
             {title}
           </h2>
         </div>
       </div>
 
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="space-y-3 p-3.5 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <Link
               className="block truncate text-sm font-semibold text-[#202020] hover:text-[#ff385c]"
@@ -394,7 +394,7 @@ export function ExplorePostCard({
               {categoryLabel} - {new Date(post.created_at).toLocaleDateString()}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="grid grid-cols-5 gap-1 sm:flex sm:shrink-0 sm:items-center">
             <Button
               aria-label="Open image"
               className="rounded-full"

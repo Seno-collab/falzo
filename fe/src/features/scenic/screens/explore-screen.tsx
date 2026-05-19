@@ -1189,7 +1189,7 @@ export function ExploreScreen() {
         />
       ) : null}
 
-      <section className="mx-auto w-full max-w-370 px-4 pb-14 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-370 px-3 pb-10 sm:px-6 sm:pb-14 lg:px-8">
         <ExploreMapPanel
           currentPosition={nearbyCoords}
           feedSort={feedSort}
@@ -1224,7 +1224,7 @@ export function ExploreScreen() {
         />
 
         {showSavedBoard || searchResultsLabel ? (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)]">
+          <div className="mb-4 flex flex-col items-stretch justify-between gap-3 rounded-3xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)] sm:flex-row sm:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
                 {showSavedBoard ? "Board" : "Search"}
@@ -1233,7 +1233,7 @@ export function ExploreScreen() {
                 {showSavedBoard ? "Saved posts" : searchResultsLabel}
               </h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {searchResultsLabel ? (
                 <Button
                   className="rounded-full"
@@ -1427,10 +1427,10 @@ function ExploreTopbar({
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
-      <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-3 py-3 sm:px-5 lg:px-8">
+      <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-2.5 py-2.5 sm:px-5 sm:py-3 lg:px-8">
         <Link
           aria-label="Explore"
-          className="inline-flex size-10 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03]"
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03] sm:size-10"
           href={ROUTES.explore}
         >
           <Camera className="size-4" />
@@ -1457,10 +1457,10 @@ function ExploreTopbar({
           </Button>
         </nav>
 
-        <div className="relative ml-1 flex-1">
-          <Search className="-translate-y-1/2 pointer-events-none absolute left-4 top-1/2 size-4 text-[#777]" />
+        <div className="relative ml-0 min-w-0 flex-1 sm:ml-1">
+          <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777] sm:left-4" />
           <input
-            className="h-11 w-full rounded-full border border-black/6 bg-white px-11 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)]"
+            className="h-10 w-full rounded-full border border-black/6 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)] sm:h-11 sm:px-11"
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape" && searchValue) {
@@ -1690,7 +1690,7 @@ function ExploreMapPanel({
   }
 
   return (
-    <section className="mb-5 overflow-hidden rounded-3xl border border-black/6 bg-white shadow-[0_18px_46px_-36px_rgb(0_0_0/0.55)]">
+    <section className="mb-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_18px_46px_-36px_rgb(0_0_0/0.55)] sm:rounded-3xl">
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-h-0">
           <MapClient
@@ -1711,12 +1711,12 @@ function ExploreMapPanel({
           />
         </div>
 
-        <aside className="flex flex-col justify-between gap-5 border-black/6 border-t p-5 lg:border-l lg:border-t-0">
+        <aside className="flex flex-col justify-between gap-4 border-black/6 border-t p-4 sm:gap-5 sm:p-5 lg:border-l lg:border-t-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
               Map discovery
             </p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-normal text-[#111]">
+            <h2 className="mt-1 text-xl font-semibold leading-tight tracking-normal text-[#111] sm:text-2xl">
               Explore posts by place
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#666]">
@@ -1736,7 +1736,7 @@ function ExploreMapPanel({
               <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
                 City / province
               </label>
-              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <input
                   className="h-10 min-w-0 rounded-full border border-black/8 bg-white px-3 text-sm font-semibold text-[#333] outline-none transition placeholder:text-[#999] focus:border-black/20"
                   onChange={(event) => setPlaceQuery(event.target.value)}
@@ -1745,7 +1745,7 @@ function ExploreMapPanel({
                   value={placeQuery}
                 />
                 <Button
-                  className="rounded-full"
+                  className="w-full rounded-full sm:w-auto"
                   disabled={isSearchingPlace}
                   size="sm"
                   type="submit"
@@ -1800,7 +1800,7 @@ function ExploreMapPanel({
                 ))}
               </div>
               <form
-                className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2"
+                className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
                 onSubmit={(event) => {
                   event.preventDefault();
                   applyCustomRadius(customRadiusKm);
@@ -1821,7 +1821,7 @@ function ExploreMapPanel({
                   />
                 </label>
                 <Button
-                  className="rounded-full"
+                  className="w-full rounded-full sm:w-auto"
                   size="sm"
                   type="submit"
                   variant="outline"
@@ -1878,19 +1878,19 @@ function ExploreHero({
   showSavedBoard: boolean;
 }>) {
   return (
-    <section className="mx-auto w-full max-w-370 px-4 pb-4 pt-6 sm:px-6 lg:px-8">
+    <section className="mx-auto w-full max-w-370 px-3 pb-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="max-w-3xl">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/6 bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
             <Sparkles className="size-3.5 text-[#ff385c]" />
             Curated today
           </div>
-          <h1 className="max-w-2xl text-4xl font-semibold tracking-normal text-[#111] sm:text-5xl lg:text-6xl">
+          <h1 className="max-w-2xl text-3xl font-semibold leading-[1.12] tracking-normal text-[#111] sm:text-5xl lg:text-6xl">
             Fresh visual ideas for beautiful stays and memorable travel.
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
           {[
             { icon: <Clock3 className="size-4" />, label: "Newest", value: "newest" as const },
             { icon: <Flame className="size-4" />, label: "Popular", value: "popular" as const },
@@ -1899,7 +1899,7 @@ function ExploreHero({
           ].map((item) => (
             <Button
               className={cn(
-                "rounded-full border-black/8",
+                "rounded-full border-black/8 px-3",
                 feedSort === item.value
                   ? "bg-[#111] text-white hover:bg-[#222]"
                   : "bg-white",
@@ -1916,7 +1916,7 @@ function ExploreHero({
           <Button
             aria-pressed={showSavedBoard}
             className={cn(
-              "rounded-full shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)]",
+              "col-span-2 rounded-full shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)] sm:col-span-1",
               showSavedBoard
                 ? "bg-[#111] text-white hover:bg-[#222]"
                 : "bg-[#ff385c] text-white hover:bg-[#e93152]",
@@ -1935,7 +1935,7 @@ function ExploreHero({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden">
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 scrollbar-none sm:mt-6 [&::-webkit-scrollbar]:hidden">
         {collections.map((collection) => (
           <button
             className={cn(
@@ -1968,9 +1968,9 @@ function ExploreCategoryBar({
   }
 
   return (
-    <section className="mx-auto w-full max-w-370 px-4 pb-5 sm:px-6 lg:px-8">
+    <section className="mx-auto w-full max-w-370 px-3 pb-5 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-3 border-black/6 border-y bg-white/74 py-4 sm:flex-row sm:items-center">
-        <div className="flex min-w-42 shrink-0 items-center gap-2 text-[#333]">
+        <div className="flex min-w-0 shrink-0 items-center gap-2 text-[#333] sm:min-w-42">
           <span className="flex size-8 items-center justify-center rounded-full bg-[#111] text-white">
             <Tags className="size-4" />
           </span>
