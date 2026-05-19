@@ -46,6 +46,9 @@ func loadDotEnvFromWorkingDir() {
 		value := parseDotEnvValue(rawValue)
 		_ = os.Setenv(key, value)
 	}
+	if err := scanner.Err(); err != nil {
+		return
+	}
 }
 
 func parseDotEnvValue(raw string) string {
