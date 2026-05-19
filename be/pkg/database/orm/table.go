@@ -31,6 +31,11 @@ type QueryOptions struct {
 	Limit   int
 }
 
+type InsertOptions struct {
+	Returning           []string
+	OnConflictDoNothing bool
+}
+
 type Table[T any] struct {
 	db      Queryer
 	name    string
@@ -48,12 +53,17 @@ func NewTable[T any](db Queryer, name string, columns []string, mapper Mapper[T]
 }
 
 func (t *Table[T]) Insert(ctx context.Context, values Values) (pgconn.CommandTag, error) {
-	sql, args := buildInsert(t.name, values, nil)
+	sql, args := buildInsert(t.name, values, InsertOptions{})
+	return t.db.Exec(ctx, sql, args...)
+}
+
+func (t *Table[T]) InsertWithOptions(ctx context.Context, values Values, options InsertOptions) (pgconn.CommandTag, error) {
+	sql, args := buildInsert(t.name, values, options)
 	return t.db.Exec(ctx, sql, args...)
 }
 
 func (t *Table[T]) InsertReturning(ctx context.Context, values Values, returning []string, destinations ...any) error {
-	sql, args := buildInsert(t.name, values, returning)
+	sql, args := buildInsert(t.name, values, InsertOptions{Returning: returning})
 	return t.db.QueryRow(ctx, sql, args...).Scan(destinations...)
 }
 
@@ -100,6 +110,11 @@ func (t *Table[T]) UpdateByID(ctx context.Context, id any, values Values) (pgcon
 	return t.db.Exec(ctx, sql, args...)
 }
 
+func (t *Table[T]) UpdateWhere(ctx context.Context, where string, values Values, args ...any) (pgconn.CommandTag, error) {
+	sql, valuesArgs := buildUpdateWhere(t.name, values, where, 0, args...)
+	return t.db.Exec(ctx, sql, valuesArgs...)
+}
+
 func (t *Table[T]) DeleteByID(ctx context.Context, id any) (pgconn.CommandTag, error) {
 	sql := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", quoteIdent(t.name), quoteIdent("id"))
 	return t.db.Exec(ctx, sql, id)
@@ -110,7 +125,7 @@ func (t *Table[T]) selectSQL(options QueryOptions) string {
 	builder.WriteString("SELECT ")
 	builder.WriteString(quoteIdentList(t.columns))
 	builder.WriteString(" FROM ")
-	builder.WriteString(quoteIdent(t.name))
+	builder.WriteString(tableExpr(t.name))
 
 	if strings.TrimSpace(options.Where) != "" {
 		builder.WriteString(" WHERE ")
@@ -127,7 +142,7 @@ func (t *Table[T]) selectSQL(options QueryOptions) string {
 	return builder.String()
 }
 
-func buildInsert(table string, values Values, returning []string) (string, []any) {
+func buildInsert(table string, values Values, options InsertOptions) (string, []any) {
 	keys := sortedKeys(values)
 	columns := make([]string, 0, len(keys))
 	placeholders := make([]string, 0, len(keys))
@@ -144,32 +159,38 @@ func buildInsert(table string, values Values, returning []string) (string, []any
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 	)
-	if len(returning) > 0 {
-		sql += " RETURNING " + quoteIdentList(returning)
+	if options.OnConflictDoNothing {
+		sql += " ON CONFLICT DO NOTHING"
+	}
+	if len(options.Returning) > 0 {
+		sql += " RETURNING " + quoteIdentList(options.Returning)
 	}
 
 	return sql, args
 }
 
 func buildUpdateByID(table string, values Values, id any) (string, []any) {
+	return buildUpdateWhere(table, values, fmt.Sprintf("%s = $%d", quoteIdent("id"), len(values)+1), 0, id)
+}
+
+func buildUpdateWhere(table string, values Values, where string, offset int, args ...any) (string, []any) {
 	keys := sortedKeys(values)
 	assignments := make([]string, 0, len(keys))
-	args := make([]any, 0, len(keys)+1)
+	valueArgs := make([]any, 0, len(keys)+len(args))
 	for index, key := range keys {
-		assignments = append(assignments, fmt.Sprintf("%s = $%d", quoteIdent(key), index+1))
-		args = append(args, values[key])
+		assignments = append(assignments, fmt.Sprintf("%s = $%d", quoteIdent(key), offset+index+1))
+		valueArgs = append(valueArgs, values[key])
 	}
-	args = append(args, id)
+	valueArgs = append(valueArgs, args...)
 
 	sql := fmt.Sprintf(
-		"UPDATE %s SET %s WHERE %s = $%d",
+		"UPDATE %s SET %s WHERE %s",
 		quoteIdent(table),
 		strings.Join(assignments, ", "),
-		quoteIdent("id"),
-		len(args),
+		where,
 	)
 
-	return sql, args
+	return sql, valueArgs
 }
 
 func sortedKeys(values Values) []string {
@@ -184,11 +205,38 @@ func sortedKeys(values Values) []string {
 func quoteIdentList(columns []string) string {
 	quoted := make([]string, 0, len(columns))
 	for _, column := range columns {
-		quoted = append(quoted, quoteIdent(column))
+		quoted = append(quoted, selectExpr(column))
 	}
 	return strings.Join(quoted, ", ")
 }
 
+func selectExpr(expression string) string {
+	if isSimpleIdentifier(expression) {
+		return quoteIdent(expression)
+	}
+	return expression
+}
+
+func tableExpr(expression string) string {
+	if isSimpleIdentifier(expression) {
+		return quoteIdent(expression)
+	}
+	return expression
+}
+
 func quoteIdent(identifier string) string {
 	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+}
+
+func isSimpleIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index, char := range value {
+		if char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || index > 0 && char >= '0' && char <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }

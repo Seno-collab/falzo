@@ -3,10 +3,13 @@ package infra
 import (
 	"context"
 	"errors"
+	"strconv"
+	"time"
 
 	"falzo-be/internal/share"
 	"falzo-be/internal/upload"
 	"falzo-be/pkg/database"
+	"falzo-be/pkg/database/orm"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -14,33 +17,35 @@ import (
 const uploadRepoService = "upload"
 
 type PostgresRepository struct {
-	db database.Client
+	db     database.Client
+	images *orm.Table[upload.Image]
 }
 
 func NewPostgresRepository(db database.Client) *PostgresRepository {
-	return &PostgresRepository{db: db}
+	repository := &PostgresRepository{db: db}
+	if db != nil && db.Pool() != nil {
+		repository.images = newImageTable(db.Pool())
+	}
+	return repository
 }
 
 func (r *PostgresRepository) Save(ctx context.Context, image *upload.Image) error {
-	if r.db == nil || r.db.Pool() == nil {
-		return upload.ErrDependencyUnavailable
-	}
 	if image == nil {
 		return upload.ErrInternal
 	}
+	table, err := r.table()
+	if err != nil {
+		return err
+	}
 
-	err := r.db.Pool().QueryRow(ctx, `
-		INSERT INTO images (owner_id, object_key, url, mime_type, size, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at, updated_at
-	`,
-		image.OwnerID,
-		image.ObjectKey,
-		image.URL,
-		image.MimeType,
-		image.Size,
-		image.Status,
-	).Scan(&image.ID, &image.CreatedAt, &image.UpdatedAt)
+	err = table.InsertReturning(ctx, orm.Values{
+		"mime_type":  image.MimeType,
+		"object_key": image.ObjectKey,
+		"owner_id":   image.OwnerID,
+		"size":       image.Size,
+		"status":     image.Status,
+		"url":        image.URL,
+	}, []string{"id", "created_at", "updated_at"}, &image.ID, &image.CreatedAt, &image.UpdatedAt)
 	if err != nil {
 		return share.MapDBError(ctx, uploadRepoService, "images.insert", err, upload.ErrDependencyUnavailable, upload.ErrInternal)
 	}
@@ -49,27 +54,12 @@ func (r *PostgresRepository) Save(ctx context.Context, image *upload.Image) erro
 }
 
 func (r *PostgresRepository) FindByID(ctx context.Context, id int64) (*upload.Image, error) {
-	if r.db == nil || r.db.Pool() == nil {
-		return nil, upload.ErrDependencyUnavailable
+	table, err := r.table()
+	if err != nil {
+		return nil, err
 	}
 
-	image := upload.Image{}
-	err := r.db.Pool().QueryRow(ctx, `
-		SELECT id, owner_id::text, object_key, url, mime_type, size, status, created_at, updated_at
-		FROM images
-		WHERE id = $1
-		LIMIT 1
-	`, id).Scan(
-		&image.ID,
-		&image.OwnerID,
-		&image.ObjectKey,
-		&image.URL,
-		&image.MimeType,
-		&image.Size,
-		&image.Status,
-		&image.CreatedAt,
-		&image.UpdatedAt,
-	)
+	image, err := table.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, upload.ErrImageNotFound
@@ -81,30 +71,23 @@ func (r *PostgresRepository) FindByID(ctx context.Context, id int64) (*upload.Im
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, image *upload.Image) error {
-	if r.db == nil || r.db.Pool() == nil {
-		return upload.ErrDependencyUnavailable
-	}
 	if image == nil {
 		return upload.ErrInternal
 	}
+	table, err := r.table()
+	if err != nil {
+		return err
+	}
 
-	result, err := r.db.Pool().Exec(ctx, `
-		UPDATE images
-		SET object_key = $2,
-		    url = $3,
-		    mime_type = $4,
-		    size = $5,
-		    status = $6,
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`,
-		image.ID,
-		image.ObjectKey,
-		image.URL,
-		image.MimeType,
-		image.Size,
-		image.Status,
-	)
+	now := time.Now().UTC()
+	result, err := table.UpdateByID(ctx, image.ID, orm.Values{
+		"mime_type":  image.MimeType,
+		"object_key": image.ObjectKey,
+		"size":       image.Size,
+		"status":     image.Status,
+		"updated_at": now,
+		"url":        image.URL,
+	})
 	if err != nil {
 		return share.MapDBError(ctx, uploadRepoService, "images.update", err, upload.ErrDependencyUnavailable, upload.ErrInternal)
 	}
@@ -113,6 +96,41 @@ func (r *PostgresRepository) Update(ctx context.Context, image *upload.Image) er
 	}
 
 	return nil
+}
+
+func (r *PostgresRepository) table() (*orm.Table[upload.Image], error) {
+	if r == nil || r.db == nil || r.db.Pool() == nil {
+		return nil, upload.ErrDependencyUnavailable
+	}
+	if r.images != nil {
+		return r.images, nil
+	}
+	return newImageTable(r.db.Pool()), nil
+}
+
+func newImageTable(db orm.Queryer) *orm.Table[upload.Image] {
+	return orm.NewTable(db, "images", []string{"id", "owner_id", "object_key", "url", "mime_type", "size", "status", "created_at", "updated_at"}, scanImage)
+}
+
+func scanImage(scanner orm.Scanner) (upload.Image, error) {
+	var image upload.Image
+	var ownerID int64
+	err := scanner.Scan(
+		&image.ID,
+		&ownerID,
+		&image.ObjectKey,
+		&image.URL,
+		&image.MimeType,
+		&image.Size,
+		&image.Status,
+		&image.CreatedAt,
+		&image.UpdatedAt,
+	)
+	if err != nil {
+		return upload.Image{}, err
+	}
+	image.OwnerID = strconv.FormatInt(ownerID, 10)
+	return image, nil
 }
 
 var _ upload.ImageRepository = (*PostgresRepository)(nil)
