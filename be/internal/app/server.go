@@ -66,19 +66,28 @@ func Run() {
 	sessionCleanupCtx, stopSessionCleanup := context.WithCancel(context.Background())
 	go auth.RunSessionCleanup(sessionCleanupCtx, sessions)
 	authRateLimit := httpMiddleware.NewIPRateLimiter(cfg.Auth.RateLimitPerMin, time.Minute)
+	readRateLimit := httpMiddleware.NewIPRateLimiter(cfg.HTTP.ReadRateLimitPerMin, time.Minute)
 	authProtector := auth.WithProtectorConfig(cfg.Auth.RateLimitPerMin, cfg.Auth.DependencyFailureThreshold, cfg.Auth.DependencyCoolDown)
 	authHandler := auth.NewHandler(authService, authProtector, auth.WithPublicMiddlewares(authRateLimit))
 	locationRepository := locationInfra.NewPostgresRepository(db)
 	locationService := location.NewService(locationRepository)
-	locationHandler := location.NewHandler(locationService)
+	locationHandler := location.NewHandler(locationService, location.WithReadMiddlewares(readRateLimit))
 	notificationRepository := notificationInfra.NewPostgresRepository(db)
 	notificationHub := notification.NewHub(notificationRepository)
 	notificationHandler := notification.NewHandler(notificationHub, authService)
 	grpcServer := grpc.NewServer()
 	notification.RegisterNotificationServiceServer(grpcServer, notification.NewGRPCServer(notificationHub, authService))
-	socialRepository := socialInfra.NewPostgresRepository(db)
+	var socialRepository social.Repository = socialInfra.NewPostgresRepository(db)
+	if redisClient != nil {
+		socialRepository = socialInfra.NewCachedRepository(socialRepository, redisClient, cfg.Cache.PublicProfileTTL)
+	}
 	socialService := social.NewService(socialRepository)
-	socialHandler := social.NewHandler(socialService, authService, social.WithNotifications(notificationHub))
+	socialHandler := social.NewHandler(
+		socialService,
+		authService,
+		social.WithNotifications(notificationHub),
+		social.WithReadMiddlewares(readRateLimit),
+	)
 	postgresPostRepository := postInfra.NewPostgresRepository(db)
 	var postRepository post.Repository = postgresPostRepository
 	commentEventBroker := post.NewCommentEventBroker()
@@ -102,6 +111,9 @@ func Run() {
 		stopPostEventSubscriber = cancelPostEventSubscriber
 		go postInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
 	}
+	if redisClient != nil {
+		postRepository = postInfra.NewCachedPostRepository(postRepository, redisClient, cfg.Cache.FeedFirstPageTTL)
+	}
 	postService := post.NewService(postRepository)
 	commentRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Spam.CommentRateLimitPerMin, time.Minute, userIDRateLimitKey)
 	reportRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Spam.ReportRateLimitPerHour, time.Hour, userIDRateLimitKey)
@@ -112,6 +124,7 @@ func Run() {
 		post.WithPostEvents(postEventBroker, postEventPublisher),
 		post.WithNotifications(notificationHub),
 		post.WithFollowers(socialService),
+		post.WithReadMiddlewares(readRateLimit),
 		post.WithCommentMiddlewares(commentRateLimit),
 		post.WithReportMiddlewares(reportRateLimit),
 	)
@@ -131,9 +144,12 @@ func Run() {
 		upload.WithMaxBodyBytes(cfg.Upload.MaxSize+(1<<20)),
 		upload.WithNotifications(notificationHub),
 	)
-	categoryRepository := categoryInfra.NewPostgresRepository(db)
+	var categoryRepository category.Repository = categoryInfra.NewPostgresRepository(db)
+	if redisClient != nil {
+		categoryRepository = categoryInfra.NewCachedRepository(categoryRepository, redisClient, cfg.Cache.CategoriesTTL)
+	}
 	categoryService := category.NewService(categoryRepository)
-	categoryHandler := category.NewHandler(categoryService, authService)
+	categoryHandler := category.NewHandler(categoryService, authService, category.WithReadMiddlewares(readRateLimit))
 	r := chi.NewRouter()
 	if cfg.HTTP.TrustProxyHeaders {
 		r.Use(middleware.RealIP)
@@ -162,7 +178,14 @@ func Run() {
 	})
 
 	sm := shutdown.NewManager()
-	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: r}
+	srv := &http.Server{
+		Addr:              cfg.HTTP.Addr,
+		Handler:           r,
+		ReadTimeout:       cfg.HTTP.ReadTimeout,
+		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
+		WriteTimeout:      cfg.HTTP.WriteTimeout,
+		IdleTimeout:       cfg.HTTP.IdleTimeout,
+	}
 	grpcListener, err := net.Listen("tcp", cfg.GRPC.Addr)
 	if err != nil {
 		log.Fatal().Err(err).Str("addr", cfg.GRPC.Addr).Msg("failed to listen grpc")

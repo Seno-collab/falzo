@@ -13,9 +13,17 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("GRPC_ADDR", "")
 	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "")
+	t.Setenv("HTTP_READ_TIMEOUT", "")
+	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "")
+	t.Setenv("HTTP_WRITE_TIMEOUT", "")
+	t.Setenv("HTTP_IDLE_TIMEOUT", "")
+	t.Setenv("HTTP_READ_RATE_LIMIT_PER_MIN", "")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "")
 	t.Setenv("POSTGRES_SSL_MODE", "")
 	t.Setenv("REDIS_ADDR", "")
+	t.Setenv("CACHE_CATEGORIES_TTL", "")
+	t.Setenv("CACHE_FEED_FIRST_PAGE_TTL", "")
+	t.Setenv("CACHE_PUBLIC_PROFILE_TTL", "")
 	t.Setenv("SEAWEEDFS_BASE_URL", "")
 	t.Setenv("UPLOAD_MAX_SIZE", "")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "")
@@ -42,12 +50,44 @@ func TestLoadUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default shutdown timeout, got %v", cfg.HTTP.ShutdownTimeout)
 	}
 
+	if cfg.HTTP.ReadTimeout != 15*time.Second {
+		t.Fatalf("expected default read timeout, got %v", cfg.HTTP.ReadTimeout)
+	}
+
+	if cfg.HTTP.ReadHeaderTimeout != 5*time.Second {
+		t.Fatalf("expected default read header timeout, got %v", cfg.HTTP.ReadHeaderTimeout)
+	}
+
+	if cfg.HTTP.WriteTimeout != 0 {
+		t.Fatalf("expected default write timeout, got %v", cfg.HTTP.WriteTimeout)
+	}
+
+	if cfg.HTTP.IdleTimeout != 120*time.Second {
+		t.Fatalf("expected default idle timeout, got %v", cfg.HTTP.IdleTimeout)
+	}
+
+	if cfg.HTTP.ReadRateLimitPerMin != 240 {
+		t.Fatalf("expected default read rate limit, got %d", cfg.HTTP.ReadRateLimitPerMin)
+	}
+
 	if cfg.HTTP.TrustProxyHeaders {
 		t.Fatal("expected default trusted proxy headers to be disabled")
 	}
 
 	if cfg.Redis.Addr != "127.0.0.1:6379" {
 		t.Fatalf("expected default redis addr, got %q", cfg.Redis.Addr)
+	}
+
+	if cfg.Cache.CategoriesTTL != 10*time.Minute {
+		t.Fatalf("expected default categories cache ttl, got %v", cfg.Cache.CategoriesTTL)
+	}
+
+	if cfg.Cache.FeedFirstPageTTL != 30*time.Second {
+		t.Fatalf("expected default feed first page cache ttl, got %v", cfg.Cache.FeedFirstPageTTL)
+	}
+
+	if cfg.Cache.PublicProfileTTL != 60*time.Second {
+		t.Fatalf("expected default public profile cache ttl, got %v", cfg.Cache.PublicProfileTTL)
 	}
 
 	if cfg.Auth.RateLimitPerMin != 60 {
@@ -104,9 +144,17 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("HTTP_ADDR", ":9090")
 	t.Setenv("GRPC_ADDR", ":9091")
 	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "15s")
+	t.Setenv("HTTP_READ_TIMEOUT", "7s")
+	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "3s")
+	t.Setenv("HTTP_WRITE_TIMEOUT", "11s")
+	t.Setenv("HTTP_IDLE_TIMEOUT", "33s")
+	t.Setenv("HTTP_READ_RATE_LIMIT_PER_MIN", "44")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "true")
 	t.Setenv("POSTGRES_SSL_MODE", "require")
 	t.Setenv("REDIS_DB", "4")
+	t.Setenv("CACHE_CATEGORIES_TTL", "5m")
+	t.Setenv("CACHE_FEED_FIRST_PAGE_TTL", "12s")
+	t.Setenv("CACHE_PUBLIC_PROFILE_TTL", "25s")
 	t.Setenv("AUTH_RATE_LIMIT_PER_MIN", "15")
 	t.Setenv("AUTH_DEPENDENCY_FAILURE_THRESHOLD", "7")
 	t.Setenv("AUTH_DEPENDENCY_COOLDOWN", "20s")
@@ -138,12 +186,44 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 		t.Fatalf("expected env shutdown timeout, got %v", cfg.HTTP.ShutdownTimeout)
 	}
 
+	if cfg.HTTP.ReadTimeout != 7*time.Second {
+		t.Fatalf("expected env read timeout, got %v", cfg.HTTP.ReadTimeout)
+	}
+
+	if cfg.HTTP.ReadHeaderTimeout != 3*time.Second {
+		t.Fatalf("expected env read header timeout, got %v", cfg.HTTP.ReadHeaderTimeout)
+	}
+
+	if cfg.HTTP.WriteTimeout != 11*time.Second {
+		t.Fatalf("expected env write timeout, got %v", cfg.HTTP.WriteTimeout)
+	}
+
+	if cfg.HTTP.IdleTimeout != 33*time.Second {
+		t.Fatalf("expected env idle timeout, got %v", cfg.HTTP.IdleTimeout)
+	}
+
+	if cfg.HTTP.ReadRateLimitPerMin != 44 {
+		t.Fatalf("expected env read rate limit, got %d", cfg.HTTP.ReadRateLimitPerMin)
+	}
+
 	if !cfg.HTTP.TrustProxyHeaders {
 		t.Fatal("expected env trusted proxy headers to be enabled")
 	}
 
 	if cfg.Redis.DB != 4 {
 		t.Fatalf("expected env redis db, got %d", cfg.Redis.DB)
+	}
+
+	if cfg.Cache.CategoriesTTL != 5*time.Minute {
+		t.Fatalf("expected env categories cache ttl, got %v", cfg.Cache.CategoriesTTL)
+	}
+
+	if cfg.Cache.FeedFirstPageTTL != 12*time.Second {
+		t.Fatalf("expected env feed first page cache ttl, got %v", cfg.Cache.FeedFirstPageTTL)
+	}
+
+	if cfg.Cache.PublicProfileTTL != 25*time.Second {
+		t.Fatalf("expected env public profile cache ttl, got %v", cfg.Cache.PublicProfileTTL)
 	}
 
 	if cfg.Auth.RateLimitPerMin != 15 {

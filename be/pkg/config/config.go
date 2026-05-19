@@ -15,6 +15,7 @@ type Config struct {
 	Auth       AuthConfig
 	Postgres   PostgresConfig
 	Redis      RedisConfig
+	Cache      CacheConfig
 	Engagement EngagementConfig
 	Upload     UploadConfig
 	Spam       SpamConfig
@@ -28,12 +29,17 @@ type AppConfig struct {
 type HTTPConfig struct {
 	Addr                 string
 	ShutdownTimeout      time.Duration
+	ReadTimeout          time.Duration
+	ReadHeaderTimeout    time.Duration
+	WriteTimeout         time.Duration
+	IdleTimeout          time.Duration
 	TrustProxyHeaders    bool
 	CORSAllowedOrigins   []string
 	CORSAllowedMethods   []string
 	CORSAllowedHeaders   []string
 	CORSAllowCredentials bool
 	CORSMaxAgeSeconds    int
+	ReadRateLimitPerMin  int
 }
 
 type GRPCConfig struct {
@@ -69,6 +75,12 @@ type RedisConfig struct {
 	DB       int
 }
 
+type CacheConfig struct {
+	CategoriesTTL    time.Duration
+	FeedFirstPageTTL time.Duration
+	PublicProfileTTL time.Duration
+}
+
 type EngagementConfig struct {
 	ClaimMinIdle time.Duration
 	MaxRetries   int
@@ -99,12 +111,17 @@ func Load() Config {
 		HTTP: HTTPConfig{
 			Addr:                 GetEnv("HTTP_ADDR", ":8080"),
 			ShutdownTimeout:      GetDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
+			ReadTimeout:          GetDuration("HTTP_READ_TIMEOUT", 15*time.Second),
+			ReadHeaderTimeout:    GetDuration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second),
+			WriteTimeout:         GetDuration("HTTP_WRITE_TIMEOUT", 0),
+			IdleTimeout:          GetDuration("HTTP_IDLE_TIMEOUT", 120*time.Second),
 			TrustProxyHeaders:    GetBool("HTTP_TRUST_PROXY_HEADERS", false),
 			CORSAllowedOrigins:   getCSV("HTTP_CORS_ALLOWED_ORIGINS", []string{"*"}),
 			CORSAllowedMethods:   getCSV("HTTP_CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
 			CORSAllowedHeaders:   getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
 			CORSAllowCredentials: GetBool("HTTP_CORS_ALLOW_CREDENTIALS", false),
 			CORSMaxAgeSeconds:    GetInt("HTTP_CORS_MAX_AGE_SECONDS", 600),
+			ReadRateLimitPerMin:  GetInt("HTTP_READ_RATE_LIMIT_PER_MIN", 240),
 		},
 		GRPC: GRPCConfig{
 			Addr: GetEnv("GRPC_ADDR", ":9090"),
@@ -134,6 +151,11 @@ func Load() Config {
 			Addr:     GetEnv("REDIS_ADDR", "127.0.0.1:6379"),
 			Password: GetEnv("REDIS_PASSWORD", ""),
 			DB:       GetInt("REDIS_DB", 0),
+		},
+		Cache: CacheConfig{
+			CategoriesTTL:    GetDuration("CACHE_CATEGORIES_TTL", 10*time.Minute),
+			FeedFirstPageTTL: GetDuration("CACHE_FEED_FIRST_PAGE_TTL", 30*time.Second),
+			PublicProfileTTL: GetDuration("CACHE_PUBLIC_PROFILE_TTL", 60*time.Second),
 		},
 		Engagement: EngagementConfig{
 			ClaimMinIdle: GetDuration("ENGAGEMENT_CLAIM_MIN_IDLE", 30*time.Second),

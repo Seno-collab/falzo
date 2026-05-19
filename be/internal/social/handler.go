@@ -28,7 +28,8 @@ type Handler struct {
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	}
-	notifications notification.Publisher
+	notifications   notification.Publisher
+	readMiddlewares []func(http.Handler) http.Handler
 }
 
 type HandlerOption func(*Handler)
@@ -36,6 +37,12 @@ type HandlerOption func(*Handler)
 func WithNotifications(publisher notification.Publisher) HandlerOption {
 	return func(h *Handler) {
 		h.notifications = publisher
+	}
+}
+
+func WithReadMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.readMiddlewares = append(h.readMiddlewares, middlewares...)
 	}
 }
 
@@ -58,7 +65,7 @@ func NewHandler(
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/{id}", h.GetPublicProfile)
+	r.With(h.readMiddlewares...).Get("/{id}", h.GetPublicProfile)
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Post("/{id}/follow", h.Follow)

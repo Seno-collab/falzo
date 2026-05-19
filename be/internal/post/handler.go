@@ -58,6 +58,7 @@ type Handler struct {
 	postPublisher      PostEventPublisher
 	notifications      notification.Publisher
 	followers          FollowerLister
+	readMiddlewares    []func(http.Handler) http.Handler
 	commentMiddlewares []func(http.Handler) http.Handler
 	reportMiddlewares  []func(http.Handler) http.Handler
 }
@@ -94,6 +95,12 @@ func WithFollowers(followers FollowerLister) HandlerOption {
 	}
 }
 
+func WithReadMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.readMiddlewares = append(h.readMiddlewares, middlewares...)
+	}
+}
+
 func WithCommentMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
 	return func(h *Handler) {
 		h.commentMiddlewares = append(h.commentMiddlewares, middlewares...)
@@ -125,12 +132,12 @@ func NewHandler(
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/", h.GetPosts)
-	r.Get("/events", h.StreamPosts)
-	r.Get("/location", h.GetPostsByLocation)
-	r.Get("/saved-collections/public/{shareSlug}", h.GetPublicSavedCollection)
-	r.Get("/{id}/comments/events", h.StreamComments)
-	r.Get("/{id}/comments", h.GetComments)
+	r.With(h.readMiddlewares...).Get("/", h.GetPosts)
+	r.With(h.readMiddlewares...).Get("/events", h.StreamPosts)
+	r.With(h.readMiddlewares...).Get("/location", h.GetPostsByLocation)
+	r.With(h.readMiddlewares...).Get("/saved-collections/public/{shareSlug}", h.GetPublicSavedCollection)
+	r.With(h.readMiddlewares...).Get("/{id}/comments/events", h.StreamComments)
+	r.With(h.readMiddlewares...).Get("/{id}/comments", h.GetComments)
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Get("/saved", h.ListSavedPosts)
@@ -155,7 +162,7 @@ func (h *Handler) Routes() chi.Router {
 		protected.Post("/{id}/comments/{commentID}/hide", h.HideComment)
 		protected.With(h.reportMiddlewares...).Post("/{id}/comments/{commentID}/report", h.ReportComment)
 	})
-	r.Get("/{id}", h.GetPostDetail)
+	r.With(h.readMiddlewares...).Get("/{id}", h.GetPostDetail)
 	return r
 }
 

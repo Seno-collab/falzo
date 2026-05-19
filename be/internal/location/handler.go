@@ -19,18 +19,33 @@ type handlerService interface {
 }
 
 type Handler struct {
-	service handlerService
+	service         handlerService
+	readMiddlewares []func(http.Handler) http.Handler
 }
 
-func NewHandler(service handlerService) *Handler {
-	return &Handler{service: service}
+type HandlerOption func(*Handler)
+
+func WithReadMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.readMiddlewares = append(h.readMiddlewares, middlewares...)
+	}
+}
+
+func NewHandler(service handlerService, options ...HandlerOption) *Handler {
+	h := &Handler{service: service}
+	for _, option := range options {
+		if option != nil {
+			option(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/search", h.Search)
-	r.Get("/nearby", h.Nearby)
-	r.Get("/{id}/posts", h.GetPostsByLocation)
+	r.With(h.readMiddlewares...).Get("/search", h.Search)
+	r.With(h.readMiddlewares...).Get("/nearby", h.Nearby)
+	r.With(h.readMiddlewares...).Get("/{id}/posts", h.GetPostsByLocation)
 	return r
 }
 

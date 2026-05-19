@@ -27,22 +27,37 @@ type Handler struct {
 	authService interface {
 		Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
 	}
+	readMiddlewares []func(http.Handler) http.Handler
+}
+
+type HandlerOption func(*Handler)
+
+func WithReadMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
+	return func(h *Handler) {
+		h.readMiddlewares = append(h.readMiddlewares, middlewares...)
+	}
 }
 
 func NewHandler(service handlerService, authService interface {
 	Authenticate(ctx context.Context, rawToken string) (*auth.AuthenticatedUser, error)
-}) *Handler {
-	return &Handler{service: service, authService: authService}
+}, options ...HandlerOption) *Handler {
+	h := &Handler{service: service, authService: authService}
+	for _, option := range options {
+		if option != nil {
+			option(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/", h.List)
-	r.Get("/slug/{slug}", h.GetBySlug)
+	r.With(h.readMiddlewares...).Get("/", h.List)
+	r.With(h.readMiddlewares...).Get("/slug/{slug}", h.GetBySlug)
 	r.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireAuth(h.authService))
 		protected.Post("/", h.Create)
-		protected.Get("/{id}", h.GetByID)
+		protected.With(h.readMiddlewares...).Get("/{id}", h.GetByID)
 		protected.Put("/{id}", h.Update)
 		protected.Delete("/{id}", h.Delete)
 	})
