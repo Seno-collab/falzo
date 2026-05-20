@@ -36,9 +36,10 @@ services:
       - falzo
     command: server -dir=/data -filer
     env_file: ./be/.env
+    ports:
+      - "8888:8888"
     expose:
       - "9333"
-      - "8888"
     volumes:
       - seaweedfs_data:/data
   api:
