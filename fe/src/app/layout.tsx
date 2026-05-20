@@ -3,9 +3,9 @@ import { AppProviders } from "@/app/providers";
 import "@/styles.css";
 
 export const metadata: Metadata = {
-  title: "Travel Discovery",
+  title: "Visual Places",
   description:
-    "Discover places, explore on map, and save your dream destinations.",
+    "Discover real places through community photos, explore them on the map, and save where you want to go next.",
 };
 
 export default function RootLayout({

@@ -88,7 +88,7 @@ function PostTile({
 
   return (
     <article className="overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_18px_46px_-36px_rgb(0_0_0/0.55)]">
-      <div className="relative aspect-[4/5] bg-[#ece9e2]">
+      <div className="relative aspect-4/5 bg-[#ece9e2]">
         <img
           alt={post.caption || post.location_name || "Saved post"}
           className="h-full w-full object-cover"
@@ -483,7 +483,9 @@ export function SavedCollectionsScreen() {
                     type="button"
                     variant="outline"
                   >
-                    <Link href={ROUTES.savedCollection(activeCollection.share_slug)}>
+                    <Link
+                      href={ROUTES.savedCollection(activeCollection.share_slug)}
+                    >
                       <Share2 className="size-4" />
                       View itinerary
                     </Link>
