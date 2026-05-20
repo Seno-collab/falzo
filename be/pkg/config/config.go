@@ -87,11 +87,12 @@ type EngagementConfig struct {
 }
 
 type UploadConfig struct {
-	SeaweedFSBaseURL string
-	SeaweedFSTimeout time.Duration
-	MaxSize          int64
-	AllowedTypes     []string
-	RateLimitPerMin  int
+	SeaweedFSBaseURL   string
+	SeaweedFSPublicURL string
+	SeaweedFSTimeout   time.Duration
+	MaxSize            int64
+	AllowedTypes       []string
+	RateLimitPerMin    int
 }
 
 type SpamConfig struct {
@@ -102,6 +103,8 @@ type SpamConfig struct {
 
 func Load() Config {
 	loadDotEnvFromWorkingDir()
+
+	seaweedFSBaseURL := GetEnv("SEAWEEDFS_BASE_URL", "http://127.0.0.1:8888")
 
 	return Config{
 		App: AppConfig{
@@ -162,11 +165,12 @@ func Load() Config {
 			MaxRetries:   GetInt("ENGAGEMENT_MAX_RETRIES", 10),
 		},
 		Upload: UploadConfig{
-			SeaweedFSBaseURL: GetEnv("SEAWEEDFS_BASE_URL", "http://127.0.0.1:8888"),
-			SeaweedFSTimeout: GetDuration("SEAWEEDFS_TIMEOUT", 10*time.Second),
-			MaxSize:          GetInt64("UPLOAD_MAX_SIZE", 10*1024*1024),
-			AllowedTypes:     getCSV("ALLOWED_IMAGE_TYPES", []string{"image/jpeg", "image/png", "image/webp"}),
-			RateLimitPerMin:  GetInt("UPLOAD_RATE_LIMIT_PER_MIN", 20),
+			SeaweedFSBaseURL:   seaweedFSBaseURL,
+			SeaweedFSPublicURL: GetEnv("SEAWEEDFS_PUBLIC_URL", seaweedFSBaseURL),
+			SeaweedFSTimeout:   GetDuration("SEAWEEDFS_TIMEOUT", 10*time.Second),
+			MaxSize:            GetInt64("UPLOAD_MAX_SIZE", 10*1024*1024),
+			AllowedTypes:       getCSV("ALLOWED_IMAGE_TYPES", []string{"image/jpeg", "image/png", "image/webp"}),
+			RateLimitPerMin:    GetInt("UPLOAD_RATE_LIMIT_PER_MIN", 20),
 		},
 		Spam: SpamConfig{
 			CommentRateLimitPerMin: GetInt("SPAM_COMMENT_RATE_LIMIT_PER_MIN", 30),

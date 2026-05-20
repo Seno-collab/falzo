@@ -13,13 +13,21 @@ import (
 )
 
 type SeaweedFSStorage struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL       string
+	publicBaseURL string
+	httpClient    *http.Client
 }
 
 func NewSeaweedFSStorage(cfg config.UploadConfig) *SeaweedFSStorage {
+	baseURL := strings.TrimRight(strings.TrimSpace(cfg.SeaweedFSBaseURL), "/")
+	publicBaseURL := strings.TrimRight(strings.TrimSpace(cfg.SeaweedFSPublicURL), "/")
+	if publicBaseURL == "" {
+		publicBaseURL = baseURL
+	}
+
 	return &SeaweedFSStorage{
-		baseURL: strings.TrimRight(strings.TrimSpace(cfg.SeaweedFSBaseURL), "/"),
+		baseURL:       baseURL,
+		publicBaseURL: publicBaseURL,
 		httpClient: &http.Client{
 			Timeout: cfg.SeaweedFSTimeout,
 		},
@@ -31,24 +39,29 @@ func (s *SeaweedFSStorage) Upload(ctx context.Context, objectKey string, data io
 		return "", upload.ErrDependencyUnavailable
 	}
 
-	targetURL := s.objectURL(objectKey)
+	targetURL := objectURL(s.baseURL, objectKey)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, targetURL, data)
 	if err != nil {
-		return "", upload.ErrStorageFailed
+		return "", fmt.Errorf("%w: create seaweedfs PUT request: %w", upload.ErrStorageFailed, err)
 	}
 	req.Header.Set("Content-Type", contentType)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", upload.ErrStorageFailed
+		return "", fmt.Errorf("%w: seaweedfs PUT %s: %w", upload.ErrStorageFailed, targetURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", upload.ErrStorageFailed
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		detail := strings.TrimSpace(string(body))
+		if detail == "" {
+			detail = resp.Status
+		}
+		return "", fmt.Errorf("%w: seaweedfs PUT %s returned %s: %s", upload.ErrStorageFailed, targetURL, resp.Status, detail)
 	}
 
-	return targetURL, nil
+	return objectURL(s.publicBaseURL, objectKey), nil
 }
 
 func (s *SeaweedFSStorage) Delete(ctx context.Context, objectKey string) error {
@@ -56,7 +69,7 @@ func (s *SeaweedFSStorage) Delete(ctx context.Context, objectKey string) error {
 		return nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, s.objectURL(objectKey), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, objectURL(s.baseURL, objectKey), nil)
 	if err != nil {
 		return nil
 	}
@@ -69,12 +82,12 @@ func (s *SeaweedFSStorage) Delete(ctx context.Context, objectKey string) error {
 	return nil
 }
 
-func (s *SeaweedFSStorage) objectURL(objectKey string) string {
+func objectURL(baseURL string, objectKey string) string {
 	parts := strings.Split(strings.Trim(objectKey, "/"), "/")
 	for i, part := range parts {
 		parts[i] = url.PathEscape(part)
 	}
-	return fmt.Sprintf("%s/%s", s.baseURL, strings.Join(parts, "/"))
+	return fmt.Sprintf("%s/%s", baseURL, strings.Join(parts, "/"))
 }
 
 var _ upload.ImageStorage = (*SeaweedFSStorage)(nil)

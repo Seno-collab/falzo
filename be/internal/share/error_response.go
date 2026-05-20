@@ -1,6 +1,7 @@
 package share
 
 import (
+	"errors"
 	httpResponse "falzo-be/pkg/response"
 	"net/http"
 
@@ -28,13 +29,22 @@ func WriteError(
 	mapped := mapper(err)
 
 	if mapped.LogErr {
-		log.Error().
+		entry := log.Error().
 			Err(err).
 			Str("operation", operation).
 			Str("request_id", chimiddleware.GetReqID(r.Context())).
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
-			Msg("request failed")
+			Int("status", mapped.Status).
+			Str("api_code", mapped.Code).
+			Str("api_detail", mapped.Detail)
+
+		chain := errorChain(err)
+		if len(chain) > 0 {
+			entry = entry.Strs("error_chain", chain).Str("root_error", chain[len(chain)-1])
+		}
+
+		entry.Msg("request failed")
 	}
 
 	httpResponse.Error(w, mapped.Status, mapped.Message, r, httpResponse.ErrorDetail{
@@ -43,6 +53,43 @@ func WriteError(
 		Message: mapped.Detail,
 	})
 
+}
+
+func errorChain(err error) []string {
+	if err == nil {
+		return nil
+	}
+
+	chain := make([]string, 0, 4)
+	seen := map[string]struct{}{}
+	collectErrorChain(err, &chain, seen, 8)
+	return chain
+}
+
+func collectErrorChain(err error, chain *[]string, seen map[string]struct{}, remaining int) {
+	if err == nil || remaining <= 0 {
+		return
+	}
+
+	message := err.Error()
+	if message != "" {
+		if _, ok := seen[message]; !ok {
+			seen[message] = struct{}{}
+			*chain = append(*chain, message)
+		}
+	}
+
+	var multi interface {
+		Unwrap() []error
+	}
+	if errors.As(err, &multi) {
+		for _, inner := range multi.Unwrap() {
+			collectErrorChain(inner, chain, seen, remaining-1)
+		}
+		return
+	}
+
+	collectErrorChain(errors.Unwrap(err), chain, seen, remaining-1)
 }
 
 func BadRequest(field, detail string) ApiError {

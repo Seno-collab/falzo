@@ -229,13 +229,8 @@ func RequestLogger(next http.Handler) http.Handler {
 			rec.status = http.StatusOK
 		}
 
-		event := log.Info()
-		if r.URL.Path == "/favicon.ico" {
-			event = log.Debug()
-		}
-
 		durationMs := float64(time.Since(start).Microseconds()) / 1000
-		event = event.
+		event := requestLogEvent(rec.status, r.URL.Path).
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
 			Int("status", rec.status).
@@ -268,6 +263,19 @@ func RequestLogger(next http.Handler) http.Handler {
 
 		event.Msg("request completed")
 	})
+}
+
+func requestLogEvent(status int, path string) *zerolog.Event {
+	if path == "/favicon.ico" {
+		return log.Debug()
+	}
+	if status >= http.StatusInternalServerError {
+		return log.Error()
+	}
+	if status >= http.StatusBadRequest {
+		return log.Warn()
+	}
+	return log.Info()
 }
 
 func sanitizeRequestID(requestID string) string {

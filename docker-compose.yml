@@ -42,7 +42,7 @@ services:
       - "8888:8888"
     volumes:
       - seaweedfs_data:/data
-      - ./be/secret/seaweedfs_s3.json:/etc/seaweedfs_s3.json:ro
+      - ./be/secrets/seaweedfs_s3.json:/etc/seaweedfs_s3.json:ro
   api:
     build:
       context: ./be
@@ -51,6 +51,8 @@ services:
     networks:
       - falzo
     env_file: ./be/.env
+    environment:
+      SEAWEEDFS_BASE_URL: http://seaweedfs:8888
     expose:
       - "8000"
     healthcheck:

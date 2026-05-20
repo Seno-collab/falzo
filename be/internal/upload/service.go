@@ -120,7 +120,7 @@ func (s *Service) UploadImage(ctx context.Context, input UploadImageInput) (Uplo
 
 	url, err := s.storage.Upload(ctx, objectKey, bytes.NewReader(input.File), input.MimeType)
 	if err != nil {
-		return UploadImageResult{}, ErrStorageFailed
+		return UploadImageResult{}, storageUploadError(err)
 	}
 	if err := image.MarkReady(url); err != nil {
 		_ = s.storage.Delete(ctx, objectKey)
@@ -161,7 +161,7 @@ func (s *Service) UpdateImage(ctx context.Context, input UpdateImageInput) (Upda
 	newObjectKey := imageObjectKey(image.OwnerID, input.FileName, input.MimeType)
 	newURL, err := s.storage.Upload(ctx, newObjectKey, bytes.NewReader(input.File), input.MimeType)
 	if err != nil {
-		return UpdateImageResult{}, ErrStorageFailed
+		return UpdateImageResult{}, storageUploadError(err)
 	}
 
 	if err := image.Replace(newObjectKey, newURL, input.MimeType, input.Size); err != nil {
@@ -338,4 +338,11 @@ func randomHex(size int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func storageUploadError(err error) error {
+	if errors.Is(err, ErrStorageFailed) || errors.Is(err, ErrDependencyUnavailable) {
+		return err
+	}
+	return fmt.Errorf("%w: %v", ErrStorageFailed, err)
 }

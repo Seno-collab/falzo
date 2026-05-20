@@ -25,6 +25,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CACHE_FEED_FIRST_PAGE_TTL", "")
 	t.Setenv("CACHE_PUBLIC_PROFILE_TTL", "")
 	t.Setenv("SEAWEEDFS_BASE_URL", "")
+	t.Setenv("SEAWEEDFS_PUBLIC_URL", "")
 	t.Setenv("UPLOAD_MAX_SIZE", "")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "")
 	t.Setenv("UPLOAD_RATE_LIMIT_PER_MIN", "")
@@ -118,6 +119,10 @@ func TestLoadUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default seaweedfs base url, got %q", cfg.Upload.SeaweedFSBaseURL)
 	}
 
+	if cfg.Upload.SeaweedFSPublicURL != "http://127.0.0.1:8888" {
+		t.Fatalf("expected default seaweedfs public url, got %q", cfg.Upload.SeaweedFSPublicURL)
+	}
+
 	if cfg.Upload.MaxSize != 10*1024*1024 {
 		t.Fatalf("expected default upload max size, got %d", cfg.Upload.MaxSize)
 	}
@@ -161,6 +166,7 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("ENGAGEMENT_CLAIM_MIN_IDLE", "45s")
 	t.Setenv("ENGAGEMENT_MAX_RETRIES", "5")
 	t.Setenv("SEAWEEDFS_BASE_URL", "http://seaweed:8888")
+	t.Setenv("SEAWEEDFS_PUBLIC_URL", "https://cdn.example.com")
 	t.Setenv("UPLOAD_MAX_SIZE", "2048")
 	t.Setenv("ALLOWED_IMAGE_TYPES", "image/png,image/webp")
 	t.Setenv("UPLOAD_RATE_LIMIT_PER_MIN", "3")
@@ -252,6 +258,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if cfg.Upload.SeaweedFSBaseURL != "http://seaweed:8888" {
 		t.Fatalf("expected env seaweedfs base url, got %q", cfg.Upload.SeaweedFSBaseURL)
+	}
+
+	if cfg.Upload.SeaweedFSPublicURL != "https://cdn.example.com" {
+		t.Fatalf("expected env seaweedfs public url, got %q", cfg.Upload.SeaweedFSPublicURL)
 	}
 
 	if cfg.Upload.MaxSize != 2048 {

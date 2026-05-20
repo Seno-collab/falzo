@@ -142,3 +142,34 @@ func TestStatusRecorderForwardsFlush(t *testing.T) {
 		t.Fatal("expected unwrap to return underlying response writer")
 	}
 }
+
+func TestRequestLoggerUsesErrorLevelForServerErrors(t *testing.T) {
+	t.Setenv("LOG_HTTP_BODY_ENABLED", "false")
+
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+
+	log.Logger = zerolog.New(&output)
+	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/images/upload", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	var entry map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &entry); err != nil {
+		t.Fatalf("failed to parse log entry json: %v", err)
+	}
+
+	if entry["level"] != "error" {
+		t.Fatalf("expected error level for 5xx response, got %#v", entry["level"])
+	}
+	if got := int(entry["status"].(float64)); got != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, got)
+	}
+}
