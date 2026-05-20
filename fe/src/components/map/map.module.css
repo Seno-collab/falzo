@@ -24,6 +24,25 @@
     min-height: 280px;
 }
 
+.large,
+.large .map {
+    min-height: 620px;
+}
+
+.large {
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+@media (max-width: 767px) {
+    .large,
+    .large .map {
+        min-height: 420px;
+    }
+}
+
 .loading {
     display: flex;
     min-height: 360px;
@@ -43,11 +62,19 @@
 
 .popup {
     display: grid;
-    gap: 4px;
-    max-width: 220px;
+    gap: 6px;
+    max-width: 260px;
     color: #315578;
     font-size: 12px;
     line-height: 1.45;
+}
+
+.popupPhoto {
+    display: block;
+    width: 220px;
+    height: 140px;
+    border-radius: 12px;
+    object-fit: cover;
 }
 
 .popup strong {
@@ -63,8 +90,8 @@
 .wrapper :global(.falzo-photo-marker),
 .wrapper :global(.falzo-photo-marker-selected) {
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     overflow: hidden;
     border: 3px solid #ffffff;
     border-radius: 999px;
@@ -96,17 +123,17 @@
 
 .wrapper :global(.falzo-photo-marker-count) {
     position: absolute;
-    right: -1px;
-    bottom: -1px;
-    min-width: 20px;
-    height: 20px;
+    right: -2px;
+    bottom: -2px;
+    min-width: 24px;
+    height: 24px;
     padding: 0 5px;
     border: 2px solid #ffffff;
     border-radius: 999px;
     background: #111111;
     color: #ffffff;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
-    line-height: 16px;
+    line-height: 20px;
     text-align: center;
 }

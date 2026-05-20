@@ -10,13 +10,14 @@ export type MapPoint = Coordinates & {
   count?: number;
   distanceMeters?: number;
   imageUrl?: string;
+  postIds?: number[];
 };
 
 export type FalzoMapProps = {
   className?: string;
   currentPosition?: Coordinates | null;
   currentPositionLabel?: string;
-  height?: "default" | "compact";
+  height?: "default" | "compact" | "large";
   onSelectCoordinates?: (coordinates: Coordinates) => void;
   onSelectPoint?: (point: MapPoint) => void;
   points?: MapPoint[];

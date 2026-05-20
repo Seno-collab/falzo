@@ -2,6 +2,8 @@
 
 import {
   Bookmark,
+  ChevronLeft,
+  ChevronRight,
   Heart,
   LogInIcon,
   MessageCircle,
@@ -11,7 +13,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useRef } from "react";
+import type { PointerEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,9 +49,12 @@ type PostDetailDialogProps = {
   onCancelEdit: () => void;
   onCommentChange: (value: string) => void;
   onEditComment: (comment: PostComment) => void;
+  onNextPost?: () => void;
+  onPreviousPost?: () => void;
   onRegisterCommentInput: (node: HTMLInputElement | null) => void;
   onReplyComment: (comment: PostComment) => void;
   onSubmitComment: () => void;
+  carouselLabel?: string;
 };
 
 function isCommentEdited(comment: PostComment) {
@@ -287,12 +293,18 @@ export function PostDetailDialog({
   onCancelEdit,
   onCommentChange,
   onEditComment,
+  onNextPost,
+  onPreviousPost,
   onRegisterCommentInput,
   onReplyComment,
   onSubmitComment,
+  carouselLabel,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
   const categoryLabel = post?.category_name || "Community";
+  const dragStartXRef = useRef<number | null>(null);
+  const didNavigateDragRef = useRef(false);
+  const canNavigatePosts = Boolean(onPreviousPost || onNextPost);
   const getCommentPlaceholder = () => {
     if (!isChatOpen) return "Open chat";
     if (!isAuthenticated)
@@ -347,15 +359,54 @@ export function PostDetailDialog({
     );
   }
 
+  function handleImagePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!canNavigatePosts) {
+      return;
+    }
+
+    dragStartXRef.current = event.clientX;
+    didNavigateDragRef.current = false;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId) === false) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function handleImagePointerUp(event: PointerEvent<HTMLDivElement>) {
+    const startX = dragStartXRef.current;
+    dragStartXRef.current = null;
+    if (startX === null || !canNavigatePosts || didNavigateDragRef.current) {
+      return;
+    }
+
+    const deltaX = event.clientX - startX;
+    if (Math.abs(deltaX) < 48) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      didNavigateDragRef.current = true;
+      onNextPost?.();
+      return;
+    }
+
+    didNavigateDragRef.current = true;
+    onPreviousPost?.();
+  }
+
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
       <DialogContent className="h-[min(94svh,860px)] w-[calc(100vw-1rem)] overflow-hidden border-white/16 bg-[#050505] p-0 text-white sm:w-[min(98vw,86rem)]">
         <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
-          <div className="relative h-[42svh] min-h-0 shrink-0 bg-black lg:h-auto lg:min-h-0 lg:shrink">
+          <div
+            className="relative h-[42svh] min-h-0 shrink-0 touch-pan-y bg-black lg:h-auto lg:min-h-0 lg:shrink"
+            onPointerDown={handleImagePointerDown}
+            onPointerUp={handleImagePointerUp}
+          >
             {post ? (
               <img
                 alt={post.caption || post.location_name || "Post detail"}
-                className="h-full w-full object-contain"
+                className="h-full w-full select-none object-contain"
+                draggable={false}
                 src={post.image_url}
               />
             ) : (
@@ -363,6 +414,34 @@ export function PostDetailDialog({
                 Loading post
               </div>
             )}
+
+            {onPreviousPost ? (
+              <button
+                aria-label="Previous post"
+                className="-translate-y-1/2 absolute left-3 top-1/2 flex size-11 items-center justify-center rounded-full bg-white/14 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/24 sm:left-5 sm:size-12"
+                onClick={onPreviousPost}
+                type="button"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+            ) : null}
+
+            {onNextPost ? (
+              <button
+                aria-label="Next post"
+                className="-translate-y-1/2 absolute right-3 top-1/2 flex size-11 items-center justify-center rounded-full bg-white/14 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/24 sm:right-5 sm:size-12"
+                onClick={onNextPost}
+                type="button"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            ) : null}
+
+            {carouselLabel ? (
+              <div className="-translate-x-1/2 absolute left-1/2 top-4 rounded-full bg-black/48 px-3 py-1 text-xs font-bold text-white/86 backdrop-blur-xl">
+                {carouselLabel}
+              </div>
+            ) : null}
 
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pt-20 sm:px-5 sm:pb-5 sm:pt-24">
               <div className="max-w-2xl">

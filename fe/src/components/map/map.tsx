@@ -158,9 +158,9 @@ function LocationMarker({
     const icon = divIcon({
       className: "falzo-photo-marker-shell",
       html: photoMarkerHtml(point, selected),
-      iconAnchor: [24, 24],
-      iconSize: [48, 48],
-      popupAnchor: [0, -24],
+      iconAnchor: [32, 32],
+      iconSize: [64, 64],
+      popupAnchor: [0, -32],
     });
 
     return (
@@ -176,6 +176,11 @@ function LocationMarker({
       >
         <Popup>
           <div className={styles.popup}>
+            <img
+              alt={point.name}
+              className={styles.popupPhoto}
+              src={point.imageUrl}
+            />
             <strong>{point.name}</strong>
             {point.address ? <span>{point.address}</span> : null}
             {distance ? <span>{distance}</span> : null}
@@ -234,7 +239,7 @@ export default function FalzoMap({
     <div
       className={`${styles.wrapper} ${
         height === "compact" ? styles.compact : ""
-      } ${className ?? ""}`}
+      } ${height === "large" ? styles.large : ""} ${className ?? ""}`}
     >
       <MapContainer
         center={center}

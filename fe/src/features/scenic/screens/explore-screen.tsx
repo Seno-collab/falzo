@@ -290,6 +290,9 @@ export function ExploreScreen() {
   const [selectedMapPostId, setSelectedMapPostId] = useState<number | null>(
     null,
   );
+  const [selectedMapClusterId, setSelectedMapClusterId] = useState<
+    string | null
+  >(null);
   const [searchValue, setSearchValue] = useState("");
   const [showSavedBoard, setShowSavedBoard] = useState(false);
   const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
@@ -777,7 +780,7 @@ export function ExploreScreen() {
           firstPost.location_name || firstPost.caption || "Falzo post";
 
         return {
-          id: String(firstPost.id),
+          id: `location:${cluster.latitude.toFixed(3)},${cluster.longitude.toFixed(3)}`,
           name:
             postCount > 1
               ? `${postCount} posts near ${locationName}`
@@ -791,16 +794,19 @@ export function ExploreScreen() {
             latitude: cluster.latitude,
             longitude: cluster.longitude,
           }),
+          postIds: cluster.posts.map((post) => post.id),
         };
       });
     },
     [nearbyCoords, visiblePosts],
   );
   const selectedMapPointId =
-    selectedMapPostId !== null &&
-    visiblePosts.some((post) => post.id === selectedMapPostId)
-      ? String(selectedMapPostId)
-      : null;
+    selectedMapClusterId ??
+    (selectedMapPostId === null
+      ? null
+      : (exploreMapPoints.find((point) =>
+          point.postIds?.includes(selectedMapPostId),
+        )?.id ?? null));
   const lastExploreMapPointsRef = useRef<MapPoint[]>([]);
   useEffect(() => {
     if (exploreMapPoints.length > 0) {
@@ -811,6 +817,21 @@ export function ExploreScreen() {
     exploreMapPoints.length > 0 || !postsQuery.isFetching
       ? exploreMapPoints
       : lastExploreMapPointsRef.current;
+  const selectedMapClusterPosts = useMemo(() => {
+    if (!selectedMapClusterId) {
+      return [];
+    }
+
+    const point = displayedExploreMapPoints.find(
+      (item) => item.id === selectedMapClusterId,
+    );
+    if (!point?.postIds || point.postIds.length <= 1) {
+      return [];
+    }
+
+    const selectedIds = new Set(point.postIds);
+    return visiblePosts.filter((post) => selectedIds.has(post.id));
+  }, [displayedExploreMapPoints, selectedMapClusterId, visiblePosts]);
 
   const selectedPost = useMemo(() => {
     if (selectedPostId === null) {
@@ -1151,6 +1172,60 @@ export function ExploreScreen() {
     loadingComments.has(selectedPostId);
   const isSelectedPostLiked = isPostLiked(selectedPost, likedPosts);
   const isSelectedPostSaved = isPostSaved(selectedPost, savedPosts);
+  const selectedMapClusterIndex =
+    selectedPostId === null
+      ? -1
+      : selectedMapClusterPosts.findIndex((post) => post.id === selectedPostId);
+  const hasSelectedMapClusterCarousel =
+    selectedMapClusterPosts.length > 1 && selectedMapClusterIndex >= 0;
+  const selectedMapClusterCarouselLabel = hasSelectedMapClusterCarousel
+    ? `${selectedMapClusterIndex + 1} / ${selectedMapClusterPosts.length}`
+    : undefined;
+  const canUsePreviousMapClusterPost =
+    hasSelectedMapClusterCarousel &&
+    selectedMapClusterPosts.length >= 2 &&
+    selectedMapClusterIndex > 0;
+  const canUseNextMapClusterPost =
+    hasSelectedMapClusterCarousel &&
+    selectedMapClusterIndex < selectedMapClusterPosts.length - 1;
+
+  function openMapClusterPostAt(index: number) {
+    if (!hasSelectedMapClusterCarousel) {
+      return;
+    }
+
+    const normalizedIndex =
+      Math.max(0, Math.min(index, selectedMapClusterPosts.length - 1));
+    const nextPost = selectedMapClusterPosts[normalizedIndex];
+    setSelectedMapPostId(nextPost.id);
+    setSelectedPostId(nextPost.id);
+    setSelectedChatPostId(null);
+  }
+
+  useEffect(() => {
+    if (!hasSelectedMapClusterCarousel) {
+      return;
+    }
+
+    const preloadIndexes = [
+      selectedMapClusterIndex - 1,
+      selectedMapClusterIndex + 1,
+    ];
+    for (const index of preloadIndexes) {
+      const imageURL = selectedMapClusterPosts[index]?.image_url;
+      if (!imageURL) {
+        continue;
+      }
+
+      const image = new Image();
+      image.src = imageURL;
+    }
+  }, [
+    hasSelectedMapClusterCarousel,
+    selectedMapClusterIndex,
+    selectedMapClusterPosts,
+  ]);
+
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
       <ExploreTopbar
@@ -1211,9 +1286,18 @@ export function ExploreScreen() {
             setNearbyPlaceName(placeName);
             setFeedSort("nearby");
           }}
-          onPostSelect={(postId) => {
-            setSelectedMapPostId(postId);
-            openPostDetail(postId);
+          onPointSelect={(point) => {
+            setSelectedMapClusterId(point.id);
+            const postIds = point.postIds ?? [];
+            if (postIds.length === 1) {
+              setSelectedMapPostId(postIds[0]);
+              openPostDetail(postIds[0]);
+              return;
+            }
+            if (postIds.length > 1) {
+              setSelectedMapPostId(postIds[0]);
+              openPostDetail(postIds[0]);
+            }
           }}
           onRadiusChange={setNearbyRadiusMeters}
           points={displayedExploreMapPoints}
@@ -1221,6 +1305,14 @@ export function ExploreScreen() {
           radiusMeters={nearbyRadiusMeters}
           selectedPointId={selectedMapPointId}
           totalPosts={visiblePosts.length}
+        />
+
+        <MapClusterPostRail
+          onOpenPost={(postId) => {
+            setSelectedMapPostId(postId);
+            openPostDetail(postId);
+          }}
+          posts={selectedMapClusterPosts}
         />
 
         {showSavedBoard || searchResultsLabel ? (
@@ -1329,6 +1421,7 @@ export function ExploreScreen() {
         ) : null}
       </section>
       <PostDetailDialog
+        carouselLabel={selectedMapClusterCarouselLabel}
         commentValue={selectedPostCommentValue}
         comments={selectedPostComments}
         currentUserId={currentUserId}
@@ -1342,6 +1435,16 @@ export function ExploreScreen() {
         isLoadingComments={isSelectedPostLoadingComments}
         isSaved={isSelectedPostSaved}
         replyTarget={selectedPostReplyTarget}
+        onNextPost={
+          canUseNextMapClusterPost
+            ? () => openMapClusterPostAt(selectedMapClusterIndex + 1)
+            : undefined
+        }
+        onPreviousPost={
+          canUsePreviousMapClusterPost
+            ? () => openMapClusterPostAt(selectedMapClusterIndex - 1)
+            : undefined
+        }
         onClose={() => {
           setSelectedPostId(null);
         }}
@@ -1614,6 +1717,60 @@ function ExploreTopbar({
   );
 }
 
+function MapClusterPostRail({
+  onOpenPost,
+  posts,
+}: Readonly<{
+  onOpenPost: (postId: number) => void;
+  posts: Post[];
+}>) {
+  if (posts.length <= 1) {
+    return null;
+  }
+
+  return (
+    <section className="mb-5 rounded-3xl border border-black/6 bg-white px-4 py-4 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+            Same place
+          </p>
+          <h2 className="truncate text-lg font-semibold tracking-normal text-[#111]">
+            {posts.length} posts at this location
+          </h2>
+        </div>
+      </div>
+
+      <div className="flex snap-x gap-3 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+        {posts.map((post) => (
+          <button
+            className="group relative h-48 w-64 shrink-0 snap-start overflow-hidden rounded-2xl border border-black/6 bg-[#e9eef3] text-left shadow-[0_16px_38px_-30px_rgb(0_0_0/0.65)] transition hover:-translate-y-0.5"
+            key={post.id}
+            onClick={() => onOpenPost(post.id)}
+            type="button"
+          >
+            <img
+              alt={post.caption || post.location_name || "Post at location"}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+              loading="lazy"
+              src={post.image_url}
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.08)_42%,rgb(0_0_0/0.68)_100%)]" />
+            <div className="absolute inset-x-3 bottom-3 text-white">
+              <p className="line-clamp-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/76">
+                {post.location_name || "Location"}
+              </p>
+              <p className="mt-1 line-clamp-2 text-base font-semibold leading-tight">
+                {post.caption || post.user_name || "Community post"}
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ExploreMapPanel({
   currentPosition,
   feedSort,
@@ -1621,7 +1778,7 @@ function ExploreMapPanel({
   onLocate,
   onMapCenterChange,
   onPlaceSearch,
-  onPostSelect,
+  onPointSelect,
   onRadiusChange,
   placeName,
   points,
@@ -1635,7 +1792,7 @@ function ExploreMapPanel({
   onLocate: () => void;
   onMapCenterChange: (coordinates: Coordinates) => void;
   onPlaceSearch: (coordinates: Coordinates, placeName: string) => void;
-  onPostSelect: (postId: number) => void;
+  onPointSelect: (point: MapPoint) => void;
   onRadiusChange: (radiusMeters: number) => void;
   placeName: string | null;
   points: MapPoint[];
@@ -1691,27 +1848,22 @@ function ExploreMapPanel({
 
   return (
     <section className="mb-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_18px_46px_-36px_rgb(0_0_0/0.55)] sm:rounded-3xl">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-h-0">
+      <div className="grid min-h-[620px] gap-0 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-h-[420px] xl:min-h-[620px]">
           <MapClient
-            className="rounded-none border-0 shadow-none"
+            className="h-full rounded-none border-0 shadow-none"
             currentPosition={currentPosition}
             currentPositionLabel={placeName ?? "Selected area"}
-            height="compact"
+            height="large"
             onSelectCoordinates={onMapCenterChange}
-            onSelectPoint={(point) => {
-              const postId = Number(point.id);
-              if (Number.isFinite(postId) && postId > 0) {
-                onPostSelect(postId);
-              }
-            }}
+            onSelectPoint={onPointSelect}
             points={points}
             selectedPointId={selectedPointId}
             zoom={feedSort === "nearby" ? 12 : 5}
           />
         </div>
 
-        <aside className="flex flex-col justify-between gap-4 border-black/6 border-t p-4 sm:gap-5 sm:p-5 lg:border-l lg:border-t-0">
+        <aside className="flex flex-col justify-between gap-4 border-black/6 border-t p-4 sm:gap-5 sm:p-5 xl:border-l xl:border-t-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
               Map discovery
