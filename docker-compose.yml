@@ -34,7 +34,7 @@ services:
     container_name: falzo-seaweedfs
     networks:
       - falzo
-    command: server -dir=/data
+    command: server -dir=/data -filer
     env_file: ./be/.env
     expose:
       - "9333"
