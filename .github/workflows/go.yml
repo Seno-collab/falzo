@@ -16,8 +16,7 @@ on:
       - ".github/workflows/go.yml"
 
 jobs:
-
-  build:
+  test:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,8 +30,8 @@ jobs:
         go-version-file: be/go.mod
         cache-dependency-path: be/go.sum
 
-    - name: Build
-      run: go build -v ./cmd/api
-
     - name: Test
       run: go test -v ./...
+
+    - name: Build
+      run: go build -v ./cmd/api

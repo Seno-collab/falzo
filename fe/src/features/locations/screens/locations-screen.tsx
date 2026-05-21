@@ -334,7 +334,7 @@ export function LocationsScreen() {
         />
       }
     >
-      <section className="rounded-[2rem] border border-black/6 bg-white px-4 py-5 shadow-[0_18px_50px_-42px_rgb(0_0_0/0.62)] sm:px-6">
+      <section className="rounded-4xl border border-black/6 bg-white px-4 py-5 shadow-[0_18px_50px_-42px_rgb(0_0_0/0.62)] sm:px-6">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
@@ -604,7 +604,7 @@ export function LocationsScreen() {
                 >
                   <img
                     alt={post.caption || post.location_name || "Location post"}
-                    className="aspect-[4/3] w-full object-cover"
+                    className="aspect-4/3 w-full object-cover"
                     loading="lazy"
                     src={post.image_url}
                   />

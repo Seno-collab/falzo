@@ -4,6 +4,9 @@ import (
 	"errors"
 	httpResponse "falzo-be/pkg/response"
 	"net/http"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
@@ -29,12 +32,18 @@ func WriteError(
 	mapped := mapper(err)
 
 	if mapped.LogErr {
+		source := errorLogSource(2)
+
 		entry := log.Error().
 			Err(err).
+			Str("module", source.Module).
 			Str("operation", operation).
 			Str("request_id", chimiddleware.GetReqID(r.Context())).
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
+			Str("source_file", source.File).
+			Int("source_line", source.Line).
+			Str("source_func", source.Function).
 			Int("status", mapped.Status).
 			Str("api_code", mapped.Code).
 			Str("api_detail", mapped.Detail)
@@ -53,6 +62,98 @@ func WriteError(
 		Message: mapped.Detail,
 	})
 
+}
+
+type logSource struct {
+	Module   string
+	File     string
+	Line     int
+	Function string
+}
+
+func errorLogSource(skip int) logSource {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return logSource{}
+	}
+
+	fn := runtime.FuncForPC(pc)
+	function := ""
+	if fn != nil {
+		function = fn.Name()
+	}
+
+	return logSource{
+		Module:   moduleFromFunction(function, file),
+		File:     trimSourceFile(file),
+		Line:     line,
+		Function: function,
+	}
+}
+
+func moduleFromFunction(function, file string) string {
+	pkg := functionPackage(function)
+	if pkg == "" {
+		pkg = filepath.Dir(file)
+	}
+
+	if module := packageModule(pkg, "/internal/"); module != "" {
+		return module
+	}
+	if module := packageModule(pkg, "/pkg/"); module != "" {
+		return module
+	}
+
+	return filepath.Base(pkg)
+}
+
+func functionPackage(function string) string {
+	if function == "" {
+		return ""
+	}
+
+	slash := strings.LastIndex(function, "/")
+	if slash >= 0 {
+		if idx := strings.Index(function[slash+1:], "."); idx >= 0 {
+			return function[:slash+1+idx]
+		}
+	}
+
+	if idx := strings.Index(function, "."); idx >= 0 {
+		return function[:idx]
+	}
+
+	return function
+}
+
+func packageModule(pkg, marker string) string {
+	idx := strings.Index(pkg, marker)
+	if idx < 0 {
+		return ""
+	}
+
+	module := pkg[idx+len(marker):]
+	if marker == "/internal/" {
+		return firstPathSegment(module)
+	}
+	return module
+}
+
+func firstPathSegment(path string) string {
+	if idx := strings.Index(path, "/"); idx >= 0 {
+		return path[:idx]
+	}
+	return path
+}
+
+func trimSourceFile(file string) string {
+	for _, marker := range []string{"/internal/", "/pkg/"} {
+		if idx := strings.Index(file, marker); idx >= 0 {
+			return strings.TrimPrefix(file[idx:], "/")
+		}
+	}
+
+	return filepath.Base(file)
 }
 
 func errorChain(err error) []string {
