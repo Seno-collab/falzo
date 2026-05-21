@@ -419,3 +419,23 @@
         transform: translateX(100%);
     }
 }
+
+@keyframes hero-word-rise {
+    0% {
+        opacity: 0;
+        transform: translateY(0.7em);
+        filter: blur(6px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [class*="hero-word-rise"] {
+        animation: none !important;
+    }
+}

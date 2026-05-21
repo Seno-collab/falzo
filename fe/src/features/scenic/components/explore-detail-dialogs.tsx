@@ -9,12 +9,15 @@ import {
   MessageCircle,
   Pencil,
   Reply,
+  RotateCcw,
   Send,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import Link from "next/link";
-import { useRef } from "react";
-import type { PointerEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent, PointerEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -301,12 +304,14 @@ export function PostDetailDialog({
   carouselLabel,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
-  const categoryLabel = post?.category_name || "Community";
+  const categoryLabel = post?.category_name || "Travel";
   const dragStartXRef = useRef<number | null>(null);
   const didNavigateDragRef = useRef(false);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
   const canNavigatePosts = Boolean(onPreviousPost || onNextPost);
   const getCommentPlaceholder = () => {
-    if (!isChatOpen) return "Open chat";
+    if (!isChatOpen) return "Open comments";
     if (!isAuthenticated)
       return "Login to comment";
     if (editingComment) return "Edit comment";
@@ -359,6 +364,35 @@ export function PostDetailDialog({
     );
   }
 
+  useEffect(() => {
+    setIsImageZoomed(false);
+    setZoomOrigin({ x: 50, y: 50 });
+  }, [open, post?.id]);
+
+  function updateZoomOrigin(event: PointerEvent<HTMLDivElement> | MouseEvent) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    setZoomOrigin({
+      x: Math.max(8, Math.min(92, x)),
+      y: Math.max(8, Math.min(92, y)),
+    });
+  }
+
+  function toggleImageZoom(event: MouseEvent<HTMLImageElement>) {
+    if (!post) {
+      return;
+    }
+
+    updateZoomOrigin(event);
+    setIsImageZoomed((current) => !current);
+  }
+
+  function resetImageZoom() {
+    setIsImageZoomed(false);
+    setZoomOrigin({ x: 50, y: 50 });
+  }
+
   function handleImagePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!canNavigatePosts) {
       return;
@@ -398,22 +432,78 @@ export function PostDetailDialog({
       <DialogContent className="h-[min(94svh,860px)] w-[calc(100vw-1rem)] overflow-hidden border-white/16 bg-[#050505] p-0 text-white sm:w-[min(98vw,86rem)]">
         <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
           <div
-            className="relative h-[42svh] min-h-0 shrink-0 touch-pan-y bg-black lg:h-auto lg:min-h-0 lg:shrink"
+            className="relative h-[42svh] min-h-0 shrink-0 touch-pan-y overflow-hidden bg-black lg:h-auto lg:min-h-0 lg:shrink"
             onPointerDown={handleImagePointerDown}
+            onPointerMove={(event) => {
+              if (isImageZoomed) {
+                updateZoomOrigin(event);
+              }
+            }}
             onPointerUp={handleImagePointerUp}
           >
             {post ? (
               <img
-                alt={post.caption || post.location_name || "Post detail"}
-                className="h-full w-full select-none object-contain"
+                alt={post.caption || post.location_name || "Destination detail"}
+                className={cn(
+                  "h-full w-full select-none object-contain transition duration-500 ease-out",
+                  isImageZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
+                )}
                 draggable={false}
+                onClick={toggleImageZoom}
                 src={post.image_url}
+                style={{
+                  transform: isImageZoomed ? "scale(1.8)" : "scale(1)",
+                  transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                }}
               />
             ) : (
               <div className="flex h-full min-h-[48vh] items-center justify-center text-sm font-semibold text-white/68">
-                Loading post
+                Loading travel post
               </div>
             )}
+
+            <div className="absolute left-3 top-3 max-w-[calc(100%-7rem)] rounded-2xl border border-white/14 bg-black/42 px-3 py-2 text-white shadow-lg backdrop-blur-xl sm:left-5 sm:top-5">
+              <div className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-full bg-white text-[#111]">
+                  <ZoomIn className="size-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/68">
+                    Travel lens
+                  </p>
+                  <p className="truncate text-sm font-semibold">
+                    {isImageZoomed
+                      ? "Move around to inspect the scene"
+                      : "Click the photo to zoom into details"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full border border-white/14 bg-black/42 p-1 shadow-lg backdrop-blur-xl sm:right-5 sm:top-5">
+              <button
+                aria-label={isImageZoomed ? "Zoom out" : "Zoom in"}
+                className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16"
+                disabled={!post}
+                onClick={() => setIsImageZoomed((current) => !current)}
+                type="button"
+              >
+                {isImageZoomed ? (
+                  <ZoomOut className="size-4" />
+                ) : (
+                  <ZoomIn className="size-4" />
+                )}
+              </button>
+              <button
+                aria-label="Reset image view"
+                className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16 disabled:opacity-40"
+                disabled={!post || !isImageZoomed}
+                onClick={resetImageZoom}
+                type="button"
+              >
+                <RotateCcw className="size-4" />
+              </button>
+            </div>
 
             {onPreviousPost ? (
               <button
@@ -456,29 +546,31 @@ export function PostDetailDialog({
                   <p className="text-sm font-bold text-white">{authorName}</p>
                 )}
                 <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/90 sm:line-clamp-3 sm:leading-6">
-                  {post?.caption || "Community post"}
+                  {post?.caption || "Travel story"}
                 </p>
                 <p className="mt-2 text-xs font-semibold text-white/60">
-                  {post?.location_name || "Uploaded"} / {categoryLabel}
+                  {post?.location_name || "Destination"} / {categoryLabel}
                 </p>
               </div>
             </div>
 
             <div className="absolute bottom-4 right-3 flex flex-col items-center gap-2 sm:bottom-6 sm:right-4 sm:gap-3">
-              <button
-                aria-label={isLiked ? "Liked post" : "Like post"}
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
-                  isLiked ? "text-[#ff4d6d]" : "",
-                )}
-                disabled={!post}
-                onClick={onLike}
-                type="button"
-              >
-                <Heart
-                  className={cn("size-4 sm:size-5", isLiked ? "fill-current" : "")}
-                />
-              </button>
+              {isAuthenticated ? (
+                <button
+                  aria-label={isLiked ? "Liked" : "Like travel post"}
+                  className={cn(
+                    "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
+                    isLiked ? "text-[#ff4d6d]" : "",
+                  )}
+                  disabled={!post}
+                  onClick={onLike}
+                  type="button"
+                >
+                  <Heart
+                    className={cn("size-4 sm:size-5", isLiked ? "fill-current" : "")}
+                  />
+                </button>
+              ) : null}
               <button
                 aria-label="Open comments"
                 className={cn(
@@ -491,20 +583,22 @@ export function PostDetailDialog({
               >
                 <MessageCircle className="size-4 sm:size-5" />
               </button>
-              <button
-                aria-label={isSaved ? "Saved post" : "Save post"}
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
-                  isSaved ? "text-[#f8c14a]" : "",
-                )}
-                disabled={!post}
-                onClick={onSave}
-                type="button"
-              >
-                <Bookmark
-                  className={cn("size-4 sm:size-5", isSaved ? "fill-current" : "")}
-                />
-              </button>
+              {isAuthenticated ? (
+                <button
+                  aria-label={isSaved ? "Saved" : "Save destination"}
+                  className={cn(
+                    "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
+                    isSaved ? "text-[#f8c14a]" : "",
+                  )}
+                  disabled={!post}
+                  onClick={onSave}
+                  type="button"
+                >
+                  <Bookmark
+                    className={cn("size-4 sm:size-5", isSaved ? "fill-current" : "")}
+                  />
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -515,8 +609,7 @@ export function PostDetailDialog({
                   Comments
                 </DialogTitle>
                 <DialogDescription className="text-sm text-[#777]">
-                  {commentCount} comment{commentCount === 1 ? "" : "s"} grouped
-                  by conversation.
+                  {commentCount} comment{commentCount === 1 ? "" : "s"} about this destination.
                 </DialogDescription>
               </DialogHeader>
             </div>

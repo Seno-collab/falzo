@@ -115,6 +115,27 @@ const nearbyRadiusOptions = [
   1_000_000,
 ] as const;
 
+const firstLoadTravelSuggestions = [
+  {
+    query: "weekend trip",
+    sort: "popular" as const,
+    title: "Weekend escape",
+  },
+  {
+    query: "scenic view",
+    sort: "trending" as const,
+    title: "Scenic views",
+  },
+  {
+    query: "local culture",
+    sort: "newest" as const,
+    title: "Local culture",
+  },
+] as const;
+
+const exploreHeroHeadlineWords =
+  "Discover beautiful destinations and places worth visiting.".split(" ");
+
 function clampNearbyRadiusMeters(radiusMeters: number) {
   if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
     return 25_000;
@@ -287,6 +308,7 @@ export function ExploreScreen() {
   } | null>(null);
   const [nearbyPlaceName, setNearbyPlaceName] = useState<string | null>(null);
   const [nearbyRadiusMeters, setNearbyRadiusMeters] = useState(50_000);
+  const [showMapPanel, setShowMapPanel] = useState(false);
   const [selectedMapPostId, setSelectedMapPostId] = useState<number | null>(
     null,
   );
@@ -294,6 +316,8 @@ export function ExploreScreen() {
     string | null
   >(null);
   const [searchValue, setSearchValue] = useState("");
+  const [showFirstLoadSuggestions, setShowFirstLoadSuggestions] =
+    useState(true);
   const [showSavedBoard, setShowSavedBoard] = useState(false);
   const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
   const [savedPosts, setSavedPosts] = useState<PostActionOverrides>({});
@@ -447,7 +471,7 @@ export function ExploreScreen() {
   );
 
   useEffect(() => {
-    document.title = "Falzo Explore | Visual Inspiration";
+    document.title = "Falzo Travel | Destination Discovery";
     setIsAuthenticated(hasAuthSession());
   }, []);
 
@@ -646,7 +670,7 @@ export function ExploreScreen() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["posts"] });
       setSelectedPostId(null);
-      toast.success("Post deleted.");
+      toast.success("Travel post deleted.");
     },
   });
 
@@ -736,9 +760,8 @@ export function ExploreScreen() {
   ]);
 
   const hasSearch = normalizedActiveSearch.length > 0;
-  const searchResultsPluralSuffix = visiblePosts.length === 1 ? "" : "s";
   const searchResultsLabel = hasSearch
-    ? `${visiblePosts.length} result${searchResultsPluralSuffix}`
+    ? `${visiblePosts.length} matching results`
     : null;
   const exploreMapPoints = useMemo<MapPoint[]>(
     () => {
@@ -777,13 +800,13 @@ export function ExploreScreen() {
         const [firstPost] = cluster.posts;
         const postCount = cluster.posts.length;
         const locationName =
-          firstPost.location_name || firstPost.caption || "Falzo post";
+          firstPost.location_name || firstPost.caption || "Falzo destination";
 
         return {
           id: `location:${cluster.latitude.toFixed(3)},${cluster.longitude.toFixed(3)}`,
           name:
             postCount > 1
-              ? `${postCount} posts near ${locationName}`
+              ? `${postCount} travel posts near ${locationName}`
               : locationName,
           address: firstPost.caption || firstPost.user_name,
           count: postCount,
@@ -1060,7 +1083,7 @@ export function ExploreScreen() {
     if (!requireAuth() || deletePostMutation.isPending) {
       return;
     }
-    if (!globalThis.window?.confirm("Delete this post?")) {
+    if (!globalThis.window?.confirm("Delete this travel post?")) {
       return;
     }
 
@@ -1073,7 +1096,7 @@ export function ExploreScreen() {
     }
 
     const reason = globalThis.window
-      ?.prompt("Why are you reporting this post?")
+      ?.prompt("Why are you reporting this travel post?")
       ?.trim();
     if (!reason) {
       return;
@@ -1125,7 +1148,16 @@ export function ExploreScreen() {
       return;
     }
 
+    setShowMapPanel(true);
     locateNearbyFeed();
+  }
+
+  function applyTravelPrompt(query: string, sort: PostSort) {
+    setShowSavedBoard(false);
+    setShowFirstLoadSuggestions(false);
+    setActiveCollection(ALL_COLLECTION);
+    setSearchValue(query);
+    changeFeedSort(sort);
   }
 
   function submitComment(postId: number) {
@@ -1227,7 +1259,7 @@ export function ExploreScreen() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] text-[#1f1f1f]">
+    <main className="min-h-screen bg-[#f7f7f5] pb-[8.5rem] text-[#1f1f1f] sm:pb-0">
       <ExploreTopbar
         isAuthenticated={isAuthenticated}
         onClearSearch={() => setSearchValue("")}
@@ -1246,13 +1278,23 @@ export function ExploreScreen() {
       <ExploreHero
         activeCollection={activeCollection}
         collections={collections}
+        featuredPosts={visiblePosts.slice(0, 3)}
         feedSort={feedSort}
+        isAuthenticated={isAuthenticated}
         onCollectionChange={changeCollection}
+        onOpenPost={openPostDetail}
         onSortChange={changeFeedSort}
         onToggleSavedBoard={toggleSavedBoard}
         savedBoardCount={savedBoardPosts.length}
         showSavedBoard={showSavedBoard}
       />
+
+      {showFirstLoadSuggestions ? (
+        <FirstLoadTravelSuggestions
+          onDismiss={() => setShowFirstLoadSuggestions(false)}
+          onSelectSuggestion={applyTravelPrompt}
+        />
+      ) : null}
 
       {activeCollection === ALL_COLLECTION && !showSavedBoard ? (
         <ExploreCategoryBar
@@ -1265,47 +1307,59 @@ export function ExploreScreen() {
       ) : null}
 
       <section className="mx-auto w-full max-w-370 px-3 pb-10 sm:px-6 sm:pb-14 lg:px-8">
-        <ExploreMapPanel
-          currentPosition={nearbyCoords}
-          feedSort={feedSort}
-          onClearNearby={() => {
-            setNearbyCoords(null);
-            setNearbyPlaceName(null);
-            if (feedSort === "nearby") {
-              setFeedSort("newest");
-            }
-          }}
-          onLocate={locateNearbyFeed}
-          onMapCenterChange={(coordinates) => {
-            setNearbyCoords(coordinates);
-            setNearbyPlaceName("Selected map area");
-            setFeedSort("nearby");
-          }}
-          onPlaceSearch={(coordinates, placeName) => {
-            setNearbyCoords(coordinates);
-            setNearbyPlaceName(placeName);
-            setFeedSort("nearby");
-          }}
-          onPointSelect={(point) => {
-            setSelectedMapClusterId(point.id);
-            const postIds = point.postIds ?? [];
-            if (postIds.length === 1) {
-              setSelectedMapPostId(postIds[0]);
-              openPostDetail(postIds[0]);
-              return;
-            }
-            if (postIds.length > 1) {
-              setSelectedMapPostId(postIds[0]);
-              openPostDetail(postIds[0]);
-            }
-          }}
-          onRadiusChange={setNearbyRadiusMeters}
-          points={displayedExploreMapPoints}
-          placeName={nearbyPlaceName}
-          radiusMeters={nearbyRadiusMeters}
-          selectedPointId={selectedMapPointId}
-          totalPosts={visiblePosts.length}
-        />
+        {showMapPanel ? (
+          <ExploreMapPanel
+            currentPosition={nearbyCoords}
+            feedSort={feedSort}
+            onClearNearby={() => {
+              setNearbyCoords(null);
+              setNearbyPlaceName(null);
+              if (feedSort === "nearby") {
+                setFeedSort("newest");
+              }
+            }}
+            onClose={() => setShowMapPanel(false)}
+            onLocate={locateNearbyFeed}
+            onMapCenterChange={(coordinates) => {
+              setNearbyCoords(coordinates);
+              setNearbyPlaceName("Selected map area");
+              setFeedSort("nearby");
+            }}
+            onPlaceSearch={(coordinates, placeName) => {
+              setNearbyCoords(coordinates);
+              setNearbyPlaceName(placeName);
+              setFeedSort("nearby");
+            }}
+            onPointSelect={(point) => {
+              setSelectedMapClusterId(point.id);
+              const postIds = point.postIds ?? [];
+              if (postIds.length === 1) {
+                setSelectedMapPostId(postIds[0]);
+                openPostDetail(postIds[0]);
+                return;
+              }
+              if (postIds.length > 1) {
+                setSelectedMapPostId(postIds[0]);
+                openPostDetail(postIds[0]);
+              }
+            }}
+            onRadiusChange={setNearbyRadiusMeters}
+            points={displayedExploreMapPoints}
+            placeName={nearbyPlaceName}
+            radiusMeters={nearbyRadiusMeters}
+            selectedPointId={selectedMapPointId}
+            totalPosts={visiblePosts.length}
+          />
+        ) : (
+          <MapAccessPanel
+            onLocate={() => {
+              setShowMapPanel(true);
+              locateNearbyFeed();
+            }}
+            onOpen={() => setShowMapPanel(true)}
+            totalPosts={visiblePosts.length}
+          />
+        )}
 
         <MapClusterPostRail
           onOpenPost={(postId) => {
@@ -1319,10 +1373,10 @@ export function ExploreScreen() {
           <div className="mb-4 flex flex-col items-stretch justify-between gap-3 rounded-3xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)] sm:flex-row sm:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                {showSavedBoard ? "Board" : "Search"}
+                {showSavedBoard ? "Trip board" : "Search"}
               </p>
               <h2 className="text-lg font-semibold tracking-normal text-[#111]">
-                {showSavedBoard ? "Saved posts" : searchResultsLabel}
+                {showSavedBoard ? "Saved destinations" : searchResultsLabel}
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1398,13 +1452,13 @@ export function ExploreScreen() {
             )}
             <h2 className="mt-3 text-xl font-semibold tracking-normal text-[#111]">
               {showSavedBoard
-                ? "No saved posts yet"
-                : "No posts match your search"}
+                ? "No saved destinations yet"
+                : "No destinations match your search"}
             </h2>
             <p className="mt-2 max-w-sm text-sm leading-6 text-[#666]">
               {showSavedBoard
-                ? "Tap the bookmark on posts you like, then open Board to see them here."
-                : "Try a place, caption, or creator name from the posts already loaded."}
+                ? "Save places you want to visit and build a shortlist for your next trip."
+                : "Try a city, landmark, travel theme, or creator name."}
             </p>
           </div>
         ) : null}
@@ -1529,7 +1583,8 @@ function ExploreTopbar({
   const authLabel = isAuthenticated ? profileLabel : "Login";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl">
+    <>
+    <header className="sticky top-0 z-40 hidden border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl sm:block">
       <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-2.5 py-2.5 sm:px-5 sm:py-3 lg:px-8">
         <Link
           aria-label="Explore"
@@ -1549,15 +1604,17 @@ function ExploreTopbar({
           <Button asChild className="rounded-full" size="sm" variant="ghost">
             <Link href={ROUTES.locations}>
               <MapIcon className="size-4" />
-              Locations
+              Destinations
             </Link>
           </Button>
-          <Button asChild className="rounded-full" size="sm" variant="ghost">
-            <Link href={ROUTES.saved}>
-              <Bookmark className="size-4" />
-              Saved
-            </Link>
-          </Button>
+          {isAuthenticated ? (
+            <Button asChild className="rounded-full" size="sm" variant="ghost">
+              <Link href={ROUTES.saved}>
+                <Bookmark className="size-4" />
+                Saved
+              </Link>
+            </Button>
+          ) : null}
         </nav>
 
         <div className="relative ml-0 min-w-0 flex-1 sm:ml-1">
@@ -1570,7 +1627,7 @@ function ExploreTopbar({
                 onClearSearch();
               }
             }}
-            placeholder="Search places, rooms, tables, textures"
+            placeholder="Search destinations, cities, beaches, mountains, culture"
             type="search"
             value={searchValue}
           />
@@ -1591,23 +1648,27 @@ function ExploreTopbar({
         </div>
 
         <div className="hidden items-center gap-1 sm:flex">
-          <Button
-            aria-label="Create"
-            asChild
-            className="rounded-full"
-            size="icon-sm"
-            variant="ghost"
-          >
-            <Link href={ROUTES.upload}>
-              <Plus className="size-4" />
-            </Link>
-          </Button>
-          <NotificationBell
-            notifications={notifications}
-            onOpen={onNotificationsOpen}
-            onSelectNotification={onNotificationSelect}
-            unreadCount={unreadNotificationCount}
-          />
+          {isAuthenticated ? (
+            <>
+              <Button
+                aria-label="Create travel post"
+                asChild
+                className="rounded-full"
+                size="icon-sm"
+                variant="ghost"
+              >
+                <Link href={ROUTES.upload}>
+                  <Plus className="size-4" />
+                </Link>
+              </Button>
+              <NotificationBell
+                notifications={notifications}
+                onOpen={onNotificationsOpen}
+                onSelectNotification={onNotificationSelect}
+                unreadCount={unreadNotificationCount}
+              />
+            </>
+          ) : null}
           <Button
             aria-label={profileLabel}
             className={cn(
@@ -1615,13 +1676,15 @@ function ExploreTopbar({
               isAuthenticated && profileName ? "max-w-44 px-3" : "",
             )}
             onClick={onProfileClick}
-            size={isAuthenticated && profileName ? "sm" : "icon-sm"}
+            size={isAuthenticated && !profileName ? "icon-sm" : "sm"}
             type="button"
             variant="outline"
           >
             <UserRound className="size-4" />
             {isAuthenticated && profileName ? (
               <span className="max-w-28 truncate">{profileName}</span>
+            ) : !isAuthenticated ? (
+              <span>Login</span>
             ) : null}
           </Button>
         </div>
@@ -1642,7 +1705,7 @@ function ExploreTopbar({
             <SheetHeader>
               <SheetTitle>Explore menu</SheetTitle>
               <SheetDescription>
-                Open your account or move around Falzo.
+                Find destinations, open saved places, and manage your account.
               </SheetDescription>
             </SheetHeader>
             <div className="space-y-2 px-5">
@@ -1655,44 +1718,48 @@ function ExploreTopbar({
                   href={ROUTES.locations}
                 >
                   <MapIcon className="size-4" />
-                  Locations
+                  Destinations
                 </Link>
               </SheetClose>
-              <SheetClose asChild>
-                <Link
-                  className={cn(
-                    buttonVariants({ size: "default", variant: "outline" }),
-                    "w-full justify-start rounded-full",
-                  )}
-                  href={ROUTES.saved}
-                >
-                  <Bookmark className="size-4" />
-                  Saved
-                </Link>
-              </SheetClose>
-              <SheetClose asChild>
-                <Link
-                  className={cn(
-                    buttonVariants({ size: "default", variant: "outline" }),
-                    "w-full justify-start rounded-full",
-                  )}
-                  href={ROUTES.upload}
-                >
-                  <Plus className="size-4" />
-                  Upload
-                </Link>
-              </SheetClose>
-              <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
-                <span className="text-sm font-medium text-[#1f1f1f]">
-                  Notifications
-                </span>
-                <NotificationBell
-                  notifications={notifications}
-                  onOpen={onNotificationsOpen}
-                  onSelectNotification={onNotificationSelect}
-                  unreadCount={unreadNotificationCount}
-                />
-              </div>
+              {isAuthenticated ? (
+                <>
+                  <SheetClose asChild>
+                    <Link
+                      className={cn(
+                        buttonVariants({ size: "default", variant: "outline" }),
+                        "w-full justify-start rounded-full",
+                      )}
+                      href={ROUTES.saved}
+                    >
+                      <Bookmark className="size-4" />
+                      Saved
+                    </Link>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Link
+                      className={cn(
+                        buttonVariants({ size: "default", variant: "outline" }),
+                        "w-full justify-start rounded-full",
+                      )}
+                      href={ROUTES.upload}
+                    >
+                      <Plus className="size-4" />
+                      Upload
+                    </Link>
+                  </SheetClose>
+                  <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
+                    <span className="text-sm font-medium text-[#1f1f1f]">
+                      Notifications
+                    </span>
+                    <NotificationBell
+                      notifications={notifications}
+                      onOpen={onNotificationsOpen}
+                      onSelectNotification={onNotificationSelect}
+                      unreadCount={unreadNotificationCount}
+                    />
+                  </div>
+                </>
+              ) : null}
               <SheetClose asChild>
                 <button
                   className={cn(
@@ -1714,6 +1781,77 @@ function ExploreTopbar({
         </Sheet>
       </div>
     </header>
+
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/8 bg-[#f7f7f5]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2 shadow-[0_-18px_48px_-34px_rgb(0_0_0/0.72)] backdrop-blur-2xl sm:hidden">
+      <div className="mx-auto max-w-md">
+        <div className="relative mb-2">
+          <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777]" />
+          <input
+            className="h-10 w-full rounded-full border border-black/8 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.5)] outline-none placeholder:text-[#8a8a8a] focus:border-black/14"
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search destinations"
+            type="search"
+            value={searchValue}
+          />
+          <button
+            aria-label={searchValue ? "Clear search" : "Search"}
+            className="-translate-y-1/2 absolute right-1.5 top-1/2 flex size-8 items-center justify-center rounded-full text-[#555] transition hover:bg-black/5"
+            onClick={searchValue ? onClearSearch : undefined}
+            type="button"
+          >
+            {searchValue ? <X className="size-4" /> : <SlidersHorizontal className="size-4" />}
+          </button>
+        </div>
+
+        <div className={cn("grid items-center gap-1", isAuthenticated ? "grid-cols-5" : "grid-cols-3")}>
+          <Link
+            aria-label="Explore"
+            className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
+            href={ROUTES.explore}
+          >
+            <Camera className="size-4" />
+            Explore
+          </Link>
+          <Link
+            aria-label="Destinations"
+            className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+            href={ROUTES.locations}
+          >
+            <MapIcon className="size-4" />
+            Places
+          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link
+                aria-label="Upload"
+                className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
+                href={ROUTES.upload}
+              >
+                <Plus className="size-5" />
+              </Link>
+              <Link
+                aria-label="Saved"
+                className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                href={ROUTES.saved}
+              >
+                <Bookmark className="size-4" />
+                Saved
+              </Link>
+            </>
+          ) : null}
+          <button
+            aria-label={profileLabel}
+            className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+            onClick={onProfileClick}
+            type="button"
+          >
+            <UserRound className="size-4" />
+            {isAuthenticated ? "Account" : "Login"}
+          </button>
+        </div>
+      </div>
+    </nav>
+    </>
   );
 }
 
@@ -1733,10 +1871,10 @@ function MapClusterPostRail({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-            Same place
+            Same destination
           </p>
           <h2 className="truncate text-lg font-semibold tracking-normal text-[#111]">
-            {posts.length} posts at this location
+            {posts.length} travel posts here
           </h2>
         </div>
       </div>
@@ -1750,7 +1888,7 @@ function MapClusterPostRail({
             type="button"
           >
             <img
-              alt={post.caption || post.location_name || "Post at location"}
+              alt={post.caption || post.location_name || "Destination photo"}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
               loading="lazy"
               src={post.image_url}
@@ -1758,10 +1896,10 @@ function MapClusterPostRail({
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.08)_42%,rgb(0_0_0/0.68)_100%)]" />
             <div className="absolute inset-x-3 bottom-3 text-white">
               <p className="line-clamp-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/76">
-                {post.location_name || "Location"}
+                {post.location_name || "Destination"}
               </p>
               <p className="mt-1 line-clamp-2 text-base font-semibold leading-tight">
-                {post.caption || post.user_name || "Community post"}
+                {post.caption || post.user_name || "Travel story"}
               </p>
             </div>
           </button>
@@ -1771,10 +1909,57 @@ function MapClusterPostRail({
   );
 }
 
+function MapAccessPanel({
+  onLocate,
+  onOpen,
+  totalPosts,
+}: Readonly<{
+  onLocate: () => void;
+  onOpen: () => void;
+  totalPosts: number;
+}>) {
+  return (
+    <section className="mb-5 rounded-2xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#111] text-white">
+            <MapIcon className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#111]">
+              Map view is optional
+            </p>
+            <p className="text-xs leading-5 text-[#777]">
+              Browse the feed first, or open the map for {totalPosts} visible
+              destination{totalPosts === 1 ? "" : "s"}.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button className="rounded-full" onClick={onOpen} type="button">
+            <MapIcon className="size-4" />
+            Open map
+          </Button>
+          <Button
+            className="rounded-full"
+            onClick={onLocate}
+            type="button"
+            variant="outline"
+          >
+            <LocateFixed className="size-4" />
+            Near me
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ExploreMapPanel({
   currentPosition,
   feedSort,
   onClearNearby,
+  onClose,
   onLocate,
   onMapCenterChange,
   onPlaceSearch,
@@ -1789,6 +1974,7 @@ function ExploreMapPanel({
   currentPosition: Coordinates | null;
   feedSort: PostSort;
   onClearNearby: () => void;
+  onClose: () => void;
   onLocate: () => void;
   onMapCenterChange: (coordinates: Coordinates) => void;
   onPlaceSearch: (coordinates: Coordinates, placeName: string) => void;
@@ -1866,14 +2052,26 @@ function ExploreMapPanel({
         <aside className="flex flex-col justify-between gap-4 border-black/6 border-t p-4 sm:gap-5 sm:p-5 xl:border-l xl:border-t-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-              Map discovery
+              Travel map
             </p>
-            <h2 className="mt-1 text-xl font-semibold leading-tight tracking-normal text-[#111] sm:text-2xl">
-              Explore posts by place
-            </h2>
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <h2 className="text-xl font-semibold leading-tight tracking-normal text-[#111] sm:text-2xl">
+                Explore places worth visiting
+              </h2>
+              <Button
+                aria-label="Close map"
+                className="shrink-0 rounded-full"
+                onClick={onClose}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
             <p className="mt-2 text-sm leading-6 text-[#666]">
-              Tap a marker to open a post, or tap the map to search around a
-              new center.
+              Browse photos, locations, and real travel inspiration to choose
+              the right place for your next itinerary.
             </p>
           </div>
 
@@ -1914,7 +2112,7 @@ function ExploreMapPanel({
                 Visible
               </p>
               <p className="mt-1 text-lg font-semibold text-[#111]">
-                {totalPosts} post{totalPosts === 1 ? "" : "s"}
+                {totalPosts} destination{totalPosts === 1 ? "" : "s"}
               </p>
             </div>
 
@@ -2013,8 +2211,11 @@ function ExploreMapPanel({
 function ExploreHero({
   activeCollection,
   collections,
+  featuredPosts,
   feedSort,
+  isAuthenticated,
   onCollectionChange,
+  onOpenPost,
   onSortChange,
   onToggleSavedBoard,
   savedBoardCount,
@@ -2022,27 +2223,59 @@ function ExploreHero({
 }: Readonly<{
   activeCollection: string;
   collections: string[];
+  featuredPosts: Post[];
   feedSort: PostSort;
+  isAuthenticated: boolean;
   onCollectionChange: (collection: string) => void;
+  onOpenPost: (postId: number) => void;
   onSortChange: (sort: PostSort) => void;
   onToggleSavedBoard: () => void;
   savedBoardCount: number;
   showSavedBoard: boolean;
 }>) {
+  const visibleCollections = isAuthenticated
+    ? collections
+    : collections.filter((collection) => collection !== FOLLOWING_COLLECTION);
+
   return (
     <section className="mx-auto w-full max-w-370 px-3 pb-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,31rem)] lg:items-end">
         <div className="max-w-3xl">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/6 bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
             <Sparkles className="size-3.5 text-[#ff385c]" />
-            Curated today
+            Curated for travelers
           </div>
           <h1 className="max-w-2xl text-3xl font-semibold leading-[1.12] tracking-normal text-[#111] sm:text-5xl lg:text-6xl">
-            Fresh visual ideas for beautiful stays and memorable travel.
+            <span className="sr-only">
+              Discover beautiful destinations and places worth visiting.
+            </span>
+            <span aria-hidden="true" className="inline-flex flex-wrap gap-x-2 sm:gap-x-3">
+              {exploreHeroHeadlineWords.map((word, index) => (
+                <span
+                  className="inline-block animate-[hero-word-rise_0.72s_cubic-bezier(0.22,1,0.36,1)_both]"
+                  key={`${word}-${index}`}
+                  style={{ animationDelay: `${index * 78}ms` }}
+                >
+                  {word}
+                </span>
+              ))}
+            </span>
           </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-[#5f5f5f] sm:text-lg">
+            Falzo brings together photos, locations, and real travel stories so
+            you can quickly choose the right place for a vacation, short escape,
+            or longer journey.
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
+        <HeroDestinationPreview
+          onOpenPost={onOpenPost}
+          posts={featuredPosts}
+        />
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between lg:mt-6">
+        <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           {[
             { icon: <Clock3 className="size-4" />, label: "Newest", value: "newest" as const },
             { icon: <Flame className="size-4" />, label: "Popular", value: "popular" as const },
@@ -2065,6 +2298,8 @@ function ExploreHero({
               {item.label}
             </Button>
           ))}
+        </div>
+        {isAuthenticated ? (
           <Button
             aria-pressed={showSavedBoard}
             className={cn(
@@ -2077,18 +2312,18 @@ function ExploreHero({
             type="button"
           >
             <Bookmark className="size-4" />
-            Board
+            Trip board
             {savedBoardCount > 0 ? (
               <span className="rounded-full bg-white/18 px-2 py-0.5 text-xs">
                 {savedBoardCount}
               </span>
             ) : null}
           </Button>
-        </div>
+        ) : null}
       </div>
 
       <div className="mt-5 flex gap-2 overflow-x-auto pb-2 scrollbar-none sm:mt-6 [&::-webkit-scrollbar]:hidden">
-        {collections.map((collection) => (
+        {visibleCollections.map((collection) => (
           <button
             className={cn(
               "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
@@ -2103,6 +2338,142 @@ function ExploreHero({
             {collection}
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function HeroDestinationPreview({
+  onOpenPost,
+  posts,
+}: Readonly<{
+  onOpenPost: (postId: number) => void;
+  posts: Post[];
+}>) {
+  const [spotlight, ...supportingPosts] = posts;
+
+  if (!spotlight) {
+    return (
+      <div className="min-h-80 overflow-hidden rounded-[2rem] border border-black/6 bg-[#111] p-4 text-white shadow-[0_24px_70px_-52px_rgb(0_0_0/0.85)]">
+        <div className="flex h-full min-h-72 flex-col justify-between rounded-[1.5rem] border border-white/12 bg-[linear-gradient(135deg,#1a1a1a_0%,#243c34_48%,#17445b_100%)] p-5">
+          <div className="flex size-11 items-center justify-center rounded-full bg-white text-[#111]">
+            <Camera className="size-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/60">
+              Destination preview
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold leading-tight tracking-normal">
+              Travel photos will appear here as the feed loads.
+            </h2>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-h-80 gap-3 rounded-[2rem] border border-black/6 bg-white p-3 shadow-[0_26px_70px_-50px_rgb(0_0_0/0.72)] sm:grid-cols-[minmax(0,1fr)_8.5rem]">
+      <button
+        className="group relative min-h-72 overflow-hidden rounded-[1.5rem] bg-[#e9eef3] text-left"
+        onClick={() => onOpenPost(spotlight.id)}
+        type="button"
+      >
+        <img
+          alt={spotlight.caption || spotlight.location_name || "Featured destination"}
+          className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.045]"
+          loading="eager"
+          src={spotlight.image_url}
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.18)_48%,rgb(0_0_0/0.78)_100%)]" />
+        <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/86 px-3 py-1.5 text-xs font-bold text-[#111] shadow-sm backdrop-blur-xl">
+          <Sparkles className="size-3.5 text-[#ff385c]" />
+          Spotlight
+        </div>
+        <div className="absolute inset-x-4 bottom-4 text-white">
+          <p className="line-clamp-1 text-xs font-bold uppercase tracking-[0.16em] text-white/70">
+            {spotlight.location_name || spotlight.category_name || "Destination"}
+          </p>
+          <h2 className="mt-1 line-clamp-2 text-2xl font-semibold leading-tight tracking-normal">
+            {spotlight.caption || "Open this destination story"}
+          </h2>
+          <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#111]">
+            <Camera className="size-3.5" />
+            Open travel lens
+          </span>
+        </div>
+      </button>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
+        {(supportingPosts.length > 0 ? supportingPosts : [spotlight]).map(
+          (post, index) => (
+            <button
+              className="group relative min-h-34 overflow-hidden rounded-[1.25rem] bg-[#e9eef3] text-left"
+              key={`${post.id}-${index}`}
+              onClick={() => onOpenPost(post.id)}
+              type="button"
+            >
+              <img
+                alt={post.caption || post.location_name || "Destination"}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.06]"
+                loading="lazy"
+                src={post.image_url}
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.16)_42%,rgb(0_0_0/0.68)_100%)]" />
+              <p className="absolute inset-x-3 bottom-3 line-clamp-2 text-sm font-semibold leading-tight text-white">
+                {post.location_name || post.caption || "Explore place"}
+              </p>
+            </button>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FirstLoadTravelSuggestions({
+  onDismiss,
+  onSelectSuggestion,
+}: Readonly<{
+  onDismiss: () => void;
+  onSelectSuggestion: (query: string, sort: PostSort) => void;
+}>) {
+  return (
+    <section className="mx-auto w-full max-w-370 px-3 pb-5 sm:px-6 lg:px-8">
+      <div className="relative rounded-2xl border border-black/6 bg-white px-3 py-3 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:px-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 items-center gap-2 pr-8 sm:shrink-0">
+            <span className="flex size-8 items-center justify-center rounded-full bg-[#f2f7fd] text-[#315f8f]">
+              <Sparkles className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#111]">Quick start</p>
+              <p className="text-xs text-[#777]">Choose one suggestion.</p>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 scrollbar-none sm:pb-0 [&::-webkit-scrollbar]:hidden">
+            {firstLoadTravelSuggestions.map((item) => (
+              <button
+                className="shrink-0 rounded-full border border-black/8 bg-[#f8f8f6] px-3.5 py-2 text-sm font-semibold text-[#333] transition hover:border-black/16 hover:bg-white"
+                key={item.title}
+                onClick={() => onSelectSuggestion(item.query, item.sort)}
+                type="button"
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          aria-label="Hide travel suggestions"
+          className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full text-[#666] transition hover:bg-black/5 hover:text-[#111]"
+          onClick={onDismiss}
+          type="button"
+        >
+          <X className="size-4" />
+        </button>
       </div>
     </section>
   );
@@ -2128,7 +2499,7 @@ function ExploreCategoryBar({
           </span>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-              Categories
+              Themes
             </p>
             <h2 className="text-base font-semibold tracking-normal text-[#111]">
               All
@@ -2172,7 +2543,7 @@ function LoadMorePosts({
       {isLoading ? (
         <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
           <span className="size-2 animate-pulse rounded-full bg-[#ff385c]" />
-          Loading more posts
+          Loading more destinations
         </div>
       ) : null}
       {!hasNextPage && totalPosts > 0 ? (

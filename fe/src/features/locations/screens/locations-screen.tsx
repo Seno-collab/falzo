@@ -22,7 +22,7 @@ import MapClient, { type MapPoint } from "@/components/map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage } from "@/features/auth/api";
+import { getApiErrorMessage, hasAuthSession } from "@/features/auth/api";
 import {
   getLocationPostsApi,
   getNearbyLocationsApi,
@@ -107,9 +107,11 @@ export function LocationsScreen() {
     null,
   );
   const [isLocating, setIsLocating] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     document.title = "Locations | Falzo";
+    setIsAuthenticated(hasAuthSession());
   }, []);
 
   const searchQuery = useQuery({
@@ -506,12 +508,14 @@ export function LocationsScreen() {
                   <p className="text-sm font-semibold text-[#315578]">
                     No posts for this location yet.
                   </p>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={ROUTES.upload}>
-                      <Upload className="size-4" />
-                      Upload
-                    </Link>
-                  </Button>
+                  {isAuthenticated ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={ROUTES.upload}>
+                        <Upload className="size-4" />
+                        Upload
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -526,12 +530,14 @@ export function LocationsScreen() {
                   <p className="text-sm font-semibold text-[#315578]">
                     No posts for this location yet.
                   </p>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={ROUTES.upload}>
-                      <Upload className="size-4" />
-                      Upload
-                    </Link>
-                  </Button>
+                  {isAuthenticated ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={ROUTES.upload}>
+                        <Upload className="size-4" />
+                        Upload
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </div>

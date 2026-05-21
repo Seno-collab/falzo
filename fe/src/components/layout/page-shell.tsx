@@ -13,9 +13,9 @@ export function PageShell({
   contentClassName?: string;
 }>) {
   return (
-    <div className={cn("app-shell", className)}>
+    <div className={cn("app-shell pb-[8.5rem] sm:pb-8", className)}>
       {topbar ? (
-        <header className="app-topbar">
+        <header className="app-topbar mb-0 sm:mb-6">
           <div className="app-container">{topbar}</div>
         </header>
       ) : null}

@@ -306,10 +306,10 @@ export function ExplorePostCard({
   onSubmitComment,
   onRegisterCommentInput,
 }: Readonly<PostCardProps>) {
-  const title = post.caption || "Community post";
-  const location = post.location_name || "Uploaded";
+  const title = post.caption || "Travel story";
+  const location = post.location_name || "Destination";
   const authorName = post.user_name || `User #${post.user_id}`;
-  const categoryLabel = post.category_name || "Community";
+  const categoryLabel = post.category_name || "Travel";
 
   return (
     <motion.article
@@ -327,7 +327,7 @@ export function ExplorePostCard({
         tabIndex={0}
       >
         <img
-          alt={post.caption || post.location_name || "Uploaded post"}
+          alt={post.caption || post.location_name || "Destination photo"}
           className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
           loading={index < 2 ? "eager" : "lazy"}
           src={post.image_url}
@@ -351,24 +351,26 @@ export function ExplorePostCard({
             >
               <Maximize2 className="size-4" />
             </Button>
-            <Button
-              aria-label={isLiked ? "Liked" : "Like"}
-              className={cn(
-                "rounded-full shadow-sm backdrop-blur-xl",
-                isLiked
-                  ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
-                  : "bg-white/86 text-[#222] hover:bg-white",
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onLike(post.id);
-              }}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <Heart className={cn("size-4", isLiked ? "fill-current" : "")} />
-            </Button>
+            {isAuthenticated ? (
+              <Button
+                aria-label={isLiked ? "Liked" : "Like"}
+                className={cn(
+                  "rounded-full shadow-sm backdrop-blur-xl",
+                  isLiked
+                    ? "bg-[#ff385c] text-white hover:bg-[#e93152]"
+                    : "bg-white/86 text-[#222] hover:bg-white",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onLike(post.id);
+                }}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <Heart className={cn("size-4", isLiked ? "fill-current" : "")} />
+              </Button>
+            ) : null}
           </div>
         </div>
         <div className="absolute inset-x-4 bottom-4 text-white">
@@ -394,7 +396,12 @@ export function ExplorePostCard({
               {categoryLabel} - {new Date(post.created_at).toLocaleDateString()}
             </p>
           </div>
-          <div className="grid grid-cols-5 gap-1 sm:flex sm:shrink-0 sm:items-center">
+          <div
+            className={cn(
+              "grid gap-1 sm:flex sm:shrink-0 sm:items-center",
+              isAuthenticated ? "grid-cols-5" : "grid-cols-2",
+            )}
+          >
             <Button
               aria-label="Open image"
               className="rounded-full"
@@ -405,16 +412,18 @@ export function ExplorePostCard({
             >
               <Maximize2 className="size-4" />
             </Button>
-            <Button
-              aria-label={isLiked ? "Liked" : "Like post"}
-              className={cn("rounded-full", activeClass("heart", isLiked))}
-              onClick={() => onLike(post.id)}
-              size="icon-sm"
-              type="button"
-              variant="outline"
-            >
-              <Heart className={cn("size-4", isLiked ? "fill-current" : "")} />
-            </Button>
+            {isAuthenticated ? (
+              <Button
+                aria-label={isLiked ? "Liked" : "Like travel post"}
+                className={cn("rounded-full", activeClass("heart", isLiked))}
+                onClick={() => onLike(post.id)}
+                size="icon-sm"
+                type="button"
+                variant="outline"
+              >
+                <Heart className={cn("size-4", isLiked ? "fill-current" : "")} />
+              </Button>
+            ) : null}
             <Button
               aria-label="View comments"
               className={cn(
@@ -428,41 +437,45 @@ export function ExplorePostCard({
             >
               <MessageCircle className="size-4" />
             </Button>
-            <Button
-              aria-label={isSaved ? "Saved" : "Save post"}
-              className={cn("rounded-full", activeClass("save", isSaved))}
-              onClick={() => onSave(post.id)}
-              size="icon-sm"
-              type="button"
-              variant="outline"
-            >
-              <Bookmark
-                className={cn("size-4", isSaved ? "fill-current" : "")}
-              />
-            </Button>
-            {currentUserId === post.user_id ? (
-              <Button
-                aria-label="Delete post"
-                className="rounded-full text-[#b4233f]"
-                onClick={() => onDelete(post.id)}
-                size="icon-sm"
-                type="button"
-                variant="outline"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            ) : (
-              <Button
-                aria-label="Report post"
-                className="rounded-full"
-                onClick={() => onReport(post.id)}
-                size="icon-sm"
-                type="button"
-                variant="outline"
-              >
-                <Flag className="size-4" />
-              </Button>
-            )}
+            {isAuthenticated ? (
+              <>
+                <Button
+                  aria-label={isSaved ? "Saved" : "Save destination"}
+                  className={cn("rounded-full", activeClass("save", isSaved))}
+                  onClick={() => onSave(post.id)}
+                  size="icon-sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Bookmark
+                    className={cn("size-4", isSaved ? "fill-current" : "")}
+                  />
+                </Button>
+                {currentUserId === post.user_id ? (
+                  <Button
+                    aria-label="Delete travel post"
+                    className="rounded-full text-[#b4233f]"
+                    onClick={() => onDelete(post.id)}
+                    size="icon-sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    aria-label="Report travel post"
+                    className="rounded-full"
+                    onClick={() => onReport(post.id)}
+                    size="icon-sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Flag className="size-4" />
+                  </Button>
+                )}
+              </>
+            ) : null}
           </div>
         </div>
 
