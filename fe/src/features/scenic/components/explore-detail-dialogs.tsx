@@ -64,6 +64,14 @@ function isCommentEdited(comment: PostComment) {
   return comment.updated_at !== comment.created_at;
 }
 
+function getPostAvatarUrl(post: Post | null) {
+  return post?.user_avatar_url || post?.avatar_url || "";
+}
+
+function getAuthorInitial(authorName: string) {
+  return authorName.trim().charAt(0).toUpperCase() || "U";
+}
+
 function getCommentAuthor(comment: PostComment) {
   return comment.user_name || `User #${comment.user_id}`;
 }
@@ -100,7 +108,9 @@ function getCommentThreads(comments: PostComment[]) {
   }));
 }
 
-function CommentAvatar({ name }: Readonly<{ name: string | null | undefined }>) {
+function CommentAvatar({
+  name,
+}: Readonly<{ name: string | null | undefined }>) {
   const initial = name?.trim().charAt(0) || "U";
 
   return (
@@ -304,6 +314,7 @@ export function PostDetailDialog({
   carouselLabel,
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
+  const authorAvatarUrl = getPostAvatarUrl(post);
   const categoryLabel = post?.category_name || "Travel";
   const dragStartXRef = useRef<number | null>(null);
   const didNavigateDragRef = useRef(false);
@@ -312,8 +323,7 @@ export function PostDetailDialog({
   const canNavigatePosts = Boolean(onPreviousPost || onNextPost);
   const getCommentPlaceholder = () => {
     if (!isChatOpen) return "Open comments";
-    if (!isAuthenticated)
-      return "Login to comment";
+    if (!isAuthenticated) return "Login to comment";
     if (editingComment) return "Edit comment";
     if (replyTarget)
       return `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`;
@@ -533,18 +543,33 @@ export function PostDetailDialog({
               </div>
             ) : null}
 
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pt-20 sm:px-5 sm:pb-5 sm:pt-24">
+            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pt-20 sm:px-5 sm:pb-5 sm:pt-24">
               <div className="max-w-2xl">
-                {post ? (
-                  <Link
-                    className="pointer-events-auto text-sm font-bold text-white hover:text-[#ff8aa0]"
-                    href={ROUTES.userProfile(post.user_id)}
-                  >
-                    {authorName}
-                  </Link>
-                ) : (
-                  <p className="text-sm font-bold text-white">{authorName}</p>
-                )}
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/18 text-xs font-bold text-white ring-1 ring-white/24">
+                    {authorAvatarUrl ? (
+                      <img
+                        alt={authorName}
+                        className="h-full w-full object-cover"
+                        src={authorAvatarUrl}
+                      />
+                    ) : (
+                      getAuthorInitial(authorName)
+                    )}
+                  </div>
+                  {post ? (
+                    <Link
+                      className="pointer-events-auto truncate text-sm font-bold text-white hover:text-[#ff8aa0]"
+                      href={ROUTES.userProfile(post.user_id)}
+                    >
+                      {authorName}
+                    </Link>
+                  ) : (
+                    <p className="truncate text-sm font-bold text-white">
+                      {authorName}
+                    </p>
+                  )}
+                </div>
                 <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/90 sm:line-clamp-3 sm:leading-6">
                   {post?.caption || "Travel story"}
                 </p>
@@ -567,7 +592,10 @@ export function PostDetailDialog({
                   type="button"
                 >
                   <Heart
-                    className={cn("size-4 sm:size-5", isLiked ? "fill-current" : "")}
+                    className={cn(
+                      "size-4 sm:size-5",
+                      isLiked ? "fill-current" : "",
+                    )}
                   />
                 </button>
               ) : null}
@@ -595,7 +623,10 @@ export function PostDetailDialog({
                   type="button"
                 >
                   <Bookmark
-                    className={cn("size-4 sm:size-5", isSaved ? "fill-current" : "")}
+                    className={cn(
+                      "size-4 sm:size-5",
+                      isSaved ? "fill-current" : "",
+                    )}
                   />
                 </button>
               ) : null}
@@ -609,7 +640,8 @@ export function PostDetailDialog({
                   Comments
                 </DialogTitle>
                 <DialogDescription className="text-sm text-[#777]">
-                  {commentCount} comment{commentCount === 1 ? "" : "s"} about this destination.
+                  {commentCount} comment{commentCount === 1 ? "" : "s"} about
+                  this destination.
                 </DialogDescription>
               </DialogHeader>
             </div>

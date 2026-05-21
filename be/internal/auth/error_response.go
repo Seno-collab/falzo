@@ -20,6 +20,7 @@ var (
 	errRefreshTokenRequired         = errors.New("refresh token required")
 	errMissingAuthContext           = errors.New("missing auth context")
 	errChangePasswordFieldsRequired = errors.New("change password fields required")
+	errAvatarURLRequired            = errors.New("avatar url required")
 )
 
 func mapAuthError(err error) share.ApiError {
@@ -53,6 +54,8 @@ func mapAuthError(err error) share.ApiError {
 		return share.UnauthorizedCredentials(share.Unauthorized, "Missing auth context")
 	case errors.Is(err, errChangePasswordFieldsRequired):
 		return share.Required("", "current_password and new_password are required")
+	case errors.Is(err, errAvatarURLRequired):
+		return share.Required("avatar_url", "avatar_url is required")
 	case errors.Is(err, ErrInvalidCredentials):
 		return share.UnauthorizedCredentials("Invalid credentials", "Email or password is incorrect")
 	case errors.Is(err, ErrInvalidToken):
@@ -68,6 +71,8 @@ func mapAuthError(err error) share.ApiError {
 		}
 	case errors.Is(err, ErrInvalidPassword):
 		return share.BadRequest("new_password", "new_password must be at least 8 characters and contain letters and digits")
+	case errors.Is(err, ErrInvalidAvatarURL):
+		return share.BadRequest("avatar_url", "avatar_url must be a valid URL")
 	case errors.Is(err, ErrDependencyUnavailable) || errors.Is(err, ErrTemporarilyUnavailable):
 		return share.ServiceUnavailable("Authentication service unavailable", "Authentication service is temporarily unavailable")
 	default:

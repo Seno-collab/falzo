@@ -2,6 +2,8 @@ export type Post = {
   id: number;
   user_id: number;
   user_name: string;
+  user_avatar_url?: string;
+  avatar_url?: string;
   category_id?: number;
   category_name?: string;
   category_slug?: string;
@@ -17,6 +19,12 @@ export type Post = {
   comments_count?: number;
   saves_count?: number;
   created_at: string;
+};
+
+export type PostsPage = {
+  items: Post[];
+  next_cursor?: string;
+  has_more: boolean;
 };
 
 export type SavedCollection = {
@@ -66,6 +74,12 @@ export type PostCreatedEvent = Post;
 
 export type PostDeletedEvent = {
   id: number;
+};
+
+export type UserAvatarUpdatedEvent = {
+  user_id: number;
+  avatar_url: string;
+  avatarUrl?: string;
 };
 
 export type CreatePostPayload = {

@@ -41,7 +41,7 @@ type handlerService interface {
 	DeleteComment(ctx context.Context, input ModerationInput) error
 	HideComment(ctx context.Context, input ModerationInput) error
 	ReportComment(ctx context.Context, input ReportInput) error
-	GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error)
+	GetPosts(ctx context.Context, input ListPostsInput) (PostListPage, error)
 	GetPostDetail(ctx context.Context, input GetPostDetailInput) (*PostView, error)
 	GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]PostView, error)
 	GetComments(ctx context.Context, input ListCommentsInput) ([]CommentView, error)
@@ -428,6 +428,7 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 	posts, err := h.service.GetPosts(r.Context(), ListPostsInput{
 		Page:         page,
 		Limit:        limit,
+		Cursor:       r.URL.Query().Get("cursor"),
 		ViewerUserID: h.viewerUserID(r),
 		Search:       r.URL.Query().Get("search"),
 		CategorySlug: r.URL.Query().Get("category_slug"),
@@ -481,7 +482,11 @@ func (h *Handler) StreamPosts(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if err := writeSSE(w, flusher, event.Type, event.Post); err != nil {
+			payload := any(event.Post)
+			if event.Type == "user.avatar_updated" {
+				payload = event.UserAvatar
+			}
+			if err := writeSSE(w, flusher, event.Type, payload); err != nil {
 				return
 			}
 		case <-heartbeat.C:

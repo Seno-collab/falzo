@@ -1,7 +1,7 @@
 "use client";
 
 import { divIcon, DomEvent, latLngBounds } from "leaflet";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -35,16 +35,49 @@ function escapeHtml(value: string) {
 
 function photoMarkerHtml(point: MapPoint, selected: boolean) {
   const markerClass = selected
-    ? "falzo-photo-marker falzo-photo-marker-selected"
-    : "falzo-photo-marker";
+    ? "falzo-map-marker is-selected"
+    : "falzo-map-marker";
   const countBadge =
     point.count && point.count > 1
       ? `<span class="falzo-photo-marker-count">${point.count}</span>`
       : "";
 
-  return `<div class="${markerClass}"><img alt="" src="${escapeHtml(
+  return `<div class="${markerClass}"><span class="falzo-photo-marker"><img alt="" src="${escapeHtml(
     point.imageUrl ?? "",
-  )}" />${countBadge}</div>`;
+  )}" />${countBadge}</span><span class="falzo-map-label">${escapeHtml(
+    point.name,
+  )}</span></div>`;
+}
+
+function placeMarkerHtml(point: MapPoint, selected: boolean) {
+  const markerClass = selected
+    ? "falzo-map-marker is-selected"
+    : "falzo-map-marker";
+
+  return `<div class="${markerClass}"><span class="falzo-place-pin"><span></span></span><span class="falzo-map-label">${escapeHtml(
+    point.name,
+  )}</span></div>`;
+}
+
+function markerScale(zoom: number) {
+  return Math.min(1.08, Math.max(0.52, 0.52 + (zoom - 5) * 0.07));
+}
+
+function ZoomObserver({
+  onZoomChange,
+}: Readonly<{
+  onZoomChange: (zoom: number) => void;
+}>) {
+  const map = useMapEvents({
+    zoom: (event) => onZoomChange(event.target.getZoom()),
+    zoomend: (event) => onZoomChange(event.target.getZoom()),
+  });
+
+  useEffect(() => {
+    onZoomChange(map.getZoom());
+  }, [map, onZoomChange]);
+
+  return null;
 }
 
 function ViewportController({
@@ -144,22 +177,27 @@ function MapClickController({
 }
 
 function LocationMarker({
+  markerZoom,
   onSelect,
   point,
   selected,
 }: Readonly<{
+  markerZoom: number;
   onSelect?: (point: MapPoint) => void;
   point: MapPoint;
   selected: boolean;
 }>) {
   const distance = formatDistance(point.distanceMeters);
+  const scale = markerScale(markerZoom) * (selected ? 1.08 : 1);
 
   if (point.imageUrl) {
     const icon = divIcon({
       className: "falzo-photo-marker-shell",
-      html: photoMarkerHtml(point, selected),
+      html: `<div style="--falzo-marker-scale:${scale.toFixed(
+        3,
+      )}">${photoMarkerHtml(point, selected)}</div>`,
       iconAnchor: [32, 32],
-      iconSize: [64, 64],
+      iconSize: [128, 92],
       popupAnchor: [0, -32],
     });
 
@@ -190,22 +228,26 @@ function LocationMarker({
     );
   }
 
+  const icon = divIcon({
+    className: "falzo-place-marker-shell",
+    html: `<div style="--falzo-marker-scale:${scale.toFixed(
+      3,
+    )}">${placeMarkerHtml(point, selected)}</div>`,
+    iconAnchor: [64, 46],
+    iconSize: [128, 76],
+    popupAnchor: [0, -36],
+  });
+
   return (
-    <CircleMarker
-      center={coordinatesToLatLng(point)}
+    <Marker
       eventHandlers={{
         click: (event) => {
           DomEvent.stopPropagation(event.originalEvent);
           onSelect?.(point);
         },
       }}
-      pathOptions={{
-        color: selected ? "#d97706" : "#2f6fb8",
-        fillColor: selected ? "#f59e0b" : "#4f8ec8",
-        fillOpacity: selected ? 0.9 : 0.74,
-        weight: selected ? 4 : 2,
-      }}
-      radius={selected ? 11 : 8}
+      icon={icon}
+      position={coordinatesToLatLng(point)}
     >
       <Popup>
         <div className={styles.popup}>
@@ -214,7 +256,7 @@ function LocationMarker({
           {distance ? <span>{distance}</span> : null}
         </div>
       </Popup>
-    </CircleMarker>
+    </Marker>
   );
 }
 
@@ -229,6 +271,7 @@ export default function FalzoMap({
   selectedPointId,
   zoom = 12,
 }: Readonly<FalzoMapProps>) {
+  const [markerZoom, setMarkerZoom] = useState(zoom);
   const selectedPoint = useMemo(
     () => points.find((point) => point.id === selectedPointId),
     [points, selectedPointId],
@@ -253,6 +296,7 @@ export default function FalzoMap({
           selectedPoint={selectedPoint}
           zoom={zoom}
         />
+        <ZoomObserver onZoomChange={setMarkerZoom} />
         <MapClickController onSelectCoordinates={onSelectCoordinates} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -265,6 +309,7 @@ export default function FalzoMap({
         {points.map((point) => (
           <LocationMarker
             key={point.id}
+            markerZoom={markerZoom}
             onSelect={onSelectPoint}
             point={point}
             selected={point.id === selectedPointId}

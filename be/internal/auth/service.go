@@ -9,12 +9,13 @@ import (
 )
 
 type Service struct {
-	accounts    AccountRepository
-	sessions    SessionRepository
-	passwords   PasswordHasher
-	tokenIssuer TokenIssuer
-	tokenAuth   TokenAuthenticator
-	refreshTTL  time.Duration
+	accounts     AccountRepository
+	sessions     SessionRepository
+	passwords    PasswordHasher
+	tokenIssuer  TokenIssuer
+	tokenAuth    TokenAuthenticator
+	avatarEvents AvatarEventPublisher
+	refreshTTL   time.Duration
 }
 
 func NewService(
@@ -33,6 +34,10 @@ func NewService(
 		tokenAuth:   tokenAuth,
 		refreshTTL:  refreshTTL,
 	}
+}
+
+func (s *Service) SetAvatarEventPublisher(publisher AvatarEventPublisher) {
+	s.avatarEvents = publisher
 }
 
 type RegisterInput struct {
@@ -58,6 +63,11 @@ type ChangePasswordInput struct {
 	UserID          uint64
 	CurrentPassword string
 	NewPassword     string
+}
+
+type UpdateAvatarInput struct {
+	UserID    uint64
+	AvatarURL string
 }
 
 func (s *Service) Register(ctx context.Context, input RegisterInput) error {
@@ -240,6 +250,54 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 	return s.accounts.UpdatePasswordHash(ctx, input.UserID, hash)
 }
 
+func (s *Service) Profile(ctx context.Context, userID uint64) (UserProfile, error) {
+	if s.accounts == nil {
+		return UserProfile{}, ErrDependencyUnavailable
+	}
+	if userID == 0 {
+		return UserProfile{}, ErrInvalidCredentials
+	}
+
+	account, err := s.accounts.FindActiveByID(ctx, userID)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	return profileFromAccount(account), nil
+}
+
+func (s *Service) UpdateAvatar(ctx context.Context, input UpdateAvatarInput) (UserProfile, error) {
+	if s.accounts == nil {
+		return UserProfile{}, ErrDependencyUnavailable
+	}
+	if input.UserID == 0 {
+		return UserProfile{}, ErrInvalidCredentials
+	}
+
+	avatarURL, err := NewAvatarURL(input.AvatarURL)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	if err := s.accounts.UpdateAvatarURL(ctx, input.UserID, avatarURL); err != nil {
+		return UserProfile{}, err
+	}
+
+	profile, err := s.Profile(ctx, input.UserID)
+	if err != nil {
+		return UserProfile{}, err
+	}
+	if s.avatarEvents != nil {
+		_ = s.avatarEvents.PublishAvatarUpdated(ctx, AvatarUpdatedEvent{
+			UserID:         profile.UserID,
+			AvatarURL:      profile.AvatarURL,
+			AvatarURLAlias: profile.AvatarURLAlias,
+		})
+	}
+
+	return profile, nil
+}
+
 func (s *Service) Authenticate(ctx context.Context, rawToken string) (*AuthenticatedUser, error) {
 	if s.tokenAuth == nil || s.sessions == nil {
 		return nil, ErrInvalidToken
@@ -273,6 +331,23 @@ func principalFromAccount(account *Account) (AuthenticatedUser, error) {
 		Roles:     append([]string(nil), account.Roles...),
 		SessionID: sessionID,
 	}, nil
+}
+
+func profileFromAccount(account *Account) UserProfile {
+	if account == nil {
+		return UserProfile{}
+	}
+
+	avatarURL := account.User.AvatarURL.String()
+	return UserProfile{
+		UserID:         account.User.ID,
+		UserIDAlias:    account.User.ID,
+		Username:       account.User.Username.String(),
+		UsernameAlias:  account.User.Username.String(),
+		Email:          account.User.Email.String(),
+		AvatarURL:      avatarURL,
+		AvatarURLAlias: avatarURL,
+	}
 }
 
 func newSessionID() (string, error) {

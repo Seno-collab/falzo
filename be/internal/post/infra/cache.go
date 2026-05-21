@@ -23,6 +23,7 @@ type cachedPost struct {
 	ID            uint64    `json:"id"`
 	UserID        uint64    `json:"user_id"`
 	UserName      string    `json:"user_name"`
+	UserAvatarURL string    `json:"user_avatar_url"`
 	CategoryID    uint64    `json:"category_id"`
 	CategoryName  string    `json:"category_name"`
 	CategorySlug  string    `json:"category_slug"`
@@ -245,6 +246,7 @@ func (r *CachedPostRepository) invalidatePublicFeed(ctx context.Context) {
 func isCacheablePublicFirstPage(filter post.PostListFilter) bool {
 	return filter.ViewerUserID == 0 &&
 		filter.Page == 1 &&
+		filter.Cursor == nil &&
 		strings.TrimSpace(filter.Feed) == "" &&
 		filter.Limit > 0
 }
@@ -273,6 +275,7 @@ func encodePosts(items []post.Post) []cachedPost {
 			ID:            item.ID,
 			UserID:        item.UserID,
 			UserName:      item.UserName,
+			UserAvatarURL: item.UserAvatarURL,
 			CategoryID:    item.CategoryID,
 			CategoryName:  item.CategoryName,
 			CategorySlug:  item.CategorySlug,
@@ -318,6 +321,7 @@ func decodePosts(payload []byte) ([]post.Post, error) {
 			ID:            item.ID,
 			UserID:        item.UserID,
 			UserName:      item.UserName,
+			UserAvatarURL: item.UserAvatarURL,
 			CategoryID:    item.CategoryID,
 			CategoryName:  item.CategoryName,
 			CategorySlug:  item.CategorySlug,

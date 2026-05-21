@@ -66,6 +66,14 @@ function animation(index: number) {
   };
 }
 
+function getPostAvatarUrl(post: Post) {
+  return post.user_avatar_url || post.avatar_url || "";
+}
+
+function getAuthorInitial(authorName: string) {
+  return authorName.trim().charAt(0).toUpperCase() || "U";
+}
+
 function onKeyboardOpen(event: KeyboardEvent, callback: () => void) {
   if (event.key !== "Enter" && event.key !== " ") {
     return;
@@ -310,6 +318,7 @@ export function ExplorePostCard({
   const location = post.location_name || "Destination";
   const authorName = post.user_name || `User #${post.user_id}`;
   const categoryLabel = post.category_name || "Travel";
+  const authorAvatarUrl = getPostAvatarUrl(post);
 
   return (
     <motion.article
@@ -385,16 +394,35 @@ export function ExplorePostCard({
 
       <div className="space-y-3 p-3.5 sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2.5">
             <Link
-              className="block truncate text-sm font-semibold text-[#202020] hover:text-[#ff385c]"
+              aria-label={`Open ${authorName}'s profile`}
+              className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#17395c] text-xs font-bold text-white ring-1 ring-black/5"
               href={ROUTES.userProfile(post.user_id)}
             >
-              {authorName}
+              {authorAvatarUrl ? (
+                <img
+                  alt={authorName}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  src={authorAvatarUrl}
+                />
+              ) : (
+                getAuthorInitial(authorName)
+              )}
             </Link>
-            <p className="mt-0.5 text-xs font-medium text-[#777]">
-              {categoryLabel} - {new Date(post.created_at).toLocaleDateString()}
-            </p>
+            <div className="min-w-0">
+              <Link
+                className="block truncate text-sm font-semibold text-[#202020] hover:text-[#ff385c]"
+                href={ROUTES.userProfile(post.user_id)}
+              >
+                {authorName}
+              </Link>
+              <p className="mt-0.5 text-xs font-medium text-[#777]">
+                {categoryLabel} -{" "}
+                {new Date(post.created_at).toLocaleDateString()}
+              </p>
+            </div>
           </div>
           <div
             className={cn(

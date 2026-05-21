@@ -21,6 +21,7 @@ var (
 	ErrPageMustBePositive        = errors.New("page must be greater than 0")
 	ErrLimitMustBePositive       = errors.New("limit must be greater than 0")
 	ErrLimitTooLarge             = errors.New("limit exceeds maximum")
+	ErrInvalidCursor             = errors.New("invalid cursor")
 	ErrInvalidFeed               = errors.New("invalid feed")
 	ErrLocationNameRequired      = errors.New("location name is required")
 	ErrLatitudeOutOfRange        = errors.New("latitude must be between -90 and 90")
@@ -83,6 +84,7 @@ type Post struct {
 	ID            uint64       `json:"id"`
 	UserID        uint64       `json:"user_id"`
 	UserName      string       `json:"user_name"`
+	UserAvatarURL string       `json:"user_avatar_url,omitempty"`
 	CategoryID    uint64       `json:"category_id,omitempty"`
 	CategoryName  string       `json:"category_name,omitempty"`
 	CategorySlug  string       `json:"category_slug,omitempty"`
@@ -93,6 +95,7 @@ type Post struct {
 	Longitude     float64      `json:"longitude"`
 	CreatedAt     time.Time    `json:"created_at"`
 	UpdatedAt     time.Time    `json:"-"`
+	CursorRank    float64      `json:"-"`
 	IsLiked       bool         `json:"is_liked"`
 	IsSaved       bool         `json:"is_saved"`
 	Status        string       `json:"status"`
@@ -105,6 +108,7 @@ type PostView struct {
 	ID            uint64    `json:"id"`
 	UserID        uint64    `json:"user_id"`
 	UserName      string    `json:"user_name"`
+	UserAvatarURL string    `json:"user_avatar_url,omitempty"`
 	CategoryID    uint64    `json:"category_id,omitempty"`
 	CategoryName  string    `json:"category_name,omitempty"`
 	CategorySlug  string    `json:"category_slug,omitempty"`
@@ -127,6 +131,7 @@ func (p Post) View() PostView {
 		ID:            p.ID,
 		UserID:        p.UserID,
 		UserName:      p.UserName,
+		UserAvatarURL: p.UserAvatarURL,
 		CategoryID:    p.CategoryID,
 		CategoryName:  p.CategoryName,
 		CategorySlug:  p.CategorySlug,
@@ -178,6 +183,9 @@ type ContentReport struct {
 type PostListFilter struct {
 	Page         int
 	Limit        int
+	Offset       int
+	Cursor       *PostCursor
+	RankAt       time.Time
 	ViewerUserID uint64
 	Search       string
 	CategorySlug string
@@ -186,6 +194,20 @@ type PostListFilter struct {
 	Latitude     float64
 	Longitude    float64
 	RadiusMeters int
+}
+
+type PostCursor struct {
+	Sort      string
+	Rank      float64
+	RankAt    time.Time
+	CreatedAt time.Time
+	ID        uint64
+}
+
+type PostListPage struct {
+	Items      []PostView `json:"items"`
+	NextCursor string     `json:"next_cursor,omitempty"`
+	HasMore    bool       `json:"has_more"`
 }
 
 type SavedCollection struct {

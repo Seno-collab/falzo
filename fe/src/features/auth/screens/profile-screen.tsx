@@ -2,6 +2,7 @@
 
 import {
   CalendarClock,
+  Camera,
   Compass,
   Fingerprint,
   KeyRound,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
-import type { ReactNode } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,7 @@ import {
   getMeApi,
   hasAuthSession,
   logoutApi,
+  updateAvatarApi,
 } from "@/features/auth/api";
 import type { AuthUser } from "@/features/auth/types";
 import {
@@ -43,6 +45,7 @@ import {
   getAuthUserInitials,
   readAuthUserText,
 } from "@/features/auth/user-display";
+import { uploadImageApi } from "@/features/posts/api";
 import { ROUTES } from "@/lib/routes";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -116,6 +119,7 @@ export function ProfileScreen() {
   const queryClient = useQueryClient();
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
@@ -163,7 +167,38 @@ export function ProfileScreen() {
   const displayName = useMemo(() => getAuthUserDisplayName(profile), [profile]);
   const email = readAuthUserText(profile, ["email"]);
   const username = readAuthUserText(profile, ["user_name"]);
+  const avatarUrl = readAuthUserText(profile, ["avatar_url", "avatarUrl"]);
   const subject = readAuthUserText(profile, ["subject", "id"]);
+
+  const handleAvatarFileChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || isUploadingAvatar) {
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const uploaded = await uploadImageApi(file);
+      const updatedProfile = await updateAvatarApi(uploaded.url);
+      setProfile((current) => ({
+        ...(current ?? {}),
+        ...updatedProfile,
+        avatar_url: updatedProfile.avatar_url ?? uploaded.url,
+        avatarUrl: updatedProfile.avatarUrl ?? uploaded.url,
+      }));
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
+      toast.success("Profile photo updated.");
+    } catch (error) {
+      toast.error("Unable to update profile photo", {
+        description: getApiErrorMessage(error),
+      });
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const handleChangePassword = passwordForm.handleSubmit(async (values) => {
     try {
@@ -263,9 +298,38 @@ export function ProfileScreen() {
               <div className="border-[#dfe9f4] border-b bg-[linear-gradient(180deg,#fafdff_0%,#f5f9fd_100%)] p-5 sm:p-7">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-[#17395c] text-lg font-semibold text-white shadow-[0_18px_40px_-28px_rgb(22_58_95/0.75)]">
-                      {getAuthUserInitials(displayName)}
-                    </div>
+                    <label
+                      className={`group relative size-18 shrink-0 overflow-hidden rounded-2xl bg-[#17395c] text-lg font-semibold text-white shadow-[0_18px_40px_-28px_rgb(22_58_95/0.75)] transition ${
+                        isUploadingAvatar
+                          ? "cursor-not-allowed opacity-70"
+                          : "cursor-pointer hover:brightness-105"
+                      }`}
+                      title="Upload profile photo"
+                    >
+                      <div className="flex size-18 items-center justify-center">
+                        {avatarUrl ? (
+                          <img
+                            alt={displayName}
+                            className="h-full w-full object-cover"
+                            src={avatarUrl}
+                          />
+                        ) : (
+                          getAuthUserInitials(displayName)
+                        )}
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/38 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                        <Camera className="size-6 text-white drop-shadow-sm" />
+                      </div>
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        disabled={isUploadingAvatar}
+                        onChange={(event) => {
+                          void handleAvatarFileChange(event);
+                        }}
+                        type="file"
+                      />
+                    </label>
                     <div className="min-w-0">
                       <Badge>Signed in</Badge>
                       <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-[#143052] sm:text-3xl">
@@ -274,6 +338,11 @@ export function ProfileScreen() {
                       <p className="mt-1 truncate text-sm text-[#527299]">
                         {email ?? username ?? "Authenticated Falzo account"}
                       </p>
+                      {isUploadingAvatar ? (
+                        <p className="mt-2 text-xs font-semibold text-[#5178a2]">
+                          Uploading profile photo...
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 

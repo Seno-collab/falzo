@@ -17,6 +17,8 @@ type fakeAccountRepository struct {
 	findErr            error
 	updatePasswordHash auth.PasswordHash
 	updatePasswordErr  error
+	updateAvatarURL    auth.AvatarURL
+	updateAvatarErr    error
 }
 
 func (f *fakeAccountRepository) Save(ctx context.Context, account *auth.Account) error {
@@ -46,6 +48,17 @@ func (f *fakeAccountRepository) UpdatePasswordHash(ctx context.Context, userID u
 		return f.updatePasswordErr
 	}
 	f.updatePasswordHash = passwordHash
+	return nil
+}
+
+func (f *fakeAccountRepository) UpdateAvatarURL(ctx context.Context, userID uint64, avatarURL auth.AvatarURL) error {
+	if f.updateAvatarErr != nil {
+		return f.updateAvatarErr
+	}
+	f.updateAvatarURL = avatarURL
+	if f.account != nil && f.account.User.ID == userID {
+		f.account.User.AvatarURL = avatarURL
+	}
 	return nil
 }
 
@@ -246,5 +259,48 @@ func TestChangePasswordRejectsInvalidCurrentPassword(t *testing.T) {
 	}
 	if accounts.updatePasswordHash != "" {
 		t.Fatal("expected password hash to remain unchanged")
+	}
+}
+
+func TestUpdateAvatarSuccess(t *testing.T) {
+	username, _ := auth.NewUsername("admin")
+	email, _ := auth.NewEmail("admin@example.com")
+	hash, _ := auth.NewPasswordHash("hash")
+	account := auth.RehydrateAccount(auth.User{
+		ID:           7,
+		Username:     username,
+		Email:        email,
+		PasswordHash: hash,
+		IsActive:     true,
+	}, []string{"user"})
+
+	accounts := &fakeAccountRepository{account: account}
+	service := auth.NewService(accounts, nil, nil, nil, nil, 24*time.Hour)
+
+	profile, err := service.UpdateAvatar(t.Context(), auth.UpdateAvatarInput{
+		UserID:    7,
+		AvatarURL: "https://example.com/avatar.jpg",
+	})
+	if err != nil {
+		t.Fatalf("unexpected update avatar error: %v", err)
+	}
+
+	if accounts.updateAvatarURL.String() != "https://example.com/avatar.jpg" {
+		t.Fatalf("expected avatar url to be updated, got %q", accounts.updateAvatarURL.String())
+	}
+	if profile.AvatarURL != "https://example.com/avatar.jpg" {
+		t.Fatalf("expected profile avatar url, got %q", profile.AvatarURL)
+	}
+}
+
+func TestUpdateAvatarRejectsInvalidURL(t *testing.T) {
+	service := auth.NewService(&fakeAccountRepository{}, nil, nil, nil, nil, 24*time.Hour)
+
+	_, err := service.UpdateAvatar(t.Context(), auth.UpdateAvatarInput{
+		UserID:    7,
+		AvatarURL: "not-a-url",
+	})
+	if !errors.Is(err, auth.ErrInvalidAvatarURL) {
+		t.Fatalf("expected invalid avatar url, got %v", err)
 	}
 }

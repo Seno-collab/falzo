@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 	"time"
 	"unicode"
@@ -20,6 +21,7 @@ var (
 	ErrInvalidPassword        = errors.New("Invalid password")
 	ErrInvalidPasswordHash    = errors.New("invalid password hash")
 	ErrInvalidUsername        = errors.New("invalid username")
+	ErrInvalidAvatarURL       = errors.New("invalid avatar url")
 )
 
 type AccountRepository interface {
@@ -27,6 +29,7 @@ type AccountRepository interface {
 	FindActiveByEmail(ctx context.Context, email Email) (*Account, error)
 	FindActiveByID(ctx context.Context, userID uint64) (*Account, error)
 	UpdatePasswordHash(ctx context.Context, userID uint64, passwordHash PasswordHash) error
+	UpdateAvatarURL(ctx context.Context, userID uint64, avatarURL AvatarURL) error
 }
 
 type SessionRepository interface {
@@ -53,11 +56,22 @@ type TokenAuthenticator interface {
 	Authenticate(rawToken string) (*AuthenticatedUser, error)
 }
 
+type AvatarEventPublisher interface {
+	PublishAvatarUpdated(ctx context.Context, event AvatarUpdatedEvent) error
+}
+
+type AvatarUpdatedEvent struct {
+	UserID         uint64 `json:"user_id"`
+	AvatarURL      string `json:"avatar_url"`
+	AvatarURLAlias string `json:"avatarUrl"`
+}
+
 type User struct {
 	ID           uint64
 	Username     Username
 	Email        Email
 	PasswordHash PasswordHash
+	AvatarURL    AvatarURL
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -66,6 +80,16 @@ type User struct {
 type Account struct {
 	User  User
 	Roles []string
+}
+
+type UserProfile struct {
+	UserID         uint64 `json:"user_id"`
+	UserIDAlias    uint64 `json:"userId"`
+	Username       string `json:"user_name"`
+	UsernameAlias  string `json:"userName"`
+	Email          string `json:"email"`
+	AvatarURL      string `json:"avatar_url,omitempty"`
+	AvatarURLAlias string `json:"avatarUrl,omitempty"`
 }
 
 func NewAccount(username Username, email Email, passwordHash PasswordHash, roles []string) *Account {
@@ -153,6 +177,24 @@ func NewPasswordHash(raw string) (PasswordHash, error) {
 }
 
 func (p PasswordHash) String() string { return string(p) }
+
+type AvatarURL string
+
+func NewAvatarURL(raw string) (AvatarURL, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", ErrInvalidAvatarURL
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil || parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", ErrInvalidAvatarURL
+	}
+
+	return AvatarURL(value), nil
+}
+
+func (a AvatarURL) String() string { return string(a) }
 
 type AuthenticatedUser struct {
 	UserID    uint64

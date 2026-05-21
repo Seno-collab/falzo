@@ -12,11 +12,15 @@ type fakePostRepository struct {
 	updateUserID     uint64
 	page             int
 	limit            int
+	offset           int
+	cursor           *PostCursor
+	rankAt           time.Time
 	search           string
 	categorySlug     string
 	feed             string
 	sort             string
 	radiusMeters     int
+	posts            []Post
 }
 
 func (f *fakePostRepository) Create(_ context.Context, post *Post) error {
@@ -126,12 +130,15 @@ func (f *fakePostRepository) UpdateComment(_ context.Context, postID uint64, com
 func (f *fakePostRepository) GetPosts(_ context.Context, filter PostListFilter) ([]Post, error) {
 	f.page = filter.Page
 	f.limit = filter.Limit
+	f.offset = filter.Offset
+	f.cursor = filter.Cursor
+	f.rankAt = filter.RankAt
 	f.search = filter.Search
 	f.categorySlug = filter.CategorySlug
 	f.feed = filter.Feed
 	f.sort = filter.Sort
 	f.radiusMeters = filter.RadiusMeters
-	return nil, nil
+	return f.posts, nil
 }
 
 func TestCreatePostPassesCategoryToRepository(t *testing.T) {
@@ -244,8 +251,68 @@ func TestGetPostsPassesPaginationToRepository(t *testing.T) {
 		t.Fatalf("get posts: %v", err)
 	}
 
-	if repo.page != 2 || repo.limit != 24 || repo.search != "Kyoto" || repo.categorySlug != "heritage" || repo.feed != "following" {
-		t.Fatalf("expected page=2 limit=24 search=Kyoto category=heritage feed=following, got page=%d limit=%d search=%q category=%q feed=%q", repo.page, repo.limit, repo.search, repo.categorySlug, repo.feed)
+	if repo.page != 2 || repo.limit != 25 || repo.offset != 24 || repo.search != "Kyoto" || repo.categorySlug != "heritage" || repo.feed != "following" {
+		t.Fatalf("expected page=2 repository limit=25 offset=24 search=Kyoto category=heritage feed=following, got page=%d limit=%d offset=%d search=%q category=%q feed=%q", repo.page, repo.limit, repo.offset, repo.search, repo.categorySlug, repo.feed)
+	}
+}
+
+func TestGetPostsReturnsCursorPage(t *testing.T) {
+	imageURL, _ := NewImageURL("https://example.com/image.jpg")
+	caption, _ := NewCaption("A scenic post")
+	locationName, _ := NewLocationName("Da Nang")
+	now := time.Now().UTC()
+	repo := &fakePostRepository{
+		posts: []Post{
+			{ID: 3, ImageURL: imageURL, Caption: caption, LocationName: locationName, CreatedAt: now.Add(-1 * time.Minute)},
+			{ID: 2, ImageURL: imageURL, Caption: caption, LocationName: locationName, CreatedAt: now.Add(-2 * time.Minute)},
+			{ID: 1, ImageURL: imageURL, Caption: caption, LocationName: locationName, CreatedAt: now.Add(-3 * time.Minute)},
+		},
+	}
+	service := NewService(repo)
+
+	page, err := service.GetPosts(t.Context(), ListPostsInput{Page: 1, Limit: 2, Sort: "newest"})
+	if err != nil {
+		t.Fatalf("get posts: %v", err)
+	}
+
+	if len(page.Items) != 2 || !page.HasMore || page.NextCursor == "" {
+		t.Fatalf("expected cursor page with 2 items and next cursor, got %+v", page)
+	}
+	cursor, err := decodePostCursor(page.NextCursor)
+	if err != nil {
+		t.Fatalf("decode next cursor: %v", err)
+	}
+	if cursor.ID != 2 || cursor.Sort != "newest" {
+		t.Fatalf("expected cursor for last visible post, got %+v", cursor)
+	}
+	if cursor.RankAt.IsZero() {
+		t.Fatal("expected next cursor to keep rank_at")
+	}
+}
+
+func TestGetPostsPassesDecodedCursorToRepository(t *testing.T) {
+	cursorValue := encodePostCursor(PostCursor{
+		Sort:      "newest",
+		RankAt:    time.Now().UTC().Add(-1 * time.Minute),
+		CreatedAt: time.Now().UTC(),
+		ID:        12,
+	})
+	repo := &fakePostRepository{}
+	service := NewService(repo)
+
+	_, err := service.GetPosts(t.Context(), ListPostsInput{Page: 1, Limit: 24, Sort: "newest", Cursor: cursorValue})
+	if err != nil {
+		t.Fatalf("get posts with cursor: %v", err)
+	}
+
+	if repo.cursor == nil || repo.cursor.ID != 12 {
+		t.Fatalf("expected decoded cursor to reach repository, got %+v", repo.cursor)
+	}
+	if repo.offset != 0 {
+		t.Fatalf("expected cursor request to use offset 0, got %d", repo.offset)
+	}
+	if !repo.rankAt.Equal(repo.cursor.RankAt) {
+		t.Fatalf("expected repository rank_at to come from cursor, got %v want %v", repo.rankAt, repo.cursor.RankAt)
 	}
 }
 

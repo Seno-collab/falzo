@@ -150,6 +150,26 @@ func (r *AccountRepository) UpdatePasswordHash(ctx context.Context, userID uint6
 	return nil
 }
 
+func (r *AccountRepository) UpdateAvatarURL(ctx context.Context, userID uint64, avatarURL auth.AvatarURL) error {
+	users, err := r.userTable()
+	if err != nil {
+		return err
+	}
+
+	result, err := users.UpdateWhere(ctx, "id = $3 AND is_active = TRUE", orm.Values{
+		"avatar_url": avatarURL.String(),
+		"updated_at": time.Now().UTC(),
+	}, userID)
+	if err != nil {
+		return share.MapDBError(ctx, authRepoService, "accounts.update_avatar_url", err, auth.ErrDependencyUnavailable, auth.ErrInternal)
+	}
+	if result.RowsAffected() == 0 {
+		return auth.ErrInvalidCredentials
+	}
+
+	return nil
+}
+
 func (r *AccountRepository) loadRoles(ctx context.Context, userID uint64) ([]string, error) {
 	userRoles := orm.NewTable(r.db.Pool(), "user_roles JOIN roles ON roles.id = user_roles.role_id", []string{"roles.name"}, scanRoleName)
 	records, err := userRoles.List(ctx, orm.QueryOptions{Where: "user_roles.user_id = $1", Args: []any{userID}})
@@ -469,7 +489,7 @@ func (r *SessionRepository) jobConfigTable() (*orm.Table[jobConfigRecord], error
 }
 
 func newUserTable(db orm.Queryer) *orm.Table[auth.User] {
-	return orm.NewTable(db, "users", []string{"id", "user_name", "email", "password_hash", "is_active", "created_at", "updated_at"}, scanUser)
+	return orm.NewTable(db, "users", []string{"id", "user_name", "email", "password_hash", "COALESCE(avatar_url, '')", "is_active", "created_at", "updated_at"}, scanUser)
 }
 
 func newRoleTable(db orm.Queryer) *orm.Table[roleRecord] {
@@ -507,12 +527,14 @@ func scanUser(scanner orm.Scanner) (auth.User, error) {
 		rawUsername     string
 		rawEmail        string
 		rawPasswordHash string
+		rawAvatarURL    string
 	)
 	err := scanner.Scan(
 		&user.ID,
 		&rawUsername,
 		&rawEmail,
 		&rawPasswordHash,
+		&rawAvatarURL,
 		&user.IsActive,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -531,6 +553,12 @@ func scanUser(scanner orm.Scanner) (auth.User, error) {
 	user.PasswordHash, err = auth.NewPasswordHash(rawPasswordHash)
 	if err != nil {
 		return auth.User{}, err
+	}
+	if rawAvatarURL != "" {
+		user.AvatarURL, err = auth.NewAvatarURL(rawAvatarURL)
+		if err != nil {
+			return auth.User{}, err
+		}
 	}
 	return user, nil
 }

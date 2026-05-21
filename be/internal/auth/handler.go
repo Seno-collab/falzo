@@ -20,6 +20,8 @@ type handlerService interface {
 	Refresh(ctx context.Context, input RefreshInput) (TokenPair, error)
 	Logout(ctx context.Context, input LogoutInput) error
 	ChangePassword(ctx context.Context, input ChangePasswordInput) error
+	Profile(ctx context.Context, userID uint64) (UserProfile, error)
+	UpdateAvatar(ctx context.Context, input UpdateAvatarInput) (UserProfile, error)
 	Authenticate(ctx context.Context, rawToken string) (*AuthenticatedUser, error)
 }
 
@@ -77,6 +79,7 @@ func (h *Handler) Routes() chi.Router {
 		protected.Get("/me", h.Me)
 		protected.Post("/logout", h.Logout)
 		protected.Post("/change-password", h.ChangePassword)
+		protected.Patch("/me/avatar", h.UpdateAvatar)
 	})
 	return r
 }
@@ -294,17 +297,72 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	claims, ok := authenticatedUserFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil || claims.UserID == 0 {
 		share.WriteError(w, r, errMissingAuthContext, "me", mapAuthError)
 		return
 	}
 
-	httpResponse.Success(w, http.StatusOK, "Authenticated user fetched successfully", map[string]any{
-		"user_id":   claims.UserID,
-		"userId":    claims.UserID,
-		"user_name": claims.Username,
-		"userName":  claims.Username,
-		"subject":   claims.Subject,
-		"expires":   claims.ExpiresAt,
-	}, r)
+	profile, err := h.service.Profile(r.Context(), claims.UserID)
+	if err != nil {
+		share.WriteError(w, r, err, "me", mapAuthError)
+		return
+	}
+
+	payload := map[string]any{
+		"user_id":    profile.UserID,
+		"userId":     profile.UserIDAlias,
+		"user_name":  profile.Username,
+		"userName":   profile.UsernameAlias,
+		"email":      profile.Email,
+		"avatar_url": profile.AvatarURL,
+		"avatarUrl":  profile.AvatarURLAlias,
+		"subject":    claims.Subject,
+		"expires":    claims.ExpiresAt,
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Authenticated user fetched successfully", payload, r)
+}
+
+type UpdateAvatarRequest struct {
+	AvatarURL      string `json:"avatar_url"`
+	AvatarURLAlias string `json:"avatarUrl"`
+}
+
+func (req UpdateAvatarRequest) avatarURL() string {
+	if req.AvatarURL != "" {
+		return req.AvatarURL
+	}
+
+	return req.AvatarURLAlias
+}
+
+func (h *Handler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, errMissingAuthContext, "update_avatar", mapAuthError)
+		return
+	}
+
+	var req UpdateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "update_avatar", mapAuthError)
+		return
+	}
+
+	avatarURL := req.avatarURL()
+	if strings.TrimSpace(avatarURL) == "" {
+		share.WriteError(w, r, errAvatarURLRequired, "update_avatar", mapAuthError)
+		return
+	}
+
+	profile, err := h.service.UpdateAvatar(r.Context(), UpdateAvatarInput{
+		UserID:    principal.UserID,
+		AvatarURL: avatarURL,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "update_avatar", mapAuthError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Profile photo updated successfully", profile, r)
 }

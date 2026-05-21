@@ -39,6 +39,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("limit", "limit must be greater than 0")
 	case errors.Is(err, ErrLimitTooLarge):
 		return share.BadRequest("limit", "limit must not exceed 50")
+	case errors.Is(err, ErrInvalidCursor):
+		return share.BadRequest("cursor", "cursor is invalid")
 	case errors.Is(err, ErrInvalidFeed):
 		return share.BadRequest("feed", "feed must be following when provided")
 	case errors.Is(err, ErrLocationNameRequired):

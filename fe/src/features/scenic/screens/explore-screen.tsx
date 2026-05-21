@@ -74,18 +74,19 @@ import {
   getPostCommentsApi,
   getPostDetailApi,
   getPostEventsUrl,
-  getPostsApi,
+  getPostsPageApi,
   likePostApi,
   parsePostCommentCreatedEvent,
   parsePostCreatedEvent,
   parsePostDeletedEvent,
-  savePostApi,
+  parseUserAvatarUpdatedEvent,
   reportPostApi,
+  savePostApi,
   unlikePostApi,
   unsavePostApi,
   updatePostCommentApi,
 } from "@/features/posts/api";
-import type { Post, PostComment } from "@/features/posts/types";
+import type { Post, PostComment, PostsPage } from "@/features/posts/types";
 import type { PostSort } from "@/features/posts/types";
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
 import { PostDetailDialog } from "@/features/scenic/components/explore-detail-dialogs";
@@ -99,7 +100,7 @@ import {
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-type PostsInfiniteData = InfiniteData<Post[], number>;
+type PostsInfiniteData = InfiniteData<PostsPage, string | null>;
 
 const postsPageSize = 24;
 const maxNotifications = 30;
@@ -379,8 +380,8 @@ export function ExploreScreen() {
       nearbyRadiusMeters,
     ],
     queryFn: ({ pageParam }) =>
-      getPostsApi({
-        page: pageParam,
+      getPostsPageApi({
+        cursor: pageParam,
         limit: postsPageSize,
         search: activeSearch,
         categorySlug: activeCategorySlug,
@@ -390,9 +391,11 @@ export function ExploreScreen() {
         longitude: nearbyCoords?.longitude,
         radiusMeters: feedSort === "nearby" ? nearbyRadiusMeters : undefined,
       }),
-    getNextPageParam: (lastPage, _pages, lastPageParam) =>
-      lastPage.length < postsPageSize ? undefined : lastPageParam + 1,
-    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.has_more && lastPage.next_cursor
+        ? lastPage.next_cursor
+        : undefined,
+    initialPageParam: null as string | null,
   });
 
   const postDetailQuery = useQuery({
@@ -537,23 +540,33 @@ export function ExploreScreen() {
         (current) => {
           if (!current) {
             return {
-              pageParams: [1],
-              pages: [[post]],
+              pageParams: [null],
+              pages: [{ items: [post], has_more: false }],
             };
           }
 
           if (
             current.pages.some((page) =>
-              page.some((item) => item.id === post.id),
+              page.items.some((item) => item.id === post.id),
             )
           ) {
             return current;
           }
 
-          const [firstPage = [], ...restPages] = current.pages;
+          const [firstPage, ...restPages] = current.pages;
+          if (!firstPage) {
+            return {
+              ...current,
+              pages: [{ items: [post], has_more: false }],
+            };
+          }
+
           return {
             ...current,
-            pages: [[post, ...firstPage], ...restPages],
+            pages: [
+              { ...firstPage, items: [post, ...firstPage.items] },
+              ...restPages,
+            ],
           };
         },
       );
@@ -573,9 +586,10 @@ export function ExploreScreen() {
 
           return {
             ...current,
-            pages: current.pages.map((page) =>
-              page.filter((item) => item.id !== deleted.id),
-            ),
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((item) => item.id !== deleted.id),
+            })),
           };
         },
       );
@@ -596,12 +610,52 @@ export function ExploreScreen() {
         return next;
       });
     };
+    const handleUserAvatarUpdated = (event: Event) => {
+      const updated = parseUserAvatarUpdatedEvent(
+        event as MessageEvent<string>,
+      );
+      if (!updated) {
+        return;
+      }
+
+      const applyAvatar = (post: Post): Post =>
+        post.user_id === updated.user_id
+          ? {
+              ...post,
+              avatar_url: updated.avatar_url,
+              user_avatar_url: updated.avatar_url,
+            }
+          : post;
+
+      queryClient.setQueriesData<PostsInfiniteData>(
+        { queryKey: ["posts", "explore"] },
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.map(applyAvatar),
+            })),
+          };
+        },
+      );
+      queryClient.setQueriesData<Post>(
+        { queryKey: ["posts", "detail"] },
+        (current) => (current ? applyAvatar(current) : current),
+      );
+    };
 
     source.addEventListener("post.created", handlePostCreated);
     source.addEventListener("post.deleted", handlePostDeleted);
+    source.addEventListener("user.avatar_updated", handleUserAvatarUpdated);
     return () => {
       source.removeEventListener("post.created", handlePostCreated);
       source.removeEventListener("post.deleted", handlePostDeleted);
+      source.removeEventListener("user.avatar_updated", handleUserAvatarUpdated);
       source.close();
     };
   }, [
@@ -720,7 +774,7 @@ export function ExploreScreen() {
   );
 
   const loadedPosts = useMemo(
-    () => postsQuery.data?.pages.flat() ?? [],
+    () => postsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [postsQuery.data],
   );
 

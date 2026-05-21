@@ -17,6 +17,7 @@ const (
 	commentUpdatedChannel = "post:comments:updated"
 	postCreatedChannel    = "posts:created"
 	postDeletedChannel    = "posts:deleted"
+	userAvatarChannel     = "users:avatar_updated"
 )
 
 type RedisCommentEventPublisher struct {
@@ -160,6 +161,29 @@ func (p *RedisPostEventPublisher) PublishPostDeleted(ctx context.Context, postID
 	})
 }
 
+func (p *RedisPostEventPublisher) PublishUserAvatarUpdated(ctx context.Context, event post.UserAvatarUpdatedEvent) error {
+	if p == nil || p.client == nil {
+		if p != nil && p.fallback != nil {
+			_ = p.fallback.PublishUserAvatarUpdated(ctx, event)
+		}
+		return nil
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+
+	if err := p.client.Publish(ctx, userAvatarChannel, payload).Err(); err != nil {
+		if p.fallback != nil {
+			_ = p.fallback.PublishUserAvatarUpdated(ctx, event)
+		}
+		return err
+	}
+
+	return nil
+}
+
 func (p *RedisPostEventPublisher) publishPostEvent(ctx context.Context, channel string, item post.PostView, fallback func()) error {
 	if p == nil || p.client == nil {
 		if fallback != nil {
@@ -188,7 +212,7 @@ func RunRedisPostEventSubscriber(ctx context.Context, broker *post.PostEventBrok
 		return
 	}
 
-	pubsub := cache.Client().Subscribe(ctx, postCreatedChannel, postDeletedChannel)
+	pubsub := cache.Client().Subscribe(ctx, postCreatedChannel, postDeletedChannel, userAvatarChannel)
 	defer pubsub.Close()
 
 	if _, err := pubsub.Receive(ctx); err != nil {
@@ -212,16 +236,27 @@ func RunRedisPostEventSubscriber(ctx context.Context, broker *post.PostEventBrok
 				return
 			}
 
-			var item post.PostView
-			if err := json.Unmarshal([]byte(message.Payload), &item); err != nil {
-				log.Error().Err(err).Msg("post event payload decode failed")
-				continue
-			}
-
 			switch message.Channel {
+			case userAvatarChannel:
+				var event post.UserAvatarUpdatedEvent
+				if err := json.Unmarshal([]byte(message.Payload), &event); err != nil {
+					log.Error().Err(err).Msg("user avatar event payload decode failed")
+					continue
+				}
+				broker.BroadcastUserAvatarUpdated(event)
 			case postDeletedChannel:
+				var item post.PostView
+				if err := json.Unmarshal([]byte(message.Payload), &item); err != nil {
+					log.Error().Err(err).Msg("post event payload decode failed")
+					continue
+				}
 				broker.BroadcastPostDeleted(item.ID)
 			default:
+				var item post.PostView
+				if err := json.Unmarshal([]byte(message.Payload), &item); err != nil {
+					log.Error().Err(err).Msg("post event payload decode failed")
+					continue
+				}
 				broker.BroadcastPostCreated(item)
 			}
 		}

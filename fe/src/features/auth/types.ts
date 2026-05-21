@@ -27,6 +27,8 @@ export type AuthUser = {
   name?: string;
   user_name?: string;
   userName?: string;
+  avatar_url?: string;
+  avatarUrl?: string;
   subject?: string;
   expires?: number | string | null;
 } & Record<string, unknown>;

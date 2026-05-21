@@ -22,6 +22,7 @@ type CommentEvent struct {
 type PostEventPublisher interface {
 	PublishPostCreated(ctx context.Context, post PostView) error
 	PublishPostDeleted(ctx context.Context, postID uint64) error
+	PublishUserAvatarUpdated(ctx context.Context, event UserAvatarUpdatedEvent) error
 }
 
 type PostEventSubscriber interface {
@@ -29,8 +30,15 @@ type PostEventSubscriber interface {
 }
 
 type PostEvent struct {
-	Type string
-	Post PostView
+	Type       string
+	Post       PostView
+	UserAvatar UserAvatarUpdatedEvent
+}
+
+type UserAvatarUpdatedEvent struct {
+	UserID         uint64 `json:"user_id"`
+	AvatarURL      string `json:"avatar_url"`
+	AvatarURLAlias string `json:"avatarUrl"`
 }
 
 type CommentEventBroker struct {
@@ -131,6 +139,11 @@ func (b *PostEventBroker) PublishPostDeleted(_ context.Context, postID uint64) e
 	return nil
 }
 
+func (b *PostEventBroker) PublishUserAvatarUpdated(_ context.Context, event UserAvatarUpdatedEvent) error {
+	b.BroadcastUserAvatarUpdated(event)
+	return nil
+}
+
 func (b *PostEventBroker) SubscribePosts(ctx context.Context) (<-chan PostEvent, func()) {
 	ch := make(chan PostEvent, 16)
 
@@ -163,6 +176,19 @@ func (b *PostEventBroker) BroadcastPostCreated(post PostView) {
 
 func (b *PostEventBroker) BroadcastPostDeleted(postID uint64) {
 	b.broadcastPostEvent("post.deleted", PostView{ID: postID})
+}
+
+func (b *PostEventBroker) BroadcastUserAvatarUpdated(event UserAvatarUpdatedEvent) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	for ch := range b.subscribers {
+		postEvent := PostEvent{Type: "user.avatar_updated", UserAvatar: event}
+		select {
+		case ch <- postEvent:
+		default:
+		}
+	}
 }
 
 func (b *PostEventBroker) broadcastPostEvent(eventType string, post PostView) {

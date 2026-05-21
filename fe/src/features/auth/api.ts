@@ -3,7 +3,7 @@ import type { AxiosRequestConfig } from "axios";
 import { messages } from "@/i18n/messages";
 import { AUTH_ENDPOINTS } from "@/lib/api-config";
 import { http } from "@/lib/http";
-import { apiGet, apiPost } from "@/lib/api-utils";
+import { apiGet, apiPatch, apiPost } from "@/lib/api-utils";
 import type {
   AuthSession,
   AuthUser,
@@ -424,6 +424,18 @@ export async function changePasswordApi(
     {
       current_password: payload.currentPassword,
       new_password: payload.newPassword,
+    },
+    { skipAuthRefresh: false } as RetryableRequestConfig,
+  );
+}
+
+export async function updateAvatarApi(avatarUrl: string): Promise<AuthUser> {
+  initializeAuthHeader();
+
+  return apiPatch<AuthUser>(
+    AUTH_ENDPOINTS.updateAvatar,
+    {
+      avatar_url: avatarUrl,
     },
     { skipAuthRefresh: false } as RetryableRequestConfig,
   );

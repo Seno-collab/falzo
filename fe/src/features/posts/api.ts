@@ -23,6 +23,7 @@ import type {
   PostCommentCreatedEvent,
   PostCreatedEvent,
   PostDeletedEvent,
+  PostsPage,
   PostSort,
   ReportContentPayload,
   SavedCollection,
@@ -30,11 +31,13 @@ import type {
   UpdatePostPayload,
   UpdateSavedCollectionPayload,
   UploadedImage,
+  UserAvatarUpdatedEvent,
 } from "./types";
 
 export async function getPostsApi(params?: {
   page?: number;
   limit?: number;
+  cursor?: string | null;
   search?: string;
   categorySlug?: string;
   feed?: "following";
@@ -43,13 +46,29 @@ export async function getPostsApi(params?: {
   longitude?: number;
   radiusMeters?: number;
 }): Promise<Post[]> {
+  const page = await getPostsPageApi(params);
+  return page.items;
+}
+
+export async function getPostsPageApi(params?: {
+  page?: number;
+  limit?: number;
+  cursor?: string | null;
+  search?: string;
+  categorySlug?: string;
+  feed?: "following";
+  sort?: PostSort;
+  latitude?: number;
+  longitude?: number;
+  radiusMeters?: number;
+}): Promise<PostsPage> {
   initializeAuthHeader();
 
   const search = params?.search?.trim();
   const categorySlug = params?.categorySlug?.trim();
-  return apiGet<Post[]>(POSTS_ENDPOINT, {
+  const data = await apiGet<Post[] | PostsPage>(POSTS_ENDPOINT, {
     params: {
-      page: params?.page ?? 1,
+      ...(params?.cursor ? { cursor: params.cursor } : { page: params?.page ?? 1 }),
       limit: params?.limit ?? 24,
       ...(search ? { search } : {}),
       ...(categorySlug ? { category_slug: categorySlug } : {}),
@@ -60,6 +79,15 @@ export async function getPostsApi(params?: {
       ...(params?.radiusMeters ? { radius_meters: params.radiusMeters } : {}),
     },
   });
+
+  if (Array.isArray(data)) {
+    return {
+      items: data,
+      has_more: data.length >= (params?.limit ?? 24),
+    };
+  }
+
+  return data;
 }
 
 export async function getPostDetailApi(postId: number): Promise<Post> {
@@ -333,9 +361,40 @@ export function parsePostCreatedEvent(
         typeof payload.category_slug === "string"
           ? payload.category_slug
           : undefined,
+      user_avatar_url:
+        typeof payload.user_avatar_url === "string"
+          ? payload.user_avatar_url
+          : undefined,
+      avatar_url:
+        typeof payload.avatar_url === "string" ? payload.avatar_url : undefined,
       is_liked: Boolean(payload.is_liked),
       is_saved: Boolean(payload.is_saved),
     } as PostCreatedEvent;
+  } catch {
+    return null;
+  }
+}
+
+export function parseUserAvatarUpdatedEvent(
+  event: MessageEvent<string>,
+): UserAvatarUpdatedEvent | null {
+  try {
+    const payload = JSON.parse(event.data) as Partial<UserAvatarUpdatedEvent>;
+    const avatarUrl =
+      typeof payload.avatar_url === "string"
+        ? payload.avatar_url
+        : typeof payload.avatarUrl === "string"
+          ? payload.avatarUrl
+          : "";
+    if (typeof payload.user_id !== "number" || payload.user_id <= 0) {
+      return null;
+    }
+
+    return {
+      user_id: payload.user_id,
+      avatar_url: avatarUrl,
+      avatarUrl: avatarUrl,
+    };
   } catch {
     return null;
   }

@@ -95,8 +95,8 @@ func (f *fakePostHandlerService) ReportComment(context.Context, ReportInput) err
 	return nil
 }
 
-func (f *fakePostHandlerService) GetPosts(context.Context, ListPostsInput) ([]PostView, error) {
-	return nil, nil
+func (f *fakePostHandlerService) GetPosts(context.Context, ListPostsInput) (PostListPage, error) {
+	return PostListPage{}, nil
 }
 
 func (f *fakePostHandlerService) GetPostDetail(context.Context, GetPostDetailInput) (*PostView, error) {

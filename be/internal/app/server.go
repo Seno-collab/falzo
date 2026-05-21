@@ -36,6 +36,22 @@ import (
 	"google.golang.org/grpc"
 )
 
+type authAvatarEventPublisher struct {
+	posts post.PostEventPublisher
+}
+
+func (p authAvatarEventPublisher) PublishAvatarUpdated(ctx context.Context, event auth.AvatarUpdatedEvent) error {
+	if p.posts == nil {
+		return nil
+	}
+
+	return p.posts.PublishUserAvatarUpdated(ctx, post.UserAvatarUpdatedEvent{
+		UserID:         event.UserID,
+		AvatarURL:      event.AvatarURL,
+		AvatarURLAlias: event.AvatarURLAlias,
+	})
+}
+
 func Run() {
 	// Keep application-wide local time aligned to UTC (UTC+0).
 	time.Local = time.UTC
@@ -111,6 +127,7 @@ func Run() {
 		stopPostEventSubscriber = cancelPostEventSubscriber
 		go postInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
 	}
+	authService.SetAvatarEventPublisher(authAvatarEventPublisher{posts: postEventPublisher})
 	if redisClient != nil {
 		postRepository = postInfra.NewCachedPostRepository(postRepository, redisClient, cfg.Cache.FeedFirstPageTTL)
 	}

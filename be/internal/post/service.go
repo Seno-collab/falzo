@@ -2,7 +2,10 @@ package post
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"strings"
+	"time"
 )
 
 const maxPostListLimit = 50
@@ -67,6 +70,7 @@ type UpdateCommentInput struct {
 type ListPostsInput struct {
 	Page         int
 	Limit        int
+	Cursor       string
 	ViewerUserID uint64
 	Search       string
 	CategorySlug string
@@ -449,43 +453,57 @@ func (s *Service) HideComment(ctx context.Context, input ModerationInput) error 
 	return s.posts.HideComment(ctx, input.PostID, input.CommentID, input.Actor, reason)
 }
 
-func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostView, error) {
+func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) (PostListPage, error) {
 	if s.posts == nil {
-		return nil, ErrDependencyUnavailable
+		return PostListPage{}, ErrDependencyUnavailable
 	}
 	if input.Page <= 0 {
-		return nil, ErrPageMustBePositive
+		return PostListPage{}, ErrPageMustBePositive
 	}
 	if input.Limit <= 0 {
-		return nil, ErrLimitMustBePositive
+		return PostListPage{}, ErrLimitMustBePositive
 	}
 	if input.Limit > maxPostListLimit {
-		return nil, ErrLimitTooLarge
+		return PostListPage{}, ErrLimitTooLarge
 	}
 	feed := strings.TrimSpace(input.Feed)
 	if feed != "" && feed != feedFollowing {
-		return nil, ErrInvalidFeed
+		return PostListPage{}, ErrInvalidFeed
 	}
 	if feed == feedFollowing && input.ViewerUserID == 0 {
-		return nil, ErrUserIDRequired
+		return PostListPage{}, ErrUserIDRequired
 	}
 	sort := strings.TrimSpace(input.Sort)
 	if sort == "" {
 		sort = postSortNewest
 	}
 	if sort != postSortNewest && sort != postSortPopular && sort != postSortTrending && sort != postSortNearby {
-		return nil, ErrInvalidPostSort
+		return PostListPage{}, ErrInvalidPostSort
 	}
 	if sort == postSortNearby && (input.Latitude < -90 || input.Latitude > 90 || input.Longitude < -180 || input.Longitude > 180) {
-		return nil, ErrNearbyCoordinatesRequired
+		return PostListPage{}, ErrNearbyCoordinatesRequired
 	}
 	if input.RadiusMeters > maxNearbyRadiusMeters {
-		return nil, ErrNearbyRadiusTooLarge
+		return PostListPage{}, ErrNearbyRadiusTooLarge
+	}
+
+	var cursor *PostCursor
+	rankAt := time.Now().UTC()
+	if strings.TrimSpace(input.Cursor) != "" {
+		decoded, err := decodePostCursor(input.Cursor)
+		if err != nil || decoded.Sort != sort {
+			return PostListPage{}, ErrInvalidCursor
+		}
+		cursor = decoded
+		rankAt = decoded.RankAt
 	}
 
 	items, err := s.posts.GetPosts(ctx, PostListFilter{
 		Page:         input.Page,
-		Limit:        input.Limit,
+		Limit:        input.Limit + 1,
+		Offset:       (input.Page - 1) * input.Limit,
+		Cursor:       cursor,
+		RankAt:       rankAt,
 		ViewerUserID: input.ViewerUserID,
 		Search:       strings.TrimSpace(input.Search),
 		CategorySlug: strings.TrimSpace(input.CategorySlug),
@@ -496,7 +514,12 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 		RadiusMeters: input.RadiusMeters,
 	})
 	if err != nil {
-		return nil, err
+		return PostListPage{}, err
+	}
+
+	hasMore := len(items) > input.Limit
+	if hasMore {
+		items = items[:input.Limit]
 	}
 
 	posts := make([]PostView, 0, len(items))
@@ -504,7 +527,75 @@ func (s *Service) GetPosts(ctx context.Context, input ListPostsInput) ([]PostVie
 		posts = append(posts, item.View())
 	}
 
-	return posts, nil
+	nextCursor := ""
+	if hasMore && len(items) > 0 {
+		nextCursor = encodePostCursor(PostCursor{
+			Sort:      sort,
+			Rank:      items[len(items)-1].CursorRank,
+			RankAt:    rankAt,
+			CreatedAt: items[len(items)-1].CreatedAt,
+			ID:        items[len(items)-1].ID,
+		})
+	}
+
+	return PostListPage{Items: posts, NextCursor: nextCursor, HasMore: hasMore}, nil
+}
+
+type postCursorPayload struct {
+	Sort      string  `json:"sort"`
+	Rank      float64 `json:"rank"`
+	RankAt    string  `json:"rank_at"`
+	CreatedAt string  `json:"created_at"`
+	ID        uint64  `json:"id"`
+}
+
+func encodePostCursor(cursor PostCursor) string {
+	payload := postCursorPayload{
+		Sort:      cursor.Sort,
+		Rank:      cursor.Rank,
+		RankAt:    cursor.RankAt.UTC().Format(time.RFC3339Nano),
+		CreatedAt: cursor.CreatedAt.UTC().Format(time.RFC3339Nano),
+		ID:        cursor.ID,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func decodePostCursor(value string) (*PostCursor, error) {
+	data, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(value))
+	if err != nil {
+		return nil, err
+	}
+
+	var payload postCursorPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, err
+	}
+	if payload.Sort == "" || payload.ID == 0 || payload.CreatedAt == "" || payload.RankAt == "" {
+		return nil, ErrInvalidCursor
+	}
+
+	rankAt, err := time.Parse(time.RFC3339Nano, payload.RankAt)
+	if err != nil {
+		return nil, err
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, payload.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PostCursor{
+		Sort:      payload.Sort,
+		Rank:      payload.Rank,
+		RankAt:    rankAt,
+		CreatedAt: createdAt,
+		ID:        payload.ID,
+	}, nil
 }
 
 func (s *Service) validatePostModerationInput(input ModerationInput) error {

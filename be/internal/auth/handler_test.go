@@ -16,6 +16,9 @@ type fakeService struct {
 	loginErr            error
 	changePasswordInput ChangePasswordInput
 	changePasswordErr   error
+	profile             UserProfile
+	updateAvatarInput   UpdateAvatarInput
+	updateAvatarErr     error
 }
 
 func (f fakeService) Register(ctx context.Context, input RegisterInput) error {
@@ -36,6 +39,36 @@ func (f fakeService) Logout(ctx context.Context, input LogoutInput) error {
 
 func (f fakeService) ChangePassword(ctx context.Context, input ChangePasswordInput) error {
 	return f.changePasswordErr
+}
+
+func (f fakeService) Profile(ctx context.Context, userID uint64) (UserProfile, error) {
+	if f.profile.UserID != 0 {
+		return f.profile, nil
+	}
+
+	return UserProfile{
+		UserID:        userID,
+		UserIDAlias:   userID,
+		Username:      "admin",
+		UsernameAlias: "admin",
+		Email:         "admin@example.com",
+	}, nil
+}
+
+func (f fakeService) UpdateAvatar(ctx context.Context, input UpdateAvatarInput) (UserProfile, error) {
+	if f.updateAvatarErr != nil {
+		return UserProfile{}, f.updateAvatarErr
+	}
+
+	return UserProfile{
+		UserID:         input.UserID,
+		UserIDAlias:    input.UserID,
+		Username:       "admin",
+		UsernameAlias:  "admin",
+		Email:          "admin@example.com",
+		AvatarURL:      input.AvatarURL,
+		AvatarURLAlias: input.AvatarURL,
+	}, nil
 }
 
 func (f fakeService) Authenticate(ctx context.Context, token string) (*AuthenticatedUser, error) {
@@ -96,6 +129,21 @@ func TestChangePasswordHandler(t *testing.T) {
 	handler := NewHandler(fakeService{})
 
 	req := httptest.NewRequest(http.MethodPost, "/change-password", bytes.NewBufferString(`{"current_password":"admin123","new_password":"newpass123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer signed-token")
+	rec := httptest.NewRecorder()
+
+	handler.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestUpdateAvatarHandler(t *testing.T) {
+	handler := NewHandler(fakeService{})
+
+	req := httptest.NewRequest(http.MethodPatch, "/me/avatar", bytes.NewBufferString(`{"avatar_url":"https://example.com/avatar.jpg"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer signed-token")
 	rec := httptest.NewRecorder()

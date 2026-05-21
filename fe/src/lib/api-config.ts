@@ -60,6 +60,11 @@ export const AUTH_ENDPOINTS = {
     process.env.VITE_AUTH_CHANGE_PASSWORD_ENDPOINT,
     "/auth/change-password",
   ),
+  updateAvatar: envEndpoint(
+    process.env.NEXT_PUBLIC_AUTH_UPDATE_AVATAR_ENDPOINT,
+    process.env.VITE_AUTH_UPDATE_AVATAR_ENDPOINT,
+    "/auth/me/avatar",
+  ),
 } as const;
 
 export const POSTS_ENDPOINT = envEndpoint(
