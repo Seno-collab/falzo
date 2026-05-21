@@ -65,33 +65,43 @@ function LocationRow({
   selected: boolean;
   onSelect: () => void;
 }>) {
+  const detailBadge =
+    distanceMeters !== undefined
+      ? formatDistance(distanceMeters)
+      : location.post_count
+        ? `${location.post_count} photo${location.post_count === 1 ? "" : "s"}`
+        : null;
+
   return (
     <button
       className={cn(
-        "w-full rounded-xl border px-4 py-3 text-left transition",
+        "w-full rounded-2xl border px-4 py-3 text-left transition",
         selected
-          ? "border-[#2f6fb8] bg-[#eef7ff] shadow-[0_14px_30px_-24px_rgb(47_111_184/0.8)]"
-          : "border-[#d7e5f4] bg-white/90 hover:border-[#a9c8e8] hover:bg-[#f8fbff]",
+          ? "border-[#111] bg-[#f5f7f4] shadow-[0_14px_30px_-24px_rgb(0_0_0/0.52)]"
+          : "border-black/6 bg-white hover:border-black/14 hover:bg-[#fbfbfa]",
       )}
       onClick={onSelect}
       type="button"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[#15365a]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777]">
+            Travel stop
+          </p>
+          <p className="mt-1 truncate text-sm font-semibold text-[#111]">
             {location.name}
           </p>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6682a1]">
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#666]">
             {location.address}
           </p>
         </div>
-        {distanceMeters === undefined ? null : (
+        {detailBadge ? (
           <span className="shrink-0 rounded-full bg-[#f2f7fd] px-2.5 py-1 text-xs font-semibold text-[#356792]">
-            {formatDistance(distanceMeters)}
+            {detailBadge}
           </span>
-        )}
+        ) : null}
       </div>
-      <p className="mt-2 text-xs font-medium text-[#7b92ad]">
+      <p className="mt-2 text-xs font-medium text-[#888]">
         {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
       </p>
     </button>
@@ -159,42 +169,90 @@ export function LocationsScreen() {
     () => nearbyQuery.data ?? [],
     [nearbyQuery.data],
   );
+  const selectedLocationPosts = useMemo(
+    () => postsQuery.data ?? [],
+    [postsQuery.data],
+  );
+  const selectedTravelPhotoCount =
+    selectedLocationPosts.length || selectedLocation?.post_count || 0;
   const mapPoints = useMemo<MapPoint[]>(() => {
     const points = new Map<string, MapPoint>();
-
-    for (const location of searchQuery.data ?? []) {
-      points.set(location.id, {
+    const toPostIds = () =>
+      selectedLocationPosts
+        .map((post) => Number(post.id))
+        .filter((postId) => Number.isFinite(postId));
+    const toMapPoint = (
+      location: Location,
+      distanceMeters?: number,
+    ): MapPoint => {
+      const isSelected = selectedLocation?.id === location.id;
+      const selectedPostIds = isSelected ? toPostIds() : [];
+      const point: MapPoint = {
         id: location.id,
         name: location.name,
         address: location.address,
         latitude: location.latitude,
         longitude: location.longitude,
-      });
+      };
+
+      if (distanceMeters !== undefined) {
+        point.distanceMeters = distanceMeters;
+      }
+
+      if (isSelected) {
+        if (selectedTravelPhotoCount > 0) {
+          point.count = selectedTravelPhotoCount;
+        }
+        if (selectedLocationPosts[0]?.image_url) {
+          point.imageUrl = selectedLocationPosts[0].image_url;
+        }
+        if (selectedPostIds.length > 0) {
+          point.postIds = selectedPostIds;
+        }
+      } else {
+        if (location.post_count) {
+          point.count = location.post_count;
+        }
+        if (location.post_ids?.length) {
+          point.postIds = location.post_ids;
+        }
+      }
+
+      return point;
+    };
+
+    for (const location of searchQuery.data ?? []) {
+      points.set(location.id, toMapPoint(location));
     }
 
     for (const item of nearbyLocations) {
-      points.set(item.location.id, {
-        id: item.location.id,
-        name: item.location.name,
-        address: item.location.address,
-        latitude: item.location.latitude,
-        longitude: item.location.longitude,
-        distanceMeters: item.distance_meters,
-      });
+      points.set(
+        item.location.id,
+        toMapPoint(item.location, item.distance_meters),
+      );
     }
 
     if (selectedLocation && !points.has(selectedLocation.id)) {
-      points.set(selectedLocation.id, {
-        id: selectedLocation.id,
-        name: selectedLocation.name,
-        address: selectedLocation.address,
-        latitude: selectedLocation.latitude,
-        longitude: selectedLocation.longitude,
-      });
+      points.set(selectedLocation.id, toMapPoint(selectedLocation));
     }
 
     return Array.from(points.values());
-  }, [nearbyLocations, searchQuery.data, selectedLocation]);
+  }, [
+    nearbyLocations,
+    searchQuery.data,
+    selectedLocation,
+    selectedLocationPosts,
+    selectedTravelPhotoCount,
+  ]);
+  const selectedTravelPhotoLabel =
+    selectedTravelPhotoCount > 0
+      ? `${selectedTravelPhotoCount} travel photo${
+          selectedTravelPhotoCount === 1 ? "" : "s"
+        } - `
+      : "";
+  const selectedLocationSubtitle = selectedLocation
+    ? `${selectedTravelPhotoLabel}${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
+    : "Choose a marker or search result";
 
   function useCurrentPosition() {
     if (!navigator.geolocation) {
@@ -276,24 +334,64 @@ export function LocationsScreen() {
         />
       }
     >
+      <section className="rounded-[2rem] border border-black/6 bg-white px-4 py-5 shadow-[0_18px_50px_-42px_rgb(0_0_0/0.62)] sm:px-6">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+              Travel map
+            </p>
+            <h1 className="mt-1 max-w-3xl text-3xl font-semibold leading-tight tracking-normal text-[#111] sm:text-4xl">
+              Find places, nearby stops, and travel photos by location.
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#666] sm:text-base">
+              Search a city or province, tap a marker, then review the travel
+              posts connected to that place.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <div className="rounded-2xl border border-black/6 bg-[#f8f8f6] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
+                Visible
+              </p>
+              <p className="mt-1 text-lg font-semibold text-[#111]">
+                {mapPoints.length} place{mapPoints.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-black/6 bg-[#f8f8f6] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
+                Selected
+              </p>
+              <p className="mt-1 max-w-44 truncate text-lg font-semibold text-[#111]">
+                {selectedLocation?.name ?? "None"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(360px,0.58fr)]">
         <div className="space-y-5">
           <form
-            className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6"
+            className="space-y-4 rounded-2xl border border-black/6 bg-white p-5 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:p-6"
             onSubmit={(event) => {
               event.preventDefault();
               setSubmittedSearch(normalizeLocationSearchQuery(searchInput));
             }}
           >
             <div className="space-y-1">
-              <p className="app-kicker">Search</p>
-              <h1 className="text-2xl font-semibold tracking-normal text-[#15365a]">
-                Find locations
-              </h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+                Search
+              </p>
+              <h2 className="text-2xl font-semibold tracking-normal text-[#111]">
+                Where do you want to go?
+              </h2>
+              <p className="text-sm leading-6 text-[#666]">
+                Try a destination name, city, province, or landmark.
+              </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
               <div className="space-y-2">
-                <Label htmlFor="location-search">Name</Label>
+                <Label htmlFor="location-search">Destination</Label>
                 <Input
                   id="location-search"
                   onChange={(event) => setSearchInput(event.target.value)}
@@ -317,21 +415,27 @@ export function LocationsScreen() {
             </div>
           </form>
 
-          <section className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6">
+          <section className="space-y-4 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)]">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="app-kicker">Map</p>
-                <h2 className="text-xl font-semibold tracking-normal text-[#15365a]">
-                  Explore locations visually
+              <div className="space-y-1 px-5 pt-5 sm:px-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+                  Map discovery
+                </p>
+                <h2 className="text-xl font-semibold tracking-normal text-[#111]">
+                  Tap a marker to open a travel stop
                 </h2>
+                <p className="text-sm leading-6 text-[#666]">
+                  {selectedLocationSubtitle}
+                </p>
               </div>
               {selectedLocation ? (
-                <span className="rounded-full border border-[#d7e5f4] bg-[#f7fbff] px-3 py-1 text-xs font-semibold text-[#356792]">
+                <span className="mr-5 mt-5 rounded-full border border-black/8 bg-[#f8f8f6] px-3 py-1 text-xs font-semibold text-[#333] sm:mr-6">
                   {selectedLocation.name}
                 </span>
               ) : null}
             </div>
             <MapClient
+              className="rounded-none border-0 shadow-none"
               currentPosition={coords}
               onSelectPoint={(point) => {
                 const nextLocation =
@@ -351,13 +455,18 @@ export function LocationsScreen() {
             />
           </section>
 
-          <section className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6">
+          <section className="space-y-4 rounded-2xl border border-black/6 bg-white p-5 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:p-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="space-y-1">
-                <p className="app-kicker">Nearby</p>
-                <h2 className="text-xl font-semibold tracking-normal text-[#15365a]">
-                  Locations around you
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+                  Nearby
+                </p>
+                <h2 className="text-xl font-semibold tracking-normal text-[#111]">
+                  Places around you
                 </h2>
+                <p className="text-sm leading-6 text-[#666]">
+                  Use your current location to find close travel stops.
+                </p>
               </div>
               <div className="flex items-end gap-2">
                 <div className="w-32 space-y-2">
@@ -390,7 +499,7 @@ export function LocationsScreen() {
             </div>
 
             {coords ? (
-              <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
+              <div className="flex items-center gap-3 rounded-xl border border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
                 <Navigation className="size-4 shrink-0 text-[#2f6fb8]" />
                 <span>
                   {coords.latitude.toFixed(5)}, {coords.longitude.toFixed(5)}
@@ -424,12 +533,17 @@ export function LocationsScreen() {
         </div>
 
         <aside className="space-y-5">
-          <section className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6">
+          <section className="space-y-4 rounded-2xl border border-black/6 bg-white p-5 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:p-6">
             <div className="space-y-1">
-              <p className="app-kicker">Results</p>
-              <h2 className="text-xl font-semibold tracking-normal text-[#15365a]">
-                Search matches
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+                Results
+              </p>
+              <h2 className="text-xl font-semibold tracking-normal text-[#111]">
+                Destination matches
               </h2>
+              <p className="text-sm leading-6 text-[#666]">
+                Select a place to see its map position and travel posts.
+              </p>
             </div>
 
             <div className="grid gap-3">
@@ -462,12 +576,17 @@ export function LocationsScreen() {
             </div>
           </section>
 
-          <section className="app-panel space-y-4 rounded-2xl border-[#d6e5f6] bg-white/92 p-5 sm:p-6">
+          <section className="space-y-4 rounded-2xl border border-black/6 bg-white p-5 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:p-6">
             <div className="space-y-1">
-              <p className="app-kicker">Posts</p>
-              <h2 className="text-xl font-semibold tracking-normal text-[#15365a]">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+                Travel photos
+              </p>
+              <h2 className="text-xl font-semibold tracking-normal text-[#111]">
                 {selectedLocation ? selectedLocation.name : "Select a location"}
               </h2>
+              <p className="text-sm leading-6 text-[#666]">
+                Photos and notes shared from this destination.
+              </p>
             </div>
 
             <div className="grid gap-3">
@@ -480,20 +599,20 @@ export function LocationsScreen() {
 
               {postsQuery.data?.map((post) => (
                 <article
-                  className="overflow-hidden rounded-xl border border-[#d7e5f4] bg-white/95 shadow-[0_14px_30px_-24px_rgb(28_77_128/0.55)]"
+                  className="overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_14px_30px_-24px_rgb(0_0_0/0.48)]"
                   key={post.id}
                 >
                   <img
                     alt={post.caption || post.location_name || "Location post"}
-                    className="h-44 w-full object-cover"
+                    className="aspect-[4/3] w-full object-cover"
                     loading="lazy"
                     src={post.image_url}
                   />
                   <div className="space-y-1 px-4 py-3">
-                    <p className="line-clamp-2 text-sm font-semibold text-[#15365a]">
+                    <p className="line-clamp-2 text-sm font-semibold text-[#111]">
                       {post.caption || "Location post"}
                     </p>
-                    <p className="text-xs font-medium text-[#6682a1]">
+                    <p className="text-xs font-medium text-[#777]">
                       {post.location_name || selectedLocation?.name}
                     </p>
                   </div>
