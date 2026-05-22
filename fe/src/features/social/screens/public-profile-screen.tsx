@@ -20,6 +20,7 @@ import { AppTopbar } from "@/components/layout/app-topbar";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
 import {
   getApiErrorMessage,
   getMeApi,
@@ -100,6 +101,7 @@ export function PublicProfileScreen({
 
   const currentUserId = readAuthUserId(meQuery.data);
   const profile = profileQuery.data;
+  const profileAvatarUrl = profile?.avatar_url || profile?.avatarUrl || null;
   const canFollow =
     Boolean(profile) && hasAuthSession() && currentUserId !== profile?.user_id;
 
@@ -151,9 +153,12 @@ export function PublicProfileScreen({
           <section className="app-panel overflow-hidden rounded-2xl border-[#d6e5f6] bg-white/94">
             <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
               <div className="flex min-w-0 items-center gap-4">
-                <div className="flex size-18 shrink-0 items-center justify-center rounded-3xl bg-[#111] text-xl font-semibold text-white">
-                  {profile.user_name.slice(0, 2).toUpperCase()}
-                </div>
+                <RainbowAvatar
+                  alt={profile.full_name || profile.user_name}
+                  fallback={profile.user_name.slice(0, 2).toUpperCase()}
+                  size="lg"
+                  src={profileAvatarUrl}
+                />
                 <div className="min-w-0">
                   <Badge>Creator</Badge>
                   <h1 className="mt-2 truncate text-3xl font-semibold tracking-normal text-[#143052]">
@@ -217,7 +222,7 @@ export function PublicProfileScreen({
                   href={ROUTES.explore}
                   key={post.id}
                 >
-                  <div className="aspect-[4/5] overflow-hidden bg-[#edf4fb]">
+                  <div className="aspect-4/5 overflow-hidden bg-[#edf4fb]">
                     <img
                       alt={post.caption || post.location_name || "Post image"}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"

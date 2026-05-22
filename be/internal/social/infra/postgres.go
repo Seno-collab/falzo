@@ -34,7 +34,7 @@ func (r *PostgresRepository) GetPublicProfile(ctx context.Context, userID uint64
 	var followersCount int64
 	var followingCount int64
 	err := r.db.Pool().QueryRow(ctx, `
-		SELECT users.id, users.user_name, COALESCE(users.full_name, ''), users.created_at,
+		SELECT users.id, users.user_name, COALESCE(users.full_name, ''), COALESCE(users.avatar_url, ''), users.created_at,
 			(SELECT COUNT(*) FROM posts WHERE posts.user_id = users.id),
 			(SELECT COUNT(*) FROM user_follows WHERE user_follows.following_id = users.id),
 			(SELECT COUNT(*) FROM user_follows WHERE user_follows.follower_id = users.id),
@@ -50,6 +50,7 @@ func (r *PostgresRepository) GetPublicProfile(ctx context.Context, userID uint64
 		&profile.UserID,
 		&profile.UserName,
 		&profile.FullName,
+		&profile.AvatarURL,
 		&profile.CreatedAt,
 		&postsCount,
 		&followersCount,
@@ -65,6 +66,7 @@ func (r *PostgresRepository) GetPublicProfile(ctx context.Context, userID uint64
 	profile.PostsCount = int(postsCount)
 	profile.FollowersCount = int(followersCount)
 	profile.FollowingCount = int(followingCount)
+	profile.AvatarURLAlias = profile.AvatarURL
 
 	posts, err := r.getUserPosts(ctx, userID, viewerUserID)
 	if err != nil {

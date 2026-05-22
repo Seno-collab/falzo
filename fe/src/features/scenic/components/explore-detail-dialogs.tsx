@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, PointerEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
 import {
   Dialog,
   DialogContent,
@@ -178,7 +179,7 @@ function CommentBubble({
           </div>
         ) : null}
 
-        <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#202020]">
+        <p className="mt-1 whitespace-pre-wrap wrap-break-word text-sm leading-6 text-[#202020]">
           {comment.content}
         </p>
 
@@ -546,17 +547,13 @@ export function PostDetailDialog({
             <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pt-20 sm:px-5 sm:pb-5 sm:pt-24">
               <div className="max-w-2xl">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/18 text-xs font-bold text-white ring-1 ring-white/24">
-                    {authorAvatarUrl ? (
-                      <img
-                        alt={authorName}
-                        className="h-full w-full object-cover"
-                        src={authorAvatarUrl}
-                      />
-                    ) : (
-                      getAuthorInitial(authorName)
-                    )}
-                  </div>
+                  <RainbowAvatar
+                    alt={authorName}
+                    className="shadow-[0_12px_26px_-18px_rgb(255_255_255/0.45),0_0_0_1px_rgb(255_255_255/0.24)]"
+                    fallback={getAuthorInitial(authorName)}
+                    size="md"
+                    src={authorAvatarUrl}
+                  />
                   {post ? (
                     <Link
                       className="pointer-events-auto truncate text-sm font-bold text-white hover:text-[#ff8aa0]"

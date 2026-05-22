@@ -85,17 +85,31 @@ func (r *CachedRepository) ListFollowerIDs(ctx context.Context, userID uint64) (
 	return r.next.ListFollowerIDs(ctx, userID)
 }
 
+func (r *CachedRepository) InvalidatePublicProfile(ctx context.Context, userID uint64) {
+	r.invalidateProfiles(ctx, userID)
+}
+
 func (r *CachedRepository) invalidateProfiles(ctx context.Context, userIDs ...uint64) {
 	for _, userID := range userIDs {
 		if userID == 0 {
 			continue
 		}
-		_ = r.redis.Del(ctx, publicProfileCacheKey(userID, 0)).Err()
+		iter := r.redis.Scan(ctx, 0, publicProfileCachePattern(userID), 0).Iterator()
+		for iter.Next(ctx) {
+			_ = r.redis.Del(ctx, iter.Val()).Err()
+		}
+		if iter.Err() != nil {
+			_ = r.redis.Del(ctx, publicProfileCacheKey(userID, 0)).Err()
+		}
 	}
 }
 
 func publicProfileCacheKey(userID uint64, viewerUserID uint64) string {
-	return fmt.Sprintf("social:profile:v1:%d:%d", userID, viewerUserID)
+	return fmt.Sprintf("social:profile:v2:%d:%d", userID, viewerUserID)
+}
+
+func publicProfileCachePattern(userID uint64) string {
+	return fmt.Sprintf("social:profile:v2:%d:*", userID)
 }
 
 var _ social.Repository = (*CachedRepository)(nil)

@@ -1,12 +1,19 @@
 "use client";
 
-import { Bookmark, Camera, LogIn, MapIcon, Plus, UserRound } from "lucide-react";
+import { Bookmark, Camera, LogIn, MapIcon, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { hasAuthSession } from "@/features/auth/api";
+import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
+import { getMeApi, hasAuthSession } from "@/features/auth/api";
+import type { AuthUser } from "@/features/auth/types";
+import {
+  getAuthUserDisplayName,
+  getAuthUserInitials,
+  readAuthUserText,
+} from "@/features/auth/user-display";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -79,6 +86,7 @@ export function AppTopbar({
   meta,
   actions,
   mobileMenuTitle,
+  showMobileNav = true,
 }: Readonly<{
   brand: string;
   brandIcon?: ReactNode;
@@ -86,8 +94,10 @@ export function AppTopbar({
   meta?: ReactNode;
   actions: TopbarAction[];
   mobileMenuTitle: string;
+  showMobileNav?: boolean;
 }>) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [profile, setProfile] = useState<AuthUser | null>(null);
   const visibleActions = useMemo(
     () =>
       actions.filter(
@@ -97,8 +107,37 @@ export function AppTopbar({
   );
 
   useEffect(() => {
-    setIsAuthenticated(hasAuthSession());
+    let disposed = false;
+    const authenticated = hasAuthSession();
+    setIsAuthenticated(authenticated);
+
+    if (!authenticated) {
+      setProfile(null);
+      return;
+    }
+
+    const loadProfile = async () => {
+      try {
+        const user = await getMeApi<AuthUser>();
+        if (!disposed) {
+          setProfile(user);
+        }
+      } catch {
+        if (!disposed) {
+          setProfile(null);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      disposed = true;
+    };
   }, []);
+
+  const profileName = getAuthUserDisplayName(profile, "Account");
+  const avatarUrl = readAuthUserText(profile, ["avatar_url", "avatarUrl"]);
 
   return (
     <>
@@ -123,76 +162,83 @@ export function AppTopbar({
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/8 bg-[#f7f7f5]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2 shadow-[0_-18px_48px_-34px_rgb(0_0_0/0.72)] backdrop-blur-2xl sm:hidden">
-        <div className="mx-auto max-w-md">
-          <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-black/6 bg-white px-3 py-2">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
-                {mobileMenuTitle}
-              </p>
-              <p className="truncate text-sm font-semibold text-[#111]">
-                {brand}
-              </p>
+      {showMobileNav ? (
+        <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/8 bg-[#f7f7f5]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2 shadow-[0_-18px_48px_-34px_rgb(0_0_0/0.72)] backdrop-blur-2xl sm:hidden">
+          <div className="mx-auto max-w-md">
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-black/6 bg-white px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
+                  {mobileMenuTitle}
+                </p>
+                <p className="truncate text-sm font-semibold text-[#111]">
+                  {brand}
+                </p>
+              </div>
+              {meta ? <div className="shrink-0">{meta}</div> : null}
             </div>
-            {meta ? <div className="shrink-0">{meta}</div> : null}
-          </div>
 
-          <div
-            className={cn(
-              "grid items-center gap-1",
-              isAuthenticated ? "grid-cols-5" : "grid-cols-3",
-            )}
-          >
-            <Link
-              aria-label="Explore"
-              className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
-              href={ROUTES.explore}
-            >
-              <Camera className="size-4" />
-              Explore
-            </Link>
-            <Link
-              aria-label="Destinations"
-              className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-              href={ROUTES.locations}
-            >
-              <MapIcon className="size-4" />
-              Places
-            </Link>
-            {isAuthenticated ? (
-              <>
-                <Link
-                  aria-label="Upload"
-                  className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
-                  href={ROUTES.upload}
-                >
-                  <Plus className="size-5" />
-                </Link>
-                <Link
-                  aria-label="Saved"
-                  className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-                  href={ROUTES.saved}
-                >
-                  <Bookmark className="size-4" />
-                  Saved
-                </Link>
-              </>
-            ) : null}
-            <Link
-              aria-label={isAuthenticated ? "Profile" : "Login"}
-              className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-              href={isAuthenticated ? ROUTES.profile : ROUTES.login}
-            >
-              {isAuthenticated ? (
-                <UserRound className="size-4" />
-              ) : (
-                <LogIn className="size-4" />
+            <div
+              className={cn(
+                "grid items-center gap-1",
+                isAuthenticated ? "grid-cols-5" : "grid-cols-3",
               )}
-              {isAuthenticated ? "Account" : "Login"}
-            </Link>
+            >
+              <Link
+                aria-label="Explore"
+                className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
+                href={ROUTES.explore}
+              >
+                <Camera className="size-4" />
+                Explore
+              </Link>
+              <Link
+                aria-label="Destinations"
+                className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                href={ROUTES.locations}
+              >
+                <MapIcon className="size-4" />
+                Places
+              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link
+                    aria-label="Upload"
+                    className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
+                    href={ROUTES.upload}
+                  >
+                    <Plus className="size-5" />
+                  </Link>
+                  <Link
+                    aria-label="Saved"
+                    className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                    href={ROUTES.saved}
+                  >
+                    <Bookmark className="size-4" />
+                    Saved
+                  </Link>
+                </>
+              ) : null}
+              <Link
+                aria-label={isAuthenticated ? "Profile" : "Login"}
+                className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                href={isAuthenticated ? ROUTES.profile : ROUTES.login}
+              >
+                {isAuthenticated ? (
+                  <RainbowAvatar
+                    alt={profileName}
+                    fallback={getAuthUserInitials(profileName)}
+                    size="sm"
+                    src={avatarUrl}
+                  />
+                ) : (
+                  <LogIn className="size-4" />
+                )}
+                {isAuthenticated ? "Account" : "Login"}
+              </Link>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      ) : null}
     </>
   );
 }

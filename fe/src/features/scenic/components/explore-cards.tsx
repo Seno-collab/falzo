@@ -16,6 +16,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
 import type { Post, PostComment } from "@/features/posts/types";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -397,19 +398,15 @@ export function ExplorePostCard({
           <div className="flex min-w-0 items-center gap-2.5">
             <Link
               aria-label={`Open ${authorName}'s profile`}
-              className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#17395c] text-xs font-bold text-white ring-1 ring-black/5"
+              className="shrink-0 rounded-full"
               href={ROUTES.userProfile(post.user_id)}
             >
-              {authorAvatarUrl ? (
-                <img
-                  alt={authorName}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                  src={authorAvatarUrl}
-                />
-              ) : (
-                getAuthorInitial(authorName)
-              )}
+              <RainbowAvatar
+                alt={authorName}
+                fallback={getAuthorInitial(authorName)}
+                size="md"
+                src={authorAvatarUrl}
+              />
             </Link>
             <div className="min-w-0">
               <Link

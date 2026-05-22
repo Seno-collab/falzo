@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
 import {
   changePasswordApi,
   clearAuthSession,
@@ -299,25 +300,21 @@ export function ProfileScreen() {
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-4">
                     <label
-                      className={`group relative size-18 shrink-0 overflow-hidden rounded-2xl bg-[#17395c] text-lg font-semibold text-white shadow-[0_18px_40px_-28px_rgb(22_58_95/0.75)] transition ${
+                      className={`group relative size-20 shrink-0 rounded-full transition ${
                         isUploadingAvatar
                           ? "cursor-not-allowed opacity-70"
                           : "cursor-pointer hover:brightness-105"
                       }`}
                       title="Upload profile photo"
                     >
-                      <div className="flex size-18 items-center justify-center">
-                        {avatarUrl ? (
-                          <img
-                            alt={displayName}
-                            className="h-full w-full object-cover"
-                            src={avatarUrl}
-                          />
-                        ) : (
-                          getAuthUserInitials(displayName)
-                        )}
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/38 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      <RainbowAvatar
+                        alt={displayName}
+                        className="pointer-events-none"
+                        fallback={getAuthUserInitials(displayName)}
+                        size="lg"
+                        src={avatarUrl}
+                      />
+                      <div className="absolute inset-0.75 z-20 flex items-center justify-center rounded-full bg-black/38 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                         <Camera className="size-6 text-white drop-shadow-sm" />
                       </div>
                       <input

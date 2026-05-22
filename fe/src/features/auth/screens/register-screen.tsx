@@ -103,10 +103,10 @@ export function RegisterScreen() {
   return (
     <AuthShell
       footer={
-        <p className="text-center text-sm text-white/62">
+        <p className="text-center text-sm text-[#5f7894]">
           {copy.hasAccountText}{" "}
           <Link
-            className="font-semibold text-white hover:underline"
+            className="font-semibold text-[#143052] hover:underline"
             href={ROUTES.login}
           >
             {copy.loginCta}
@@ -140,6 +140,7 @@ export function RegisterScreen() {
           brandIcon={<UserPlus className="size-3.5" />}
           meta={<UserPresenceBadge />}
           mobileMenuTitle={copy.title}
+          showMobileNav={false}
           subtitle="Create account"
         />
       }
@@ -151,27 +152,27 @@ export function RegisterScreen() {
         transition={{ duration: 0.24, ease: "easeOut" }}
       >
         <div className="space-y-2 text-center">
-          <Badge className="mx-auto border-white/14 bg-white/10 text-white">
+          <Badge className="mx-auto border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]">
             Start your wishlist
           </Badge>
-          <p className="text-sm leading-6 text-white/64">
+          <p className="text-sm leading-6 text-[#5f7894]">
             Save places, revisit moments, and shape the trips you want next.
           </p>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
-            className="rounded-full border-white/14 bg-white/10 text-white hover:bg-white/16"
+            className="rounded-full border-[#d7e5f4] bg-white text-[#143052] hover:bg-[#f2f7fd]"
             type="button"
             variant="outline"
           >
-            <span className="inline-flex size-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#171717]">
+            <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f2f7fd] text-[10px] font-bold text-[#2f6fb8]">
               G
             </span>
             Google
           </Button>
           <Button
-            className="rounded-full border-white/14 bg-white/10 text-white hover:bg-white/16"
+            className="rounded-full border-[#d7e5f4] bg-white text-[#143052] hover:bg-[#f2f7fd]"
             type="button"
             variant="outline"
           >
@@ -180,19 +181,19 @@ export function RegisterScreen() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-medium text-white/38">
-          <span className="h-px flex-1 bg-white/12" />
+        <div className="flex items-center gap-3 text-xs font-medium text-[#7892ad]">
+          <span className="h-px flex-1 bg-[#dbe6f2]" />
           Email
-          <span className="h-px flex-1 bg-white/12" />
+          <span className="h-px flex-1 bg-[#dbe6f2]" />
         </div>
 
         <form className="space-y-4" noValidate onSubmit={onSubmit}>
           <div className="space-y-2">
-            <Label className="text-white/78" htmlFor="fullName">
+            <Label className="text-[#466b92]" htmlFor="fullName">
               {copy.fullNameLabel}
             </Label>
             <Input
-              className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
+              className="border-[#8fa8c2] bg-white text-[#111827] placeholder:text-[#66788c] hover:border-[#5f7894] focus-visible:border-[#143052] focus-visible:bg-white focus-visible:ring-[#143052]/20"
               disabled={formState.isSubmitting}
               id="fullName"
               placeholder={copy.fullNamePlaceholder}
@@ -205,12 +206,12 @@ export function RegisterScreen() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-white/78" htmlFor="email">
+            <Label className="text-[#466b92]" htmlFor="email">
               {copy.emailLabel}
             </Label>
             <Input
               autoComplete="email"
-              className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
+              className="border-[#8fa8c2] bg-white text-[#111827] placeholder:text-[#66788c] hover:border-[#5f7894] focus-visible:border-[#143052] focus-visible:bg-white focus-visible:ring-[#143052]/20"
               disabled={formState.isSubmitting}
               id="email"
               placeholder={copy.emailPlaceholder}
@@ -224,12 +225,12 @@ export function RegisterScreen() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-white/78" htmlFor="password">
+              <Label className="text-[#466b92]" htmlFor="password">
                 {copy.passwordLabel}
               </Label>
               <Input
                 autoComplete="new-password"
-                className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
+                className="border-[#8fa8c2] bg-white text-[#111827] placeholder:text-[#66788c] hover:border-[#5f7894] focus-visible:border-[#143052] focus-visible:bg-white focus-visible:ring-[#143052]/20"
                 disabled={formState.isSubmitting}
                 id="password"
                 placeholder={copy.passwordPlaceholder}
@@ -243,12 +244,12 @@ export function RegisterScreen() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-white/78" htmlFor="confirmPassword">
+              <Label className="text-[#466b92]" htmlFor="confirmPassword">
                 {copy.confirmPasswordLabel}
               </Label>
               <Input
                 autoComplete="new-password"
-                className="border-white/12 bg-white/10 text-white placeholder:text-white/36 hover:border-white/24 focus-visible:bg-white/14 focus-visible:ring-white/18"
+                className="border-[#8fa8c2] bg-white text-[#111827] placeholder:text-[#66788c] hover:border-[#5f7894] focus-visible:border-[#143052] focus-visible:bg-white focus-visible:ring-[#143052]/20"
                 disabled={formState.isSubmitting}
                 id="confirmPassword"
                 aria-valuemin={8}
@@ -265,7 +266,7 @@ export function RegisterScreen() {
           </div>
 
           <Button
-            className="w-full rounded-full bg-white text-[#171717] shadow-[0_18px_40px_-26px_rgb(255_255_255/0.6)] hover:bg-white/90"
+            className="w-full rounded-full bg-[#143052] text-white shadow-[0_18px_40px_-26px_rgb(20_48_82/0.82)] hover:bg-[#1d3d64]"
             disabled={formState.isSubmitting}
             type="submit"
           >
@@ -276,7 +277,7 @@ export function RegisterScreen() {
 
         <Button
           asChild
-          className="w-full rounded-full border-white/12 bg-transparent text-white/78 hover:bg-white/10 hover:text-white"
+          className="w-full rounded-full border-[#d7e5f4] bg-white text-[#466b92] hover:bg-[#f2f7fd] hover:text-[#143052]"
           variant="outline"
         >
           <Link href={ROUTES.explore}>

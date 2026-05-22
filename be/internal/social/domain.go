@@ -31,6 +31,8 @@ type PublicProfile struct {
 	UserID         uint64          `json:"user_id"`
 	UserName       string          `json:"user_name"`
 	FullName       string          `json:"full_name,omitempty"`
+	AvatarURL      string          `json:"avatar_url,omitempty"`
+	AvatarURLAlias string          `json:"avatarUrl,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 	PostsCount     int             `json:"posts_count"`
 	FollowersCount int             `json:"followers_count"`

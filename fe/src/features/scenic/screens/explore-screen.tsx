@@ -46,13 +46,18 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
 import {
   getApiErrorMessage,
   getMeApi,
   hasAuthSession,
 } from "@/features/auth/api";
 import type { AuthUser } from "@/features/auth/types";
-import { getAuthUserDisplayName } from "@/features/auth/user-display";
+import {
+  getAuthUserDisplayName,
+  getAuthUserInitials,
+  readAuthUserText,
+} from "@/features/auth/user-display";
 import { getCategoriesApi } from "@/features/categories/api";
 import type { Category } from "@/features/categories/types";
 import {
@@ -106,14 +111,7 @@ const postsPageSize = 24;
 const maxNotifications = 30;
 const maxNearbyRadiusMeters = 1_000_000;
 const nearbyRadiusOptions = [
-  5_000,
-  10_000,
-  25_000,
-  50_000,
-  100_000,
-  300_000,
-  500_000,
-  1_000_000,
+  5_000, 10_000, 25_000, 50_000, 100_000, 300_000, 500_000, 1_000_000,
 ] as const;
 
 const firstLoadTravelSuggestions = [
@@ -151,10 +149,7 @@ function formatRadiusLabel(radiusMeters: number) {
     : `${radiusMeters} m`;
 }
 
-function getDistanceMeters(
-  origin: Coordinates | null,
-  target: Coordinates,
-) {
+function getDistanceMeters(origin: Coordinates | null, target: Coordinates) {
   if (!origin) {
     return undefined;
   }
@@ -424,6 +419,10 @@ export function ExploreScreen() {
     profileQuery.data && !profileQuery.isFetching
       ? getAuthUserDisplayName(profileQuery.data, "") || null
       : null;
+  const profileAvatarUrl = readAuthUserText(profileQuery.data, [
+    "avatar_url",
+    "avatarUrl",
+  ]);
   const currentUserId = readAuthUserId(profileQuery.data);
 
   const addNotification = useCallback((notification: AppNotification) => {
@@ -595,9 +594,7 @@ export function ExploreScreen() {
       );
       queryClient.removeQueries({ queryKey: ["posts", "detail", deleted.id] });
       void queryClient.invalidateQueries({ queryKey: ["posts"] });
-      setSelectedPostId((current) =>
-        current === deleted.id ? null : current,
-      );
+      setSelectedPostId((current) => (current === deleted.id ? null : current));
       setSelectedChatPostId((current) =>
         current === deleted.id ? null : current,
       );
@@ -655,7 +652,10 @@ export function ExploreScreen() {
     return () => {
       source.removeEventListener("post.created", handlePostCreated);
       source.removeEventListener("post.deleted", handlePostDeleted);
-      source.removeEventListener("user.avatar_updated", handleUserAvatarUpdated);
+      source.removeEventListener(
+        "user.avatar_updated",
+        handleUserAvatarUpdated,
+      );
       source.close();
     };
   }, [
@@ -817,66 +817,60 @@ export function ExploreScreen() {
   const searchResultsLabel = hasSearch
     ? `${visiblePosts.length} matching results`
     : null;
-  const exploreMapPoints = useMemo<MapPoint[]>(
-    () => {
-      const clusters = new Map<
-        string,
-        {
-          posts: Post[];
-          latitude: number;
-          longitude: number;
-        }
-      >();
+  const exploreMapPoints = useMemo<MapPoint[]>(() => {
+    const clusters = new Map<
+      string,
+      {
+        posts: Post[];
+        latitude: number;
+        longitude: number;
+      }
+    >();
 
-      for (const post of visiblePosts) {
-        if (
-          !Number.isFinite(post.latitude) ||
-          !Number.isFinite(post.longitude)
-        ) {
-          continue;
-        }
-
-        const key = `${post.latitude.toFixed(3)},${post.longitude.toFixed(3)}`;
-        const cluster = clusters.get(key);
-        if (cluster) {
-          cluster.posts.push(post);
-          continue;
-        }
-
-        clusters.set(key, {
-          posts: [post],
-          latitude: post.latitude,
-          longitude: post.longitude,
-        });
+    for (const post of visiblePosts) {
+      if (!Number.isFinite(post.latitude) || !Number.isFinite(post.longitude)) {
+        continue;
       }
 
-      return Array.from(clusters.values()).map((cluster) => {
-        const [firstPost] = cluster.posts;
-        const postCount = cluster.posts.length;
-        const locationName =
-          firstPost.location_name || firstPost.caption || "Falzo destination";
+      const key = `${post.latitude.toFixed(3)},${post.longitude.toFixed(3)}`;
+      const cluster = clusters.get(key);
+      if (cluster) {
+        cluster.posts.push(post);
+        continue;
+      }
 
-        return {
-          id: `location:${cluster.latitude.toFixed(3)},${cluster.longitude.toFixed(3)}`,
-          name:
-            postCount > 1
-              ? `${postCount} travel posts near ${locationName}`
-              : locationName,
-          address: firstPost.caption || firstPost.user_name,
-          count: postCount,
-          imageUrl: firstPost.image_url,
+      clusters.set(key, {
+        posts: [post],
+        latitude: post.latitude,
+        longitude: post.longitude,
+      });
+    }
+
+    return Array.from(clusters.values()).map((cluster) => {
+      const [firstPost] = cluster.posts;
+      const postCount = cluster.posts.length;
+      const locationName =
+        firstPost.location_name || firstPost.caption || "Falzo destination";
+
+      return {
+        id: `location:${cluster.latitude.toFixed(3)},${cluster.longitude.toFixed(3)}`,
+        name:
+          postCount > 1
+            ? `${postCount} travel posts near ${locationName}`
+            : locationName,
+        address: firstPost.caption || firstPost.user_name,
+        count: postCount,
+        imageUrl: firstPost.image_url,
+        latitude: cluster.latitude,
+        longitude: cluster.longitude,
+        distanceMeters: getDistanceMeters(nearbyCoords, {
           latitude: cluster.latitude,
           longitude: cluster.longitude,
-          distanceMeters: getDistanceMeters(nearbyCoords, {
-            latitude: cluster.latitude,
-            longitude: cluster.longitude,
-          }),
-          postIds: cluster.posts.map((post) => post.id),
-        };
-      });
-    },
-    [nearbyCoords, visiblePosts],
-  );
+        }),
+        postIds: cluster.posts.map((post) => post.id),
+      };
+    });
+  }, [nearbyCoords, visiblePosts]);
   const selectedMapPointId =
     selectedMapClusterId ??
     (selectedMapPostId === null
@@ -1280,8 +1274,10 @@ export function ExploreScreen() {
       return;
     }
 
-    const normalizedIndex =
-      Math.max(0, Math.min(index, selectedMapClusterPosts.length - 1));
+    const normalizedIndex = Math.max(
+      0,
+      Math.min(index, selectedMapClusterPosts.length - 1),
+    );
     const nextPost = selectedMapClusterPosts[normalizedIndex];
     setSelectedMapPostId(nextPost.id);
     setSelectedPostId(nextPost.id);
@@ -1324,6 +1320,7 @@ export function ExploreScreen() {
         onNotificationsOpen={markNotificationsRead}
         onNotificationSelect={openNotificationTarget}
         onSearchChange={setSearchValue}
+        profileAvatarUrl={profileAvatarUrl}
         profileName={profileName}
         searchValue={searchValue}
         unreadNotificationCount={unreadNotificationCount}
@@ -1617,6 +1614,7 @@ function ExploreTopbar({
   onNotificationSelect,
   onProfileClick,
   onSearchChange,
+  profileAvatarUrl,
   profileName,
   searchValue,
   unreadNotificationCount,
@@ -1628,6 +1626,7 @@ function ExploreTopbar({
   onNotificationSelect: (notification: AppNotification) => void;
   onProfileClick: () => void;
   onSearchChange: (value: string) => void;
+  profileAvatarUrl: string | null;
   profileName: string | null;
   searchValue: string;
   unreadNotificationCount: number;
@@ -1635,276 +1634,324 @@ function ExploreTopbar({
   const profileLabel =
     isAuthenticated && profileName ? `Profile: ${profileName}` : "Profile";
   const authLabel = isAuthenticated ? profileLabel : "Login";
+  const profileFallbackName = profileName ?? "Account";
 
   return (
     <>
-    <header className="sticky top-0 z-40 hidden border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl sm:block">
-      <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-2.5 py-2.5 sm:px-5 sm:py-3 lg:px-8">
-        <Link
-          aria-label="Explore"
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03] sm:size-10"
-          href={ROUTES.explore}
-        >
-          <Camera className="size-4" />
-        </Link>
-
-        <nav className="hidden items-center gap-1 md:flex">
-          <Button
-            className="rounded-full bg-[#111] text-white hover:bg-[#222]"
-            size="sm"
+      <header className="sticky top-0 z-40 hidden border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl sm:block">
+        <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-2.5 py-2.5 sm:px-5 sm:py-3 lg:px-8">
+          <Link
+            aria-label="Explore"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03] sm:size-10"
+            href={ROUTES.explore}
           >
-            Explore
-          </Button>
-          <Button asChild className="rounded-full" size="sm" variant="ghost">
-            <Link href={ROUTES.locations}>
-              <MapIcon className="size-4" />
-              Destinations
-            </Link>
-          </Button>
-          {isAuthenticated ? (
+            <Camera className="size-4" />
+          </Link>
+
+          <nav className="hidden items-center gap-1 md:flex">
+            <Button
+              className="rounded-full bg-[#111] text-white hover:bg-[#222]"
+              size="sm"
+            >
+              Explore
+            </Button>
             <Button asChild className="rounded-full" size="sm" variant="ghost">
-              <Link href={ROUTES.saved}>
-                <Bookmark className="size-4" />
-                Saved
+              <Link href={ROUTES.locations}>
+                <MapIcon className="size-4" />
+                Destinations
               </Link>
             </Button>
-          ) : null}
-        </nav>
-
-        <div className="relative ml-0 min-w-0 flex-1 sm:ml-1">
-          <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777] sm:left-4" />
-          <input
-            className="h-10 w-full rounded-full border border-black/6 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)] sm:h-11 sm:px-11"
-            onChange={(event) => onSearchChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && searchValue) {
-                onClearSearch();
-              }
-            }}
-            placeholder="Search destinations, cities, beaches, mountains, culture"
-            type="search"
-            value={searchValue}
-          />
-          <Button
-            aria-label={searchValue ? "Clear search" : "Search filters"}
-            className="-translate-y-1/2 absolute right-1.5 top-1/2 rounded-full"
-            onClick={searchValue ? onClearSearch : undefined}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            {searchValue ? (
-              <X className="size-4" />
-            ) : (
-              <SlidersHorizontal className="size-4" />
-            )}
-          </Button>
-        </div>
-
-        <div className="hidden items-center gap-1 sm:flex">
-          {isAuthenticated ? (
-            <>
+            {isAuthenticated ? (
               <Button
-                aria-label="Create travel post"
                 asChild
                 className="rounded-full"
-                size="icon-sm"
+                size="sm"
                 variant="ghost"
               >
-                <Link href={ROUTES.upload}>
-                  <Plus className="size-4" />
+                <Link href={ROUTES.saved}>
+                  <Bookmark className="size-4" />
+                  Saved
                 </Link>
               </Button>
-              <NotificationBell
-                notifications={notifications}
-                onOpen={onNotificationsOpen}
-                onSelectNotification={onNotificationSelect}
-                unreadCount={unreadNotificationCount}
-              />
-            </>
-          ) : null}
-          <Button
-            aria-label={profileLabel}
-            className={cn(
-              "rounded-full",
-              isAuthenticated && profileName ? "max-w-44 px-3" : "",
-            )}
-            onClick={onProfileClick}
-            size={isAuthenticated && !profileName ? "icon-sm" : "sm"}
-            type="button"
-            variant="outline"
-          >
-            <UserRound className="size-4" />
-            {isAuthenticated && profileName ? (
-              <span className="max-w-28 truncate">{profileName}</span>
-            ) : !isAuthenticated ? (
-              <span>Login</span>
             ) : null}
-          </Button>
-        </div>
+          </nav>
 
-        <Sheet>
-          <SheetTrigger asChild>
+          <div className="relative ml-0 min-w-0 flex-1 sm:ml-1">
+            <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777] sm:left-4" />
+            <input
+              className="h-10 w-full rounded-full border border-black/6 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_12px_32px_-28px_rgb(0_0_0/0.45)] outline-none transition placeholder:text-[#8a8a8a] focus:border-black/10 focus:bg-white focus:shadow-[0_18px_40px_-30px_rgb(0_0_0/0.58)] sm:h-11 sm:px-11"
+              onChange={(event) => onSearchChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && searchValue) {
+                  onClearSearch();
+                }
+              }}
+              placeholder="Search destinations, cities, beaches, mountains, culture"
+              type="search"
+              value={searchValue}
+            />
             <Button
-              aria-label="Menu"
-              className="rounded-full sm:hidden"
+              aria-label={searchValue ? "Clear search" : "Search filters"}
+              className="-translate-y-1/2 absolute right-1.5 top-1/2 rounded-full"
+              onClick={searchValue ? onClearSearch : undefined}
               size="icon-sm"
               type="button"
               variant="ghost"
             >
-              <Menu className="size-4" />
+              {searchValue ? (
+                <X className="size-4" />
+              ) : (
+                <SlidersHorizontal className="size-4" />
+              )}
             </Button>
-          </SheetTrigger>
-          <SheetContent side="right">
-            <SheetHeader>
-              <SheetTitle>Explore menu</SheetTitle>
-              <SheetDescription>
-                Find destinations, open saved places, and manage your account.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="space-y-2 px-5">
-              <SheetClose asChild>
-                <Link
-                  className={cn(
-                    buttonVariants({ size: "default", variant: "outline" }),
-                    "w-full justify-start rounded-full",
-                  )}
-                  href={ROUTES.locations}
+          </div>
+
+          <div className="hidden items-center gap-1 sm:flex">
+            {isAuthenticated ? (
+              <>
+                <Button
+                  aria-label="Create travel post"
+                  asChild
+                  className="rounded-full"
+                  size="icon-sm"
+                  variant="ghost"
                 >
-                  <MapIcon className="size-4" />
-                  Destinations
-                </Link>
-              </SheetClose>
+                  <Link href={ROUTES.upload}>
+                    <Plus className="size-4" />
+                  </Link>
+                </Button>
+                <NotificationBell
+                  notifications={notifications}
+                  onOpen={onNotificationsOpen}
+                  onSelectNotification={onNotificationSelect}
+                  unreadCount={unreadNotificationCount}
+                />
+              </>
+            ) : null}
+            <Button
+              aria-label={profileLabel}
+              className={cn(
+                "rounded-full",
+                isAuthenticated && profileName ? "max-w-44 px-3" : "",
+              )}
+              onClick={onProfileClick}
+              size={isAuthenticated && !profileName ? "icon-sm" : "sm"}
+              type="button"
+              variant="outline"
+            >
               {isAuthenticated ? (
-                <>
-                  <SheetClose asChild>
-                    <Link
-                      className={cn(
-                        buttonVariants({ size: "default", variant: "outline" }),
-                        "w-full justify-start rounded-full",
-                      )}
-                      href={ROUTES.saved}
-                    >
-                      <Bookmark className="size-4" />
-                      Saved
-                    </Link>
-                  </SheetClose>
-                  <SheetClose asChild>
-                    <Link
-                      className={cn(
-                        buttonVariants({ size: "default", variant: "outline" }),
-                        "w-full justify-start rounded-full",
-                      )}
-                      href={ROUTES.upload}
-                    >
-                      <Plus className="size-4" />
-                      Upload
-                    </Link>
-                  </SheetClose>
-                  <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
-                    <span className="text-sm font-medium text-[#1f1f1f]">
-                      Notifications
-                    </span>
-                    <NotificationBell
-                      notifications={notifications}
-                      onOpen={onNotificationsOpen}
-                      onSelectNotification={onNotificationSelect}
-                      unreadCount={unreadNotificationCount}
-                    />
-                  </div>
-                </>
+                <RainbowAvatar
+                  alt={profileFallbackName}
+                  fallback={getAuthUserInitials(profileFallbackName)}
+                  size="xs"
+                  src={profileAvatarUrl}
+                />
+              ) : (
+                <UserRound className="size-4" />
+              )}
+              {isAuthenticated && profileName ? (
+                <span className="max-w-28 truncate">{profileName}</span>
+              ) : !isAuthenticated ? (
+                <span>Login</span>
               ) : null}
-              <SheetClose asChild>
-                <button
-                  className={cn(
-                    buttonVariants({
-                      size: "default",
-                      variant: isAuthenticated ? "outline" : "default",
-                    }),
-                    "w-full justify-start rounded-full",
-                  )}
-                  onClick={onProfileClick}
-                  type="button"
+            </Button>
+          </div>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                aria-label="Menu"
+                className="rounded-full sm:hidden"
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <Menu className="size-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <SheetHeader>
+                <SheetTitle>Explore menu</SheetTitle>
+                <SheetDescription>
+                  Find destinations, open saved places, and manage your account.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="space-y-2 px-5">
+                <SheetClose asChild>
+                  <Link
+                    className={cn(
+                      buttonVariants({ size: "default", variant: "outline" }),
+                      "w-full justify-start rounded-full",
+                    )}
+                    href={ROUTES.locations}
+                  >
+                    <MapIcon className="size-4" />
+                    Destinations
+                  </Link>
+                </SheetClose>
+                {isAuthenticated ? (
+                  <>
+                    <SheetClose asChild>
+                      <Link
+                        className={cn(
+                          buttonVariants({
+                            size: "default",
+                            variant: "outline",
+                          }),
+                          "w-full justify-start rounded-full",
+                        )}
+                        href={ROUTES.saved}
+                      >
+                        <Bookmark className="size-4" />
+                        Saved
+                      </Link>
+                    </SheetClose>
+                    <SheetClose asChild>
+                      <Link
+                        className={cn(
+                          buttonVariants({
+                            size: "default",
+                            variant: "outline",
+                          }),
+                          "w-full justify-start rounded-full",
+                        )}
+                        href={ROUTES.upload}
+                      >
+                        <Plus className="size-4" />
+                        Upload
+                      </Link>
+                    </SheetClose>
+                    <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
+                      <span className="text-sm font-medium text-[#1f1f1f]">
+                        Notifications
+                      </span>
+                      <NotificationBell
+                        notifications={notifications}
+                        onOpen={onNotificationsOpen}
+                        onSelectNotification={onNotificationSelect}
+                        unreadCount={unreadNotificationCount}
+                      />
+                    </div>
+                  </>
+                ) : null}
+                <SheetClose asChild>
+                  <button
+                    className={cn(
+                      buttonVariants({
+                        size: "default",
+                        variant: isAuthenticated ? "outline" : "default",
+                      }),
+                      "w-full justify-start rounded-full",
+                    )}
+                    onClick={onProfileClick}
+                    type="button"
+                  >
+                    {isAuthenticated ? (
+                      <RainbowAvatar
+                        alt={profileFallbackName}
+                        fallback={getAuthUserInitials(profileFallbackName)}
+                        size="xs"
+                        src={profileAvatarUrl}
+                      />
+                    ) : (
+                      <UserRound className="size-4" />
+                    )}
+                    {authLabel}
+                  </button>
+                </SheetClose>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </header>
+
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/8 bg-[#f7f7f5]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2 shadow-[0_-18px_48px_-34px_rgb(0_0_0/0.72)] backdrop-blur-2xl sm:hidden">
+        <div className="mx-auto max-w-md">
+          <div className="relative mb-2">
+            <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777]" />
+            <input
+              className="h-10 w-full rounded-full border border-black/8 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.5)] outline-none placeholder:text-[#8a8a8a] focus:border-black/14"
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search destinations"
+              type="search"
+              value={searchValue}
+            />
+            <button
+              aria-label={searchValue ? "Clear search" : "Search"}
+              className="-translate-y-1/2 absolute right-1.5 top-1/2 flex size-8 items-center justify-center rounded-full text-[#555] transition hover:bg-black/5"
+              onClick={searchValue ? onClearSearch : undefined}
+              type="button"
+            >
+              {searchValue ? (
+                <X className="size-4" />
+              ) : (
+                <SlidersHorizontal className="size-4" />
+              )}
+            </button>
+          </div>
+
+          <div
+            className={cn(
+              "grid items-center gap-1",
+              isAuthenticated ? "grid-cols-5" : "grid-cols-3",
+            )}
+          >
+            <Link
+              aria-label="Explore"
+              className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
+              href={ROUTES.explore}
+            >
+              <Camera className="size-4" />
+              Explore
+            </Link>
+            <Link
+              aria-label="Destinations"
+              className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+              href={ROUTES.locations}
+            >
+              <MapIcon className="size-4" />
+              Places
+            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  aria-label="Upload"
+                  className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
+                  href={ROUTES.upload}
                 >
-                  <UserRound className="size-4" />
-                  {authLabel}
-                </button>
-              </SheetClose>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </header>
-
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/8 bg-[#f7f7f5]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2 shadow-[0_-18px_48px_-34px_rgb(0_0_0/0.72)] backdrop-blur-2xl sm:hidden">
-      <div className="mx-auto max-w-md">
-        <div className="relative mb-2">
-          <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777]" />
-          <input
-            className="h-10 w-full rounded-full border border-black/8 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.5)] outline-none placeholder:text-[#8a8a8a] focus:border-black/14"
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search destinations"
-            type="search"
-            value={searchValue}
-          />
-          <button
-            aria-label={searchValue ? "Clear search" : "Search"}
-            className="-translate-y-1/2 absolute right-1.5 top-1/2 flex size-8 items-center justify-center rounded-full text-[#555] transition hover:bg-black/5"
-            onClick={searchValue ? onClearSearch : undefined}
-            type="button"
-          >
-            {searchValue ? <X className="size-4" /> : <SlidersHorizontal className="size-4" />}
-          </button>
+                  <Plus className="size-5" />
+                </Link>
+                <Link
+                  aria-label="Saved"
+                  className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                  href={ROUTES.saved}
+                >
+                  <Bookmark className="size-4" />
+                  Saved
+                </Link>
+              </>
+            ) : null}
+            <button
+              aria-label={profileLabel}
+              className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+              onClick={onProfileClick}
+              type="button"
+            >
+              {isAuthenticated ? (
+                <RainbowAvatar
+                  alt={profileFallbackName}
+                  fallback={getAuthUserInitials(profileFallbackName)}
+                  size="sm"
+                  src={profileAvatarUrl}
+                />
+              ) : (
+                <UserRound className="size-4" />
+              )}
+              {isAuthenticated ? "Account" : "Login"}
+            </button>
+          </div>
         </div>
-
-        <div className={cn("grid items-center gap-1", isAuthenticated ? "grid-cols-5" : "grid-cols-3")}>
-          <Link
-            aria-label="Explore"
-            className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
-            href={ROUTES.explore}
-          >
-            <Camera className="size-4" />
-            Explore
-          </Link>
-          <Link
-            aria-label="Destinations"
-            className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-            href={ROUTES.locations}
-          >
-            <MapIcon className="size-4" />
-            Places
-          </Link>
-          {isAuthenticated ? (
-            <>
-              <Link
-                aria-label="Upload"
-                className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
-                href={ROUTES.upload}
-              >
-                <Plus className="size-5" />
-              </Link>
-              <Link
-                aria-label="Saved"
-                className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-                href={ROUTES.saved}
-              >
-                <Bookmark className="size-4" />
-                Saved
-              </Link>
-            </>
-          ) : null}
-          <button
-            aria-label={profileLabel}
-            className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-            onClick={onProfileClick}
-            type="button"
-          >
-            <UserRound className="size-4" />
-            {isAuthenticated ? "Account" : "Login"}
-          </button>
-        </div>
-      </div>
-    </nav>
+      </nav>
     </>
   );
 }
@@ -2088,8 +2135,8 @@ function ExploreMapPanel({
 
   return (
     <section className="mb-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_18px_46px_-36px_rgb(0_0_0/0.55)] sm:rounded-3xl">
-      <div className="grid min-h-[620px] gap-0 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-h-[420px] xl:min-h-[620px]">
+      <div className="grid min-h-155 gap-0 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-h-105 xl:min-h-155">
           <MapClient
             className="h-full rounded-none border-0 shadow-none"
             currentPosition={currentPosition}
@@ -2172,9 +2219,7 @@ function ExploreMapPanel({
 
             {hasNearbyCenter ? (
               <div className="rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-4 py-3 text-sm text-[#385c80]">
-                <p className="font-semibold">
-                  {placeName ?? "Nearby center"}
-                </p>
+                <p className="font-semibold">{placeName ?? "Nearby center"}</p>
                 <p className="mt-1">
                   {currentPosition.latitude.toFixed(5)},{" "}
                   {currentPosition.longitude.toFixed(5)}
@@ -2303,7 +2348,10 @@ function ExploreHero({
             <span className="sr-only">
               Discover beautiful destinations and places worth visiting.
             </span>
-            <span aria-hidden="true" className="inline-flex flex-wrap gap-x-2 sm:gap-x-3">
+            <span
+              aria-hidden="true"
+              className="inline-flex flex-wrap gap-x-2 sm:gap-x-3"
+            >
               {exploreHeroHeadlineWords.map((word, index) => (
                 <span
                   className="inline-block animate-[hero-word-rise_0.72s_cubic-bezier(0.22,1,0.36,1)_both]"
@@ -2322,19 +2370,32 @@ function ExploreHero({
           </p>
         </div>
 
-        <HeroDestinationPreview
-          onOpenPost={onOpenPost}
-          posts={featuredPosts}
-        />
+        <HeroDestinationPreview onOpenPost={onOpenPost} posts={featuredPosts} />
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between lg:mt-6">
         <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           {[
-            { icon: <Clock3 className="size-4" />, label: "Newest", value: "newest" as const },
-            { icon: <Flame className="size-4" />, label: "Popular", value: "popular" as const },
-            { icon: <Flame className="size-4" />, label: "Trending", value: "trending" as const },
-            { icon: <LocateFixed className="size-4" />, label: "Nearby", value: "nearby" as const },
+            {
+              icon: <Clock3 className="size-4" />,
+              label: "Newest",
+              value: "newest" as const,
+            },
+            {
+              icon: <Flame className="size-4" />,
+              label: "Popular",
+              value: "popular" as const,
+            },
+            {
+              icon: <Flame className="size-4" />,
+              label: "Trending",
+              value: "trending" as const,
+            },
+            {
+              icon: <LocateFixed className="size-4" />,
+              label: "Nearby",
+              value: "nearby" as const,
+            },
           ].map((item) => (
             <Button
               className={cn(
@@ -2434,7 +2495,11 @@ function HeroDestinationPreview({
         type="button"
       >
         <img
-          alt={spotlight.caption || spotlight.location_name || "Featured destination"}
+          alt={
+            spotlight.caption ||
+            spotlight.location_name ||
+            "Featured destination"
+          }
           className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.045]"
           loading="eager"
           src={spotlight.image_url}
@@ -2446,7 +2511,9 @@ function HeroDestinationPreview({
         </div>
         <div className="absolute inset-x-4 bottom-4 text-white">
           <p className="line-clamp-1 text-xs font-bold uppercase tracking-[0.16em] text-white/70">
-            {spotlight.location_name || spotlight.category_name || "Destination"}
+            {spotlight.location_name ||
+              spotlight.category_name ||
+              "Destination"}
           </p>
           <h2 className="mt-1 line-clamp-2 text-2xl font-semibold leading-tight tracking-normal">
             {spotlight.caption || "Open this destination story"}

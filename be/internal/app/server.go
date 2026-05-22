@@ -37,10 +37,18 @@ import (
 )
 
 type authAvatarEventPublisher struct {
-	posts post.PostEventPublisher
+	posts    post.PostEventPublisher
+	profiles publicProfileCacheInvalidator
+}
+
+type publicProfileCacheInvalidator interface {
+	InvalidatePublicProfile(ctx context.Context, userID uint64)
 }
 
 func (p authAvatarEventPublisher) PublishAvatarUpdated(ctx context.Context, event auth.AvatarUpdatedEvent) error {
+	if p.profiles != nil {
+		p.profiles.InvalidatePublicProfile(ctx, event.UserID)
+	}
 	if p.posts == nil {
 		return nil
 	}
@@ -127,7 +135,14 @@ func Run() {
 		stopPostEventSubscriber = cancelPostEventSubscriber
 		go notificationInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
 	}
-	authService.SetAvatarEventPublisher(authAvatarEventPublisher{posts: postEventPublisher})
+	var profileCacheInvalidator publicProfileCacheInvalidator
+	if invalidator, ok := socialRepository.(publicProfileCacheInvalidator); ok {
+		profileCacheInvalidator = invalidator
+	}
+	authService.SetAvatarEventPublisher(authAvatarEventPublisher{
+		posts:    postEventPublisher,
+		profiles: profileCacheInvalidator,
+	})
 	if redisClient != nil {
 		postRepository = postInfra.NewCachedPostRepository(postRepository, redisClient, cfg.Cache.FeedFirstPageTTL)
 	}
