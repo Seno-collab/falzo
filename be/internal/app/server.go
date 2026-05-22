@@ -118,14 +118,14 @@ func Run() {
 		engagementWorkerCtx, cancelEngagementWorker := context.WithCancel(context.Background())
 		stopEngagementWorker = cancelEngagementWorker
 		go postInfra.RunEngagementStreamWorker(engagementWorkerCtx, postgresPostRepository, redisClient, cfg.Engagement)
-		commentEventPublisher = postInfra.NewRedisCommentEventPublisher(redisClient, commentEventBroker)
-		postEventPublisher = postInfra.NewRedisPostEventPublisher(redisClient, postEventBroker)
+		commentEventPublisher = notificationInfra.NewRedisCommentEventPublisher(redisClient, commentEventBroker)
+		postEventPublisher = notificationInfra.NewRedisPostEventPublisher(redisClient, postEventBroker)
 		commentEventCtx, cancelCommentEventSubscriber := context.WithCancel(context.Background())
 		stopCommentEventSubscriber = cancelCommentEventSubscriber
-		go postInfra.RunRedisCommentEventSubscriber(commentEventCtx, commentEventBroker, redisClient)
+		go notificationInfra.RunRedisCommentEventSubscriber(commentEventCtx, commentEventBroker, redisClient)
 		postEventCtx, cancelPostEventSubscriber := context.WithCancel(context.Background())
 		stopPostEventSubscriber = cancelPostEventSubscriber
-		go postInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
+		go notificationInfra.RunRedisPostEventSubscriber(postEventCtx, postEventBroker, redisClient)
 	}
 	authService.SetAvatarEventPublisher(authAvatarEventPublisher{posts: postEventPublisher})
 	if redisClient != nil {
