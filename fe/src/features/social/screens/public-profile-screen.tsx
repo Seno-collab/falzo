@@ -67,15 +67,17 @@ export function PublicProfileScreen({
   const profileQuery = useQuery({
     enabled: validUserId,
     queryKey: ["users", userId, "public-profile"],
-    queryFn: () => getPublicProfileApi(userId),
+    queryFn: ({ signal }) => getPublicProfileApi(userId, { signal }),
     retry: false,
+    staleTime: 60_000,
   });
 
   const meQuery = useQuery({
     enabled: hasAuthSession(),
     queryKey: ["auth", "me", "public-profile"],
-    queryFn: () => getMeApi<AuthUser>(),
+    queryFn: ({ signal }) => getMeApi<AuthUser>({ signal }),
     retry: false,
+    staleTime: 60_000,
   });
 
   const followMutation = useMutation({
@@ -226,6 +228,10 @@ export function PublicProfileScreen({
                     <img
                       alt={post.caption || post.location_name || "Post image"}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+                      decoding="async"
+                      fetchPriority="low"
+                      loading="lazy"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 22rem"
                       src={post.image_url}
                     />
                   </div>

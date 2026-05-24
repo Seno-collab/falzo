@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from "axios";
 import { initializeAuthHeader } from "@/features/auth/api";
 import { USERS_ENDPOINT } from "@/lib/api-config";
 import {
@@ -8,9 +9,12 @@ import {
 } from "@/lib/api-utils";
 import type { PublicProfile } from "./types";
 
-export async function getPublicProfileApi(userId: number) {
+export async function getPublicProfileApi(
+  userId: number,
+  config?: AxiosRequestConfig,
+) {
   initializeAuthHeader();
-  return apiGet<PublicProfile>(endpointPath(USERS_ENDPOINT, userId));
+  return apiGet<PublicProfile>(endpointPath(USERS_ENDPOINT, userId), config);
 }
 
 export async function followUserApi(userId: number) {

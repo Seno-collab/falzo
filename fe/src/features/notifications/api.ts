@@ -94,10 +94,11 @@ export function createPostUploadNotification(post: {
   };
 }
 
-export function getNotificationsApi(limit = 30) {
+export function getNotificationsApi(limit = 30, signal?: AbortSignal) {
   initializeAuthHeader();
   return apiGet<AppNotification[]>(
     `${NOTIFICATIONS_ENDPOINT}?limit=${encodeURIComponent(String(limit))}`,
+    { signal },
   );
 }
 

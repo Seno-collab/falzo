@@ -217,12 +217,14 @@ export function UploadImageScreen() {
   const locationQuery = useQuery({
     enabled: submittedLocationSearch.trim().length > 0,
     queryKey: ["locations", "upload-search", submittedLocationSearch],
-    queryFn: () => searchLocationsWithFallbackApi(submittedLocationSearch),
+    queryFn: ({ signal }) =>
+      searchLocationsWithFallbackApi(submittedLocationSearch, signal),
   });
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
-    queryFn: getCategoriesApi,
+    queryFn: ({ signal }) => getCategoriesApi({ signal }),
+    staleTime: 5 * 60_000,
   });
 
   const categories = useMemo<Category[]>(
@@ -504,6 +506,7 @@ export function UploadImageScreen() {
                   <img
                     alt="Selected upload preview"
                     className="h-full min-h-105 w-full object-cover"
+                    decoding="async"
                     src={previewUrl}
                   />
                   <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-3">

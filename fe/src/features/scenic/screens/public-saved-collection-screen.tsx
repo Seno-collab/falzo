@@ -30,8 +30,10 @@ export function PublicSavedCollectionScreen({
   const collectionQuery = useQuery({
     enabled: normalizedSlug.length > 0,
     queryKey: ["posts", "saved-collections", "public", normalizedSlug],
-    queryFn: () => getPublicSavedCollectionApi(normalizedSlug),
+    queryFn: ({ signal }) =>
+      getPublicSavedCollectionApi(normalizedSlug, { signal }),
     retry: false,
+    staleTime: 60_000,
   });
   const collection = collectionQuery.data ?? null;
   const posts = collection?.posts ?? [];
@@ -145,7 +147,10 @@ export function PublicSavedCollectionScreen({
                   <img
                     alt={post.caption || post.location_name || "Itinerary stop"}
                     className="h-full w-full object-cover"
-                    loading="lazy"
+                    decoding="async"
+                    fetchPriority={index < 2 ? "high" : "low"}
+                    loading={index < 2 ? "eager" : "lazy"}
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 24rem"
                     src={post.image_url}
                   />
                   <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111] shadow-sm backdrop-blur-xl">

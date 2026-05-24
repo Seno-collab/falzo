@@ -127,18 +127,21 @@ export function LocationsScreen() {
   const searchQuery = useQuery({
     enabled: submittedSearch.trim().length > 0,
     queryKey: ["locations", "search", submittedSearch],
-    queryFn: () => searchLocationsWithFallbackApi(submittedSearch),
+    queryFn: ({ signal }) =>
+      searchLocationsWithFallbackApi(submittedSearch, signal),
   });
 
   const nearbyQuery = useQuery({
     enabled: coords !== null,
     queryKey: ["locations", "nearby", coords, radiusMeters],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getNearbyLocationsApi({
         latitude: coords?.latitude ?? 0,
         longitude: coords?.longitude ?? 0,
         radiusMeters,
+        signal,
       }),
+    staleTime: 60_000,
   });
 
   const postsQuery = useQuery({
@@ -152,17 +155,18 @@ export function LocationsScreen() {
       selectedLocation?.post_ids,
       "posts",
     ],
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       if (!selectedLocation) {
         return [];
       }
 
       if (isPostBackedLocation(selectedLocation)) {
-        return getPostBackedLocationPostsApi(selectedLocation);
+        return getPostBackedLocationPostsApi(selectedLocation, signal);
       }
 
-      return getLocationPostsApi(selectedLocation.id);
+      return getLocationPostsApi(selectedLocation.id, { signal });
     },
+    staleTime: 45_000,
   });
 
   const nearbyLocations = useMemo<NearbyLocation[]>(
@@ -605,7 +609,10 @@ export function LocationsScreen() {
                   <img
                     alt={post.caption || post.location_name || "Location post"}
                     className="aspect-4/3 w-full object-cover"
+                    decoding="async"
+                    fetchPriority="low"
                     loading="lazy"
+                    sizes="(max-width: 1024px) 100vw, 24rem"
                     src={post.image_url}
                   />
                   <div className="space-y-1 px-4 py-3">

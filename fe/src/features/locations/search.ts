@@ -32,6 +32,21 @@ function trimString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new DOMException("Request was aborted.", "AbortError");
+  }
+}
+
+function isAbortError(error: unknown) {
+  return (
+    error instanceof DOMException && error.name === "AbortError"
+  ) || (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "CanceledError")
+  );
+}
+
 function normalizeComparableText(value: unknown) {
   return trimString(value)
     .normalize("NFD")
@@ -199,11 +214,13 @@ function postsToAssignedLocations(posts: Post[]) {
 async function searchAssignedLocationsApi(
   query: string,
   center?: Pick<Location, "latitude" | "longitude">,
+  signal?: AbortSignal,
 ) {
   const requests = [
     getPostsApi({
       limit: 50,
       search: query,
+      signal,
     }),
   ];
 
@@ -214,12 +231,15 @@ async function searchAssignedLocationsApi(
         limit: 50,
         longitude: center.longitude,
         radiusMeters: assignedLocationCityRadiusMeters,
+        signal,
         sort: "nearby",
       }),
     );
   }
 
+  throwIfAborted(signal);
   const settled = await Promise.allSettled(requests);
+  throwIfAborted(signal);
   const posts = settled.flatMap((result) =>
     result.status === "fulfilled" ? result.value : [],
   );
@@ -227,7 +247,10 @@ async function searchAssignedLocationsApi(
   return postsToAssignedLocations(posts);
 }
 
-async function searchExternalLocationsApi(query: string): Promise<Location[]> {
+async function searchExternalLocationsApi(
+  query: string,
+  signal?: AbortSignal,
+): Promise<Location[]> {
   const params = new URLSearchParams({
     addressdetails: "1",
     "accept-language": "vi,en",
@@ -240,6 +263,7 @@ async function searchExternalLocationsApi(query: string): Promise<Location[]> {
     headers: {
       Accept: "application/json",
     },
+    signal,
   });
 
   if (!response.ok) {
@@ -254,7 +278,10 @@ async function searchExternalLocationsApi(query: string): Promise<Location[]> {
   );
 }
 
-export async function searchLocationsWithFallbackApi(query: string) {
+export async function searchLocationsWithFallbackApi(
+  query: string,
+  signal?: AbortSignal,
+) {
   const normalizedQuery = normalizeLocationSearchQuery(query);
 
   if (!normalizedQuery) {
@@ -265,15 +292,20 @@ export async function searchLocationsWithFallbackApi(query: string) {
   let backendLocations: Location[] = [];
 
   try {
-    backendLocations = await searchLocationsApi(normalizedQuery);
+    backendLocations = await searchLocationsApi(normalizedQuery, { signal });
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     backendError = error;
   }
 
   try {
+    throwIfAborted(signal);
     const assignedLocations = await searchAssignedLocationsApi(
       normalizedQuery,
       backendLocations[0],
+      signal,
     );
     const localMatches = dedupeLocations([
       ...backendLocations,
@@ -283,15 +315,23 @@ export async function searchLocationsWithFallbackApi(query: string) {
     if (localMatches.length > 0) {
       return localMatches;
     }
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     // Search should still fall back to geocoding if post search is unavailable.
   }
 
   try {
-    const externalLocations = await searchExternalLocationsApi(normalizedQuery);
+    throwIfAborted(signal);
+    const externalLocations = await searchExternalLocationsApi(
+      normalizedQuery,
+      signal,
+    );
     const assignedLocations = await searchAssignedLocationsApi(
       normalizedQuery,
       externalLocations[0],
+      signal,
     ).catch(() => []);
     const matches = dedupeLocations([
       ...backendLocations,
@@ -302,7 +342,10 @@ export async function searchLocationsWithFallbackApi(query: string) {
     if (matches.length > 0) {
       return matches;
     }
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     if (backendError) {
       throw backendError;
     }
@@ -323,21 +366,27 @@ export function isPostBackedLocation(location: Location | null | undefined) {
   return location?.id.startsWith(postBackedLocationIdPrefix) ?? false;
 }
 
-export async function getPostBackedLocationPostsApi(location: Location) {
+export async function getPostBackedLocationPostsApi(
+  location: Location,
+  signal?: AbortSignal,
+) {
   const selectedPostIds = new Set(location.post_ids ?? []);
   const settled = await Promise.allSettled([
     getPostsApi({
       limit: 50,
       search: location.name,
+      signal,
     }),
     getPostsApi({
       latitude: location.latitude,
       limit: 50,
       longitude: location.longitude,
       radiusMeters: selectedLocationPostRadiusMeters,
+      signal,
       sort: "nearby",
     }),
   ]);
+  throwIfAborted(signal);
   const postsById = new Map<number, Post>();
 
   for (const result of settled) {

@@ -217,6 +217,8 @@ function LocationMarker({
             <img
               alt={point.name}
               className={styles.popupPhoto}
+              decoding="async"
+              loading="lazy"
               src={point.imageUrl}
             />
             <strong>{point.name}</strong>

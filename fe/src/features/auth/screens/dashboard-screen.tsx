@@ -1,7 +1,6 @@
 "use client";
 
 import { BarChart3, Compass, LogOut } from "lucide-react";
-import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingPanel } from "@/components/feedback/loading-panel";
@@ -132,12 +131,7 @@ export function DashboardScreen() {
           title="Verifying your session"
         />
       ) : (
-        <motion.div
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-          initial={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.24, ease: "easeOut" }}
-        >
+        <div className="space-y-4">
           <Card className="app-panel app-hover border-[#d6e5f6] bg-white/92 py-0">
             <CardContent className="space-y-5 p-6 sm:p-8">
               <div className="space-y-2">
@@ -200,7 +194,7 @@ export function DashboardScreen() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       )}
     </PageShell>
   );

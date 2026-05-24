@@ -92,7 +92,10 @@ function PostTile({
         <img
           alt={post.caption || post.location_name || "Saved post"}
           className="h-full w-full object-cover"
+          decoding="async"
+          fetchPriority="low"
           loading="lazy"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 22rem"
           src={post.image_url}
         />
         <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
@@ -195,15 +198,17 @@ export function SavedCollectionsScreen() {
   const savedPostsQuery = useQuery({
     enabled: hasAuthSession(),
     queryKey: ["posts", "saved"],
-    queryFn: getSavedPostsApi,
+    queryFn: ({ signal }) => getSavedPostsApi({ signal }),
     retry: false,
+    staleTime: 45_000,
   });
 
   const collectionsQuery = useQuery({
     enabled: hasAuthSession(),
     queryKey: ["posts", "saved-collections"],
-    queryFn: getSavedCollectionsApi,
+    queryFn: ({ signal }) => getSavedCollectionsApi({ signal }),
     retry: false,
+    staleTime: 45_000,
   });
 
   const collections = collectionsQuery.data ?? [];
@@ -552,7 +557,10 @@ export function SavedCollectionsScreen() {
                       <img
                         alt={post.caption || post.location_name || "Saved post"}
                         className="h-full w-full object-cover transition group-hover:scale-[1.035]"
+                        decoding="async"
+                        fetchPriority="low"
                         loading="lazy"
+                        sizes="8rem"
                         src={post.image_url}
                       />
                     </span>

@@ -12,7 +12,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -54,18 +53,10 @@ type PostCardProps = {
 };
 
 const cardClass =
-  "group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)] sm:rounded-[28px]";
+  "group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 [contain-intrinsic-size:1px_620px] [content-visibility:auto] hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)] sm:rounded-[28px]";
 
 const overlayClass =
   "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.02)_48%,rgb(0_0_0/0.44)_100%)] opacity-80 transition group-hover:opacity-100";
-
-function animation(index: number) {
-  return {
-    duration: 0.34,
-    delay: Math.min(index * 0.035, 0.22),
-    ease: "easeOut" as const,
-  };
-}
 
 function getPostAvatarUrl(post: Post) {
   return post.user_avatar_url || post.avatar_url || "";
@@ -320,14 +311,11 @@ export function ExplorePostCard({
   const authorName = post.user_name || `User #${post.user_id}`;
   const categoryLabel = post.category_name || "Travel";
   const authorAvatarUrl = getPostAvatarUrl(post);
+  const isInitialImage = index < 2;
 
   return (
-    <motion.article
+    <article
       className={cardClass}
-      initial={{ opacity: 0, y: 18 }}
-      transition={animation(index)}
-      viewport={{ amount: 0.12, once: true }}
-      whileInView={{ opacity: 1, y: 0 }}
     >
       <div
         className="relative h-72 cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-96"
@@ -339,7 +327,10 @@ export function ExplorePostCard({
         <img
           alt={post.caption || post.location_name || "Destination photo"}
           className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
-          loading={index < 2 ? "eager" : "lazy"}
+          decoding="async"
+          fetchPriority={isInitialImage ? "high" : "low"}
+          loading={isInitialImage ? "eager" : "lazy"}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           src={post.image_url}
         />
         <div className={overlayClass} />
@@ -533,6 +524,6 @@ export function ExplorePostCard({
           </div>
         ) : null}
       </div>
-    </motion.article>
+    </article>
   );
 }

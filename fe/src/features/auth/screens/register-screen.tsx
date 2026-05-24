@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Apple, ArrowRight, Compass, UserPlus } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
@@ -145,12 +144,7 @@ export function RegisterScreen() {
         />
       }
     >
-      <motion.div
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-5"
-        initial={{ opacity: 0, y: 10 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-      >
+      <div className="space-y-5">
         <div className="space-y-2 text-center">
           <Badge className="mx-auto border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]">
             Start your wishlist
@@ -285,7 +279,7 @@ export function RegisterScreen() {
             Explore before signing up
           </Link>
         </Button>
-      </motion.div>
+      </div>
     </AuthShell>
   );
 }

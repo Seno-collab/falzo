@@ -34,6 +34,10 @@ import type {
   UserAvatarUpdatedEvent,
 } from "./types";
 
+type ApiSignal = {
+  signal?: AbortSignal;
+};
+
 export async function getPostsApi(params?: {
   page?: number;
   limit?: number;
@@ -45,6 +49,7 @@ export async function getPostsApi(params?: {
   latitude?: number;
   longitude?: number;
   radiusMeters?: number;
+  signal?: AbortSignal;
 }): Promise<Post[]> {
   const page = await getPostsPageApi(params);
   return page.items;
@@ -61,6 +66,7 @@ export async function getPostsPageApi(params?: {
   latitude?: number;
   longitude?: number;
   radiusMeters?: number;
+  signal?: AbortSignal;
 }): Promise<PostsPage> {
   initializeAuthHeader();
 
@@ -78,6 +84,7 @@ export async function getPostsPageApi(params?: {
       ...(typeof params?.longitude === "number" ? { lng: params.longitude } : {}),
       ...(params?.radiusMeters ? { radius_meters: params.radiusMeters } : {}),
     },
+    signal: params?.signal,
   });
 
   if (Array.isArray(data)) {
@@ -90,10 +97,13 @@ export async function getPostsPageApi(params?: {
   return data;
 }
 
-export async function getPostDetailApi(postId: number): Promise<Post> {
+export async function getPostDetailApi(
+  postId: number,
+  config?: ApiSignal,
+): Promise<Post> {
   initializeAuthHeader();
 
-  return apiGet<Post>(endpointPath(POSTS_ENDPOINT, postId));
+  return apiGet<Post>(endpointPath(POSTS_ENDPOINT, postId), config);
 }
 
 export function getPostEventsUrl() {
@@ -179,27 +189,32 @@ export async function unsavePostApi(postId: number): Promise<void> {
   await apiDelete(endpointPath(POSTS_ENDPOINT, postId, "save"));
 }
 
-export async function getSavedPostsApi(): Promise<Post[]> {
+export async function getSavedPostsApi(config?: ApiSignal): Promise<Post[]> {
   initializeAuthHeader();
 
-  return apiGet<Post[]>(endpointPath(POSTS_ENDPOINT, "saved"));
+  return apiGet<Post[]>(endpointPath(POSTS_ENDPOINT, "saved"), config);
 }
 
-export async function getSavedCollectionsApi(): Promise<SavedCollection[]> {
+export async function getSavedCollectionsApi(
+  config?: ApiSignal,
+): Promise<SavedCollection[]> {
   initializeAuthHeader();
 
   return apiGet<SavedCollection[]>(
     endpointPath(POSTS_ENDPOINT, "saved-collections"),
+    config,
   );
 }
 
 export async function getPublicSavedCollectionApi(
   shareSlug: string,
+  config?: ApiSignal,
 ): Promise<SavedCollection> {
   initializeAuthHeader();
 
   return apiGet<SavedCollection>(
     endpointPath(POSTS_ENDPOINT, "saved-collections", "public", shareSlug),
+    config,
   );
 }
 
@@ -269,10 +284,12 @@ export async function deleteSavedCollectionApi(
 
 export async function getPostCommentsApi(
   postId: number,
+  config?: ApiSignal,
 ): Promise<PostComment[]> {
   return apiGet<PostComment[]>(
     endpointPath(POSTS_ENDPOINT, postId, "comments"),
     {
+      ...config,
       params: {
         page: 1,
         limit: 20,

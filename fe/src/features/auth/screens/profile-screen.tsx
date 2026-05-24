@@ -13,7 +13,6 @@ import {
   UserRound,
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { motion } from "motion/react";
 import type { ChangeEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -288,12 +287,7 @@ export function ProfileScreen() {
           title="Loading profile"
         />
       ) : (
-        <motion.div
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.58fr)]"
-          initial={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.24, ease: "easeOut" }}
-        >
+        <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.58fr)]">
           <Card className="app-panel app-hover overflow-hidden border-[#d6e5f6] bg-white/94 py-0">
             <CardContent className="p-0">
               <div className="border-[#dfe9f4] border-b bg-[linear-gradient(180deg,#fafdff_0%,#f5f9fd_100%)] p-5 sm:p-7">
@@ -488,7 +482,7 @@ export function ProfileScreen() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       )}
     </PageShell>
   );

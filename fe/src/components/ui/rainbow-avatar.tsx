@@ -37,7 +37,13 @@ export function RainbowAvatar({
       />
       <span className="relative z-10 flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_30%_25%,#7db8ff_0%,#2f6da8_42%,#17395c_100%)]">
         {src ? (
-          <img alt={alt} className="h-full w-full object-cover" src={src} />
+          <img
+            alt={alt}
+            className="h-full w-full object-cover"
+            decoding="async"
+            loading="lazy"
+            src={src}
+          />
         ) : (
           fallback
         )}

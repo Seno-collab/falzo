@@ -681,7 +681,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 	}
 
 	rows, err := r.db.Pool().Query(ctx, `
-			WITH ranked_posts AS (
+			WITH base_posts AS (
 				SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, '') AS user_avatar_url, posts.image_url, posts.caption, posts.location_name,
 					COALESCE(categories.id, 0) AS category_id,
 					COALESCE(categories.name, '') AS category_name,
@@ -699,31 +699,35 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 						WHERE post_saves.post_id = posts.id AND post_saves.user_id = $3
 					) AS is_saved,
 					posts.status,
-					(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id) AS likes_count,
-					(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible') AS comments_count,
-					(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id) AS saves_count,
+					COALESCE(likes.likes_count, 0) AS likes_count,
+					COALESCE(comments.comments_count, 0) AS comments_count,
+					COALESCE(saves.saves_count, 0) AS saves_count,
 					posts.created_at,
 					posts.updated_at,
-					CASE
-						WHEN $7 = 'nearby' THEN (
-							((COALESCE(posts.latitude, 0)::double precision - $8::double precision) * (COALESCE(posts.latitude, 0)::double precision - $8::double precision))
-							+ ((COALESCE(posts.longitude, 0)::double precision - $9::double precision) * (COALESCE(posts.longitude, 0)::double precision - $9::double precision))
-						)
-						WHEN $7 = 'popular' THEN (
-							(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id) * 3
-							+ (SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible') * 2
-							+ (SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id)
-						)::double precision
-						WHEN $7 = 'trending' THEN (
-							(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id) * 3
-							+ (SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible') * 2
-							+ (SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id)
-						)::double precision / (1 + EXTRACT(EPOCH FROM ($15::timestamptz - posts.created_at)) / 86400)
-						ELSE 0
-					END AS rank_value
+					(
+						((COALESCE(posts.latitude, 0)::double precision - $8::double precision) * (COALESCE(posts.latitude, 0)::double precision - $8::double precision))
+						+ ((COALESCE(posts.longitude, 0)::double precision - $9::double precision) * (COALESCE(posts.longitude, 0)::double precision - $9::double precision))
+					) AS nearby_rank
 				FROM posts
 				INNER JOIN users ON users.id = posts.user_id
 				LEFT JOIN categories ON categories.id = posts.category_id
+				LEFT JOIN LATERAL (
+					SELECT COUNT(*) AS likes_count
+					FROM post_likes
+					WHERE post_likes.post_id = posts.id
+				) likes ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT COUNT(*) AS comments_count
+					FROM post_comments
+					WHERE post_comments.post_id = posts.id
+						AND post_comments.deleted_at IS NULL
+						AND post_comments.status = 'visible'
+				) comments ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT COUNT(*) AS saves_count
+					FROM post_saves
+					WHERE post_saves.post_id = posts.id
+				) saves ON TRUE
 				WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4
 					OR categories.name ILIKE $4 OR categories.slug ILIKE $4)
 					AND ($5 = '' OR categories.slug = $5)
@@ -757,6 +761,19 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 								OR (blocker_user_id = posts.user_id AND blocked_user_id = $3)
 						)
 					)
+			),
+			ranked_posts AS (
+				SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
+					category_id, category_name, category_slug, latitude, longitude,
+					is_liked, is_saved, status, likes_count, comments_count, saves_count,
+					created_at, updated_at,
+					CASE
+						WHEN $7 = 'nearby' THEN nearby_rank
+						WHEN $7 = 'popular' THEN (likes_count * 3 + comments_count * 2 + saves_count)::double precision
+						WHEN $7 = 'trending' THEN (likes_count * 3 + comments_count * 2 + saves_count)::double precision / (1 + EXTRACT(EPOCH FROM ($15::timestamptz - created_at)) / 86400)
+						ELSE 0
+					END AS rank_value
+				FROM base_posts
 			)
 			SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
 				category_id, category_name, category_slug, latitude, longitude,

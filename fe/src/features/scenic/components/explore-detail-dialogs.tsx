@@ -459,7 +459,9 @@ export function PostDetailDialog({
                   "h-full w-full select-none object-contain transition duration-500 ease-out",
                   isImageZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
                 )}
+                decoding="async"
                 draggable={false}
+                fetchPriority="high"
                 onClick={toggleImageZoom}
                 src={post.image_url}
                 style={{

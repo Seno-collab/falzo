@@ -389,11 +389,11 @@ export async function registerApi(payload: RegisterRequest) {
 
 export async function getMeApi<
   TUser extends AuthUser = AuthUser,
->(): Promise<TUser> {
+>(config?: AxiosRequestConfig): Promise<TUser> {
   initializeAuthHeader();
 
   const endpoint = AUTH_ENDPOINTS.me;
-  return apiGet<TUser>(endpoint);
+  return apiGet<TUser>(endpoint, config);
 }
 
 export async function logoutApi(): Promise<void> {

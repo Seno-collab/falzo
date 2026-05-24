@@ -17,12 +17,14 @@ import {
   X,
 } from "lucide-react";
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -33,7 +35,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
 import MapClient from "@/components/map";
 import type { Coordinates, MapPoint } from "@/components/map";
 import {
@@ -94,7 +95,6 @@ import {
 import type { Post, PostComment, PostsPage } from "@/features/posts/types";
 import type { PostSort } from "@/features/posts/types";
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
-import { PostDetailDialog } from "@/features/scenic/components/explore-detail-dialogs";
 import {
   ALL_COLLECTION,
   FOLLOWING_COLLECTION,
@@ -103,11 +103,20 @@ import {
   toggleSetValue,
 } from "@/features/scenic/lib/explore-utils";
 import { ROUTES } from "@/lib/routes";
+import { notifyError, notifySuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type PostsInfiniteData = InfiniteData<PostsPage, string | null>;
 
-const postsPageSize = 24;
+const PostDetailDialog = dynamic(
+  () =>
+    import("@/features/scenic/components/explore-detail-dialogs").then(
+      (mod) => mod.PostDetailDialog,
+    ),
+  { ssr: false },
+);
+
+const postsPageSize = 8;
 const maxNotifications = 30;
 const maxNearbyRadiusMeters = 1_000_000;
 const nearbyRadiusOptions = [
@@ -347,7 +356,8 @@ export function ExploreScreen() {
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
-    queryFn: getCategoriesApi,
+    queryFn: ({ signal }) => getCategoriesApi({ signal }),
+    staleTime: 5 * 60_000,
   });
   const activeCategorySlug = useMemo(() => {
     if (showsCommunityFeed(activeCollection)) {
@@ -374,7 +384,7 @@ export function ExploreScreen() {
       nearbyCoords,
       nearbyRadiusMeters,
     ],
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       getPostsPageApi({
         cursor: pageParam,
         limit: postsPageSize,
@@ -385,24 +395,28 @@ export function ExploreScreen() {
         latitude: nearbyCoords?.latitude,
         longitude: nearbyCoords?.longitude,
         radiusMeters: feedSort === "nearby" ? nearbyRadiusMeters : undefined,
+        signal,
       }),
     getNextPageParam: (lastPage) =>
       lastPage.has_more && lastPage.next_cursor
         ? lastPage.next_cursor
         : undefined,
     initialPageParam: null as string | null,
+    placeholderData: keepPreviousData,
+    staleTime: 45_000,
   });
 
   const postDetailQuery = useQuery({
     enabled: selectedPostId !== null,
     queryKey: ["posts", "detail", selectedPostId],
-    queryFn: () => getPostDetailApi(selectedPostId ?? 0),
+    queryFn: ({ signal }) => getPostDetailApi(selectedPostId ?? 0, { signal }),
+    staleTime: 60_000,
   });
 
   const profileQuery = useQuery({
     enabled: isAuthenticated,
     queryKey: ["auth", "me", "explore"],
-    queryFn: () => getMeApi<AuthUser>(),
+    queryFn: ({ signal }) => getMeApi<AuthUser>({ signal }),
     refetchOnMount: "always",
     retry: false,
     staleTime: 0,
@@ -410,10 +424,10 @@ export function ExploreScreen() {
   const notificationsQuery = useQuery({
     enabled: isAuthenticated,
     queryKey: ["notifications", "list"],
-    queryFn: () => getNotificationsApi(maxNotifications),
+    queryFn: ({ signal }) => getNotificationsApi(maxNotifications, signal),
     refetchOnMount: "always",
     retry: false,
-    staleTime: 0,
+    staleTime: 20_000,
   });
   const profileName =
     profileQuery.data && !profileQuery.isFetching
@@ -684,7 +698,7 @@ export function ExploreScreen() {
       await likePostApi(postId);
       return true;
     },
-    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
     onSuccess: (nextIsLiked, variables) => {
       setLikedPosts((current) => ({
         ...current,
@@ -709,7 +723,7 @@ export function ExploreScreen() {
       await savePostApi(postId);
       return true;
     },
-    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
     onSuccess: (nextIsSaved, variables) => {
       setSavedPosts((current) => ({
         ...current,
@@ -720,37 +734,37 @@ export function ExploreScreen() {
 
   const deletePostMutation = useMutation({
     mutationFn: deletePostApi,
-    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["posts"] });
       setSelectedPostId(null);
-      toast.success("Travel post deleted.");
+      notifySuccess("Travel post deleted.");
     },
   });
 
   const reportPostMutation = useMutation({
     mutationFn: ({ postId, reason }: { postId: number; reason: string }) =>
       reportPostApi(postId, { reason }),
-    onError: (error) => toast.error(getApiErrorMessage(error)),
-    onSuccess: () => toast.success("Report sent."),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
+    onSuccess: () => notifySuccess("Report sent."),
   });
 
   const commentMutation = useMutation({
     mutationFn: createPostCommentApi,
-    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
     onSuccess: (comment, variables) => {
       setCommentsByPost((current) =>
         upsertPostComment(current, variables.postId, comment),
       );
       setCommentInputs((current) => ({ ...current, [variables.postId]: "" }));
       setReplyTargets((current) => ({ ...current, [variables.postId]: null }));
-      toast.success("Comment posted.");
+      notifySuccess("Comment posted.");
     },
   });
 
   const updateCommentMutation = useMutation({
     mutationFn: updatePostCommentApi,
-    onError: (error) => toast.error(getApiErrorMessage(error)),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
     onSuccess: (comment, variables) => {
       setCommentsByPost((current) =>
         upsertPostComment(current, variables.postId, comment),
@@ -760,7 +774,7 @@ export function ExploreScreen() {
         ...current,
         [variables.postId]: null,
       }));
-      toast.success("Comment updated.");
+      notifySuccess("Comment updated.");
     },
   });
 
@@ -936,7 +950,7 @@ export function ExploreScreen() {
           void fetchNextPostsPage();
         }
       },
-      { rootMargin: "700px 0px" },
+      { rootMargin: "360px 0px" },
     );
 
     observer.observe(node);
@@ -994,7 +1008,7 @@ export function ExploreScreen() {
     }
 
     setIsAuthenticated(false);
-    toast.error("Login is required for this action.");
+    notifyError("Login is required for this action.");
     router.push(ROUTES.login);
     return false;
   }
@@ -1054,7 +1068,7 @@ export function ExploreScreen() {
         mergePostComments(current, postId, comments),
       );
     } catch (error) {
-      toast.error(getApiErrorMessage(error));
+      notifyError(getApiErrorMessage(error));
     } finally {
       setLoadingComments((current) => {
         const next = new Set(current);
@@ -1172,7 +1186,7 @@ export function ExploreScreen() {
 
   function locateNearbyFeed() {
     if (!globalThis.navigator?.geolocation) {
-      toast.error("Location is not available in this browser.");
+      notifyError("Location is not available in this browser.");
       return;
     }
 
@@ -1185,7 +1199,7 @@ export function ExploreScreen() {
         setNearbyPlaceName("Your location");
         setFeedSort("nearby");
       },
-      () => toast.error("Location permission is required for nearby feed."),
+      () => notifyError("Location permission is required for nearby feed."),
       { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
     );
   }
@@ -1215,7 +1229,7 @@ export function ExploreScreen() {
 
     const content = commentInputs[postId]?.trim() ?? "";
     if (!content) {
-      toast.error("Comment content is required.");
+      notifyError("Comment content is required.");
       return;
     }
 
@@ -1991,7 +2005,10 @@ function MapClusterPostRail({
             <img
               alt={post.caption || post.location_name || "Destination photo"}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+              decoding="async"
+              fetchPriority="low"
               loading="lazy"
+              sizes="16rem"
               src={post.image_url}
             />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.08)_42%,rgb(0_0_0/0.68)_100%)]" />
@@ -2115,7 +2132,7 @@ function ExploreMapPanel({
     try {
       const [location] = await searchLocationsWithFallbackApi(query);
       if (!location) {
-        toast.error("No city or province found.");
+        notifyError("No city or province found.");
         return;
       }
 
@@ -2127,7 +2144,7 @@ function ExploreMapPanel({
         location.name,
       );
     } catch (error) {
-      toast.error(getApiErrorMessage(error));
+      notifyError(getApiErrorMessage(error));
     } finally {
       setIsSearchingPlace(false);
     }
@@ -2501,7 +2518,10 @@ function HeroDestinationPreview({
             "Featured destination"
           }
           className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.045]"
+          decoding="async"
+          fetchPriority="high"
           loading="eager"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 60vw, 45vw"
           src={spotlight.image_url}
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.18)_48%,rgb(0_0_0/0.78)_100%)]" />
@@ -2537,7 +2557,10 @@ function HeroDestinationPreview({
               <img
                 alt={post.caption || post.location_name || "Destination"}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.06]"
+                decoding="async"
+                fetchPriority="low"
                 loading="lazy"
+                sizes="(max-width: 640px) 50vw, 9rem"
                 src={post.image_url}
               />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.16)_42%,rgb(0_0_0/0.68)_100%)]" />
