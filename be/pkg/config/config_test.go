@@ -318,6 +318,26 @@ func TestValidateRejectsDisabledPostgresTLSOutsideDevelopment(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsWildcardCORSCredentialsOutsideDevelopment(t *testing.T) {
+	cfg := Config{
+		App: AppConfig{Env: "production"},
+		Auth: AuthConfig{
+			JWTSecret: "01234567890123456789012345678901",
+		},
+		Postgres: PostgresConfig{
+			SSLMode: "require",
+		},
+		HTTP: HTTPConfig{
+			CORSAllowedOrigins:   []string{"*"},
+			CORSAllowCredentials: true,
+		},
+	}
+
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected validation error for wildcard cors credentials")
+	}
+}
+
 func TestLoadReadsValuesFromDotEnvFile(t *testing.T) {
 	tempDir := t.TempDir()
 	dotenvPath := filepath.Join(tempDir, ".env")

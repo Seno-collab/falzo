@@ -85,9 +85,32 @@ func TestCORSPreflightRejectsUnknownOrigin(t *testing.T) {
 	}
 }
 
-func TestCORSAllowCredentialsWithWildcardUsesRequestOrigin(t *testing.T) {
+func TestCORSAllowCredentialsWithWildcardRejectsUnknownPreflightOrigin(t *testing.T) {
 	mw := CORS(CORSConfig{
 		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET"},
+		AllowCredentials: true,
+	})
+
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("preflight request should not reach next handler")
+	}))
+
+	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	req.Header.Set("Origin", "https://web.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestCORSAllowCredentialsWithExplicitOrigin(t *testing.T) {
+	mw := CORS(CORSConfig{
+		AllowedOrigins:   []string{"https://web.example.com"},
 		AllowCredentials: true,
 	})
 

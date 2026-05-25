@@ -89,6 +89,7 @@ type UpdateImageInput struct {
 	FileName string
 	MimeType string
 	Size     int64
+	OwnerID  string
 }
 
 type UpdateImageResult struct {
@@ -139,6 +140,9 @@ func (s *Service) UpdateImage(ctx context.Context, input UpdateImageInput) (Upda
 	if input.ImageID <= 0 {
 		return UpdateImageResult{}, ErrImageIDRequired
 	}
+	if strings.TrimSpace(input.OwnerID) == "" {
+		return UpdateImageResult{}, ErrOwnerIDRequired
+	}
 	if len(input.File) == 0 {
 		return UpdateImageResult{}, ErrFileRequired
 	}
@@ -155,6 +159,9 @@ func (s *Service) UpdateImage(ctx context.Context, input UpdateImageInput) (Upda
 	image, err := s.images.FindByID(ctx, input.ImageID)
 	if err != nil {
 		return UpdateImageResult{}, err
+	}
+	if image.OwnerID != strings.TrimSpace(input.OwnerID) {
+		return UpdateImageResult{}, ErrImageNotFound
 	}
 
 	oldObjectKey := image.ObjectKey

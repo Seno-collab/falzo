@@ -30,7 +30,7 @@ func CORS(cfg CORSConfig) func(http.Handler) http.Handler {
 		headers = []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}
 	}
 
-	allowAnyOrigin := containsFold(origins, "*")
+	allowAnyOrigin := containsFold(origins, "*") && !cfg.AllowCredentials
 	allowMethodsValue := strings.Join(methods, ", ")
 	allowHeadersValue := strings.Join(headers, ", ")
 
@@ -52,7 +52,7 @@ func CORS(cfg CORSConfig) func(http.Handler) http.Handler {
 			}
 
 			addVary(w.Header(), "Origin")
-			setAllowOrigin(w.Header(), allowAnyOrigin, origin, cfg.AllowCredentials)
+			setAllowOrigin(w.Header(), allowAnyOrigin, origin)
 
 			if cfg.AllowCredentials {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -93,8 +93,8 @@ func isPreflightRequest(r *http.Request) bool {
 	return r.Method == http.MethodOptions && strings.TrimSpace(r.Header.Get("Access-Control-Request-Method")) != ""
 }
 
-func setAllowOrigin(header http.Header, allowAnyOrigin bool, origin string, allowCredentials bool) {
-	if allowAnyOrigin && !allowCredentials {
+func setAllowOrigin(header http.Header, allowAnyOrigin bool, origin string) {
+	if allowAnyOrigin {
 		header.Set("Access-Control-Allow-Origin", "*")
 		return
 	}
@@ -166,7 +166,7 @@ func containsFold(values []string, target string) bool {
 func addVary(header http.Header, value string) {
 	existing := header.Values("Vary")
 	for _, current := range existing {
-		for _, part := range strings.SplitN(current, ",", 0) {
+		for _, part := range strings.Split(current, ",") {
 			if strings.EqualFold(strings.TrimSpace(part), value) {
 				return
 			}

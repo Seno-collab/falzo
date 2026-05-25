@@ -26,6 +26,16 @@ func (fakeUploadHandlerService) UpdateImage(context.Context, UpdateImageInput) (
 	return UpdateImageResult{ID: 1, URL: "https://cdn.example.com/1.png", ObjectKey: "7/1.png"}, nil
 }
 
+type captureUploadHandlerService struct {
+	fakeUploadHandlerService
+	updateInput UpdateImageInput
+}
+
+func (s *captureUploadHandlerService) UpdateImage(ctx context.Context, input UpdateImageInput) (UpdateImageResult, error) {
+	s.updateInput = input
+	return s.fakeUploadHandlerService.UpdateImage(ctx, input)
+}
+
 type fakeUploadAuthService struct{}
 
 func (fakeUploadAuthService) Authenticate(context.Context, string) (*auth.AuthenticatedUser, error) {
@@ -45,6 +55,26 @@ func TestUploadImageRejectsBodyOverLimit(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d body=%s", http.StatusBadRequest, rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateImagePassesAuthenticatedOwner(t *testing.T) {
+	body, contentType := multipartImageBody(t, "image-bytes")
+	service := &captureUploadHandlerService{}
+	handler := NewHandler(service, fakeUploadAuthService{})
+
+	req := httptest.NewRequest(http.MethodPut, "/images/10", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer signed-token")
+	req.Header.Set("Content-Type", contentType)
+	rec := httptest.NewRecorder()
+
+	handler.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+	if service.updateInput.ImageID != 10 || service.updateInput.OwnerID != "7" {
+		t.Fatalf("expected image id 10 and owner 7, got %+v", service.updateInput)
 	}
 }
 

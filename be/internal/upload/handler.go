@@ -175,6 +175,11 @@ func (h *Handler) UpdateImage(w http.ResponseWriter, r *http.Request) {
 		share.WriteError(w, r, ErrImageIDRequired, "update_image", mapUploadError)
 		return
 	}
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrOwnerIDRequired, "update_image", mapUploadError)
+		return
+	}
 	if !h.parseMultipartForm(w, r, "update_image") {
 		return
 	}
@@ -198,6 +203,7 @@ func (h *Handler) UpdateImage(w http.ResponseWriter, r *http.Request) {
 		FileName: header.Filename,
 		MimeType: detectImageMimeType(data, header),
 		Size:     header.Size,
+		OwnerID:  strconv.FormatUint(principal.UserID, 10),
 	})
 	if err != nil {
 		share.WriteError(w, r, err, "update_image", mapUploadError)

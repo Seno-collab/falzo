@@ -192,6 +192,13 @@ func Validate(cfg Config) error {
 	if strings.EqualFold(strings.TrimSpace(cfg.Postgres.SSLMode), "disable") || strings.TrimSpace(cfg.Postgres.SSLMode) == "" {
 		return errors.New("POSTGRES_SSL_MODE must not be disable outside development")
 	}
+	if cfg.HTTP.CORSAllowCredentials {
+		for _, origin := range cfg.HTTP.CORSAllowedOrigins {
+			if strings.TrimSpace(origin) == "*" {
+				return errors.New("HTTP_CORS_ALLOWED_ORIGINS must not include * when HTTP_CORS_ALLOW_CREDENTIALS is true outside development")
+			}
+		}
+	}
 
 	return nil
 }

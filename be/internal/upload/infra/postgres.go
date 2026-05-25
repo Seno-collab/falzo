@@ -80,14 +80,14 @@ func (r *PostgresRepository) Update(ctx context.Context, image *upload.Image) er
 	}
 
 	now := time.Now().UTC()
-	result, err := table.UpdateByID(ctx, image.ID, orm.Values{
+	result, err := table.UpdateWhere(ctx, "id = $7 AND owner_id::text = $8", orm.Values{
 		"mime_type":  image.MimeType,
 		"object_key": image.ObjectKey,
 		"size":       image.Size,
 		"status":     image.Status,
 		"updated_at": now,
 		"url":        image.URL,
-	})
+	}, image.ID, image.OwnerID)
 	if err != nil {
 		return share.MapDBError(ctx, uploadRepoService, "images.update", err, upload.ErrDependencyUnavailable, upload.ErrInternal)
 	}

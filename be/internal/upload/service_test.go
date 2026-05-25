@@ -140,6 +140,7 @@ func TestUpdateImageReplacesObjectAndDeletesOldObject(t *testing.T) {
 		FileName: "avatar.png",
 		MimeType: "image/png",
 		Size:     int64(len(file)),
+		OwnerID:  "7",
 	})
 	if err != nil {
 		t.Fatalf("update image: %v", err)
@@ -176,6 +177,7 @@ func TestUpdateImageDeletesNewObjectWhenUpdateFails(t *testing.T) {
 		FileName: "avatar.png",
 		MimeType: "image/png",
 		Size:     int64(len(file)),
+		OwnerID:  "7",
 	})
 	if err == nil {
 		t.Fatal("expected update error")
@@ -185,6 +187,36 @@ func TestUpdateImageDeletesNewObjectWhenUpdateFails(t *testing.T) {
 	}
 	if slices.Contains(storage.deleted, "7/old.png") {
 		t.Fatalf("old object must not be deleted when DB update fails, deleted=%v", storage.deleted)
+	}
+}
+
+func TestUpdateImageRejectsDifferentOwner(t *testing.T) {
+	repo := &fakeImageRepository{image: &Image{
+		ID:        10,
+		OwnerID:   "7",
+		ObjectKey: "7/old.png",
+		URL:       "https://cdn.example.com/7/old.png",
+		MimeType:  "image/png",
+		Size:      3,
+		Status:    "ready",
+	}}
+	storage := &fakeImageStorage{}
+	service := NewService(repo, storage)
+	file := tinyPNG(t)
+
+	_, err := service.UpdateImage(t.Context(), UpdateImageInput{
+		ImageID:  10,
+		File:     file,
+		FileName: "avatar.png",
+		MimeType: "image/png",
+		Size:     int64(len(file)),
+		OwnerID:  "8",
+	})
+	if !errors.Is(err, ErrImageNotFound) {
+		t.Fatalf("expected image not found for different owner, got %v", err)
+	}
+	if len(storage.uploaded) != 0 {
+		t.Fatalf("must not upload replacement for different owner, uploaded=%v", storage.uploaded)
 	}
 }
 
