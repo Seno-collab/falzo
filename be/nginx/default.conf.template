@@ -42,6 +42,37 @@ http {
         listen 80;
         server_name image.falzo.life;
 
+        location ^~ /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    server {
+        listen 80 default_server;
+        server_name _;
+
+        location ^~ /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name image.falzo.life;
+
+        ssl_certificate /etc/letsencrypt/live/image.falzo.life/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/image.falzo.life/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers off;
+
         add_header X-Falzo-Route image always;
 
         client_max_body_size 20m;
@@ -81,8 +112,14 @@ http {
     }
 
     server {
-        listen 80 default_server;
-        server_name _;
+        listen 443 ssl http2 default_server;
+        server_name falzo.life www.falzo.life _;
+
+        ssl_certificate /etc/letsencrypt/live/falzo.life/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/falzo.life/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers off;
+
         root /usr/share/nginx/html;
         index index.html;
 
