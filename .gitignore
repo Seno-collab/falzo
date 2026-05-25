@@ -49,3 +49,9 @@ be/.gopath/
 be/secrets/seaweedfs_s3.json
 *.secret
 be/nginx/default.conf
+
+# Certbot runtime files. Keep directory placeholders only.
+certbot/conf/*
+certbot/www/*
+!certbot/conf/.gitkeep
+!certbot/www/.gitkeep

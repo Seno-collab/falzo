@@ -52,7 +52,7 @@ services:
     env_file: ./be/.env
     environment:
       SEAWEEDFS_BASE_URL: http://seaweedfs:8888
-      SEAWEEDFS_PUBLIC_URL: http://image.falzo.life
+      SEAWEEDFS_PUBLIC_URL: https://image.falzo.life
     expose:
       - "8000"
     healthcheck:
