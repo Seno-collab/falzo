@@ -4,6 +4,7 @@ import { Bookmark, Camera, LogIn, MapIcon, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
@@ -79,6 +80,21 @@ function TopbarActionButton({
   );
 }
 
+function mobileNavItemClass(isActive: boolean) {
+  return cn(
+    "flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition hover:bg-white",
+    isActive ? "bg-[#111] text-white hover:bg-[#222]" : "text-[#555]",
+  );
+}
+
+function isActiveRoute(pathname: string, route: string) {
+  if (route === ROUTES.explore) {
+    return pathname === route;
+  }
+
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
 export function AppTopbar({
   brand,
   brandIcon,
@@ -96,6 +112,7 @@ export function AppTopbar({
   mobileMenuTitle: string;
   showMobileNav?: boolean;
 }>) {
+  const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const visibleActions = useMemo(
@@ -138,6 +155,12 @@ export function AppTopbar({
 
   const profileName = getAuthUserDisplayName(profile, "Account");
   const avatarUrl = readAuthUserText(profile, ["avatar_url", "avatarUrl"]);
+  const isExploreActive = isActiveRoute(pathname, ROUTES.explore);
+  const isLocationsActive = isActiveRoute(pathname, ROUTES.locations);
+  const isUploadActive = isActiveRoute(pathname, ROUTES.upload);
+  const isSavedActive = isActiveRoute(pathname, ROUTES.saved);
+  const accountRoute = isAuthenticated ? ROUTES.profile : ROUTES.login;
+  const isAccountActive = isActiveRoute(pathname, accountRoute);
 
   return (
     <>
@@ -184,16 +207,18 @@ export function AppTopbar({
               )}
             >
               <Link
+                aria-current={isExploreActive ? "page" : undefined}
                 aria-label="Explore"
-                className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
+                className={mobileNavItemClass(isExploreActive)}
                 href={ROUTES.explore}
               >
                 <Camera className="size-4" />
                 Explore
               </Link>
               <Link
+                aria-current={isLocationsActive ? "page" : undefined}
                 aria-label="Destinations"
-                className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                className={mobileNavItemClass(isLocationsActive)}
                 href={ROUTES.locations}
               >
                 <MapIcon className="size-4" />
@@ -202,15 +227,22 @@ export function AppTopbar({
               {isAuthenticated ? (
                 <>
                   <Link
+                    aria-current={isUploadActive ? "page" : undefined}
                     aria-label="Upload"
-                    className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
+                    className={cn(
+                      "mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)] transition",
+                      isUploadActive
+                        ? "ring-2 ring-[#111] ring-offset-2 ring-offset-[#f7f7f5]"
+                        : "hover:bg-[#e63253]",
+                    )}
                     href={ROUTES.upload}
                   >
                     <Plus className="size-5" />
                   </Link>
                   <Link
+                    aria-current={isSavedActive ? "page" : undefined}
                     aria-label="Saved"
-                    className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                    className={mobileNavItemClass(isSavedActive)}
                     href={ROUTES.saved}
                   >
                     <Bookmark className="size-4" />
@@ -219,9 +251,10 @@ export function AppTopbar({
                 </>
               ) : null}
               <Link
+                aria-current={isAccountActive ? "page" : undefined}
                 aria-label={isAuthenticated ? "Profile" : "Login"}
-                className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
-                href={isAuthenticated ? ROUTES.profile : ROUTES.login}
+                className={mobileNavItemClass(isAccountActive)}
+                href={accountRoute}
               >
                 {isAuthenticated ? (
                   <RainbowAvatar
