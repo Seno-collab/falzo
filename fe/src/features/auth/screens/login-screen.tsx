@@ -89,7 +89,11 @@ export function LoginScreen() {
       }
       label={homeCopy.brand}
       note="Explore first. Login only when you are ready to save the dream."
-      points={[]}
+      points={[
+        "Recover the destinations you saved from any device.",
+        "Open your trip board and compare places before deciding.",
+        "Get notified when people react to your travel stories.",
+      ]}
       subtitle={copy.subtitle}
       title={copy.title}
       topbar={

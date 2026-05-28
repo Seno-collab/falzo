@@ -114,7 +114,11 @@ export function RegisterScreen() {
       }
       label={homeCopy.brand}
       note="Create a place to collect every future journey."
-      points={[]}
+      points={[
+        "Save the places that feel worth a second look.",
+        "Share travel photos and keep your profile visible.",
+        "Unlock a personal board for future trip planning.",
+      ]}
       subtitle={copy.subtitle}
       title={copy.title}
       topbar={
