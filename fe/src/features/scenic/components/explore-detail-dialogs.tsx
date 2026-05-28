@@ -440,7 +440,25 @@ export function PostDetailDialog({
 
   return (
     <Dialog onOpenChange={(nextOpen) => !nextOpen && onClose()} open={open}>
-      <DialogContent className="h-[min(94svh,860px)] w-[calc(100vw-1rem)] overflow-hidden border-white/16 bg-[#050505] p-0 text-white sm:w-[min(98vw,86rem)]">
+      <DialogContent
+        className="h-[min(94svh,860px)] w-[calc(100vw-1rem)] overflow-hidden border-white/16 bg-[#050505]/94 p-0 text-white shadow-[0_36px_110px_-44px_rgb(0_0_0/0.92)] backdrop-blur-xl sm:w-[min(98vw,86rem)]"
+        overlayClassName="overflow-hidden bg-black/72 backdrop-blur-0"
+        overlayChildren={
+          post ? (
+            <div className="pointer-events-none absolute inset-0">
+              <img
+                alt=""
+                aria-hidden="true"
+                className="h-full w-full scale-110 object-cover opacity-55 blur-2xl saturate-125"
+                decoding="async"
+                src={post.image_url}
+              />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_48%,rgb(0_0_0/0.18)_0%,rgb(0_0_0/0.42)_46%,rgb(0_0_0/0.82)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(0_0_0/0.62)_0%,rgb(0_0_0/0.2)_48%,rgb(0_0_0/0.66)_100%)]" />
+            </div>
+          ) : null
+        }
+      >
         <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
           <div
             className="relative h-[42svh] min-h-0 shrink-0 touch-pan-y overflow-hidden bg-black lg:h-auto lg:min-h-0 lg:shrink"
