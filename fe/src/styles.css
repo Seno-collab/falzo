@@ -434,8 +434,23 @@
     }
 }
 
+@keyframes forest-hero-reveal {
+    0% {
+        opacity: 0;
+        transform: scale(1.08);
+        filter: saturate(0.88) blur(8px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: saturate(1) blur(0);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    [class*="hero-word-rise"] {
+    [class*="hero-word-rise"],
+    [class*="forest-hero-reveal"] {
         animation: none !important;
     }
 }

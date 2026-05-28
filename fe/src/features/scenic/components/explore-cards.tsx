@@ -2,14 +2,17 @@
 
 import {
   Bookmark,
+  CalendarDays,
   Flag,
   Heart,
+  MapPin,
   Maximize2,
   MessageCircle,
   Pencil,
   Reply,
   Send,
   Trash2,
+  UsersRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -33,6 +36,8 @@ type PostCardProps = {
   replyTarget: PostComment | null;
   editingComment: PostComment | null;
   currentUserId: number | null;
+  bestTimeLabel?: string;
+  distanceLabel?: string;
   isSubmittingComment: boolean;
   onOpen: (postId: number) => void;
   onLike: (postId: number) => void;
@@ -56,7 +61,20 @@ const cardClass =
   "group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 [contain-intrinsic-size:1px_620px] [content-visibility:auto] hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)] sm:rounded-[28px]";
 
 const overlayClass =
-  "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.02)_48%,rgb(0_0_0/0.44)_100%)] opacity-80 transition group-hover:opacity-100";
+  "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.03)_0%,rgb(0_0_0/0.02)_42%,rgb(0_0_0/0.62)_100%)] opacity-80 transition group-hover:opacity-100";
+
+const imageFrameClasses = [
+  "relative h-[22rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[31rem]",
+  "relative h-[17.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[24rem]",
+  "relative h-[20rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[28rem]",
+  "relative h-[16.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[22rem]",
+  "relative h-[23rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[34rem]",
+  "relative h-[18.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[25rem]",
+];
+
+function getImageFrameClass(index: number) {
+  return imageFrameClasses[index % imageFrameClasses.length];
+}
 
 function getPostAvatarUrl(post: Post) {
   return post.user_avatar_url || post.avatar_url || "";
@@ -291,6 +309,8 @@ export function ExplorePostCard({
   replyTarget,
   editingComment,
   currentUserId,
+  bestTimeLabel,
+  distanceLabel,
   isSubmittingComment,
   onOpen,
   onLike,
@@ -312,13 +332,14 @@ export function ExplorePostCard({
   const categoryLabel = post.category_name || "Travel";
   const authorAvatarUrl = getPostAvatarUrl(post);
   const isInitialImage = index < 2;
+  const frameIndex = index % imageFrameClasses.length;
+  const isTallFrame = frameIndex === 0 || frameIndex === 4;
+  const savedCount = post.saves_count ?? 0;
 
   return (
-    <article
-      className={cardClass}
-    >
+    <article className={cardClass}>
       <div
-        className="relative h-72 cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-96"
+        className={getImageFrameClass(frameIndex)}
         onClick={() => onOpen(post.id)}
         onKeyDown={(event) => onKeyboardOpen(event, () => onOpen(post.id))}
         role="button"
@@ -326,7 +347,7 @@ export function ExplorePostCard({
       >
         <img
           alt={post.caption || post.location_name || "Destination photo"}
-          className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
+          className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.045]"
           decoding="async"
           fetchPriority={isInitialImage ? "high" : "low"}
           loading={isInitialImage ? "eager" : "lazy"}
@@ -334,11 +355,11 @@ export function ExplorePostCard({
           src={post.image_url}
         />
         <div className={overlayClass} />
-        <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 opacity-0 transition duration-200 group-hover:opacity-100">
-          <span className="rounded-full bg-white/86 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
+        <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
+          <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
             {categoryLabel}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
             <Button
               aria-label="Open image"
               className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
@@ -375,10 +396,18 @@ export function ExplorePostCard({
           </div>
         </div>
         <div className="absolute inset-x-4 bottom-4 text-white">
-          <p className="line-clamp-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/76">
-            {location}
+          <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/16 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/86 backdrop-blur-xl">
+            <MapPin className="size-3.5 shrink-0" />
+            <span className="truncate">{location}</span>
           </p>
-          <h2 className="mt-1 line-clamp-3 text-xl font-semibold leading-tight tracking-normal sm:text-2xl">
+          <h2
+            className={cn(
+              "mt-1 font-semibold leading-tight tracking-normal",
+              isTallFrame
+                ? "line-clamp-3 text-2xl sm:text-3xl"
+                : "line-clamp-2 text-xl sm:text-2xl",
+            )}
+          >
             {title}
           </h2>
         </div>
@@ -493,6 +522,66 @@ export function ExplorePostCard({
               </>
             ) : null}
           </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-black/6 bg-[#f8f8f7] p-2">
+          <div className="min-w-0 rounded-xl bg-white px-2.5 py-2">
+            <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#777]">
+              <MapPin className="size-3" />
+              Place
+            </p>
+            <p className="mt-1 truncate text-xs font-semibold text-[#222]">
+              {distanceLabel ?? location}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-xl bg-white px-2.5 py-2">
+            <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#777]">
+              <CalendarDays className="size-3" />
+              Best
+            </p>
+            <p className="mt-1 truncate text-xs font-semibold text-[#222]">
+              {bestTimeLabel ?? "Golden hour"}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-xl bg-white px-2.5 py-2">
+            <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#777]">
+              <UsersRound className="size-3" />
+              Saved
+            </p>
+            <p className="mt-1 truncate text-xs font-semibold text-[#222]">
+              {savedCount > 0 ? `${savedCount} saved` : "Start board"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            aria-label={isSaved ? "Saved to trip" : "Save destination to trip"}
+            className={cn(
+              "min-w-0 flex-1 rounded-full",
+              isSaved
+                ? "bg-[#111] text-white hover:bg-[#222]"
+                : "bg-[#ff385c] text-white hover:bg-[#e93152]",
+            )}
+            onClick={() => onSave(post.id)}
+            type="button"
+          >
+            <Bookmark className={cn("size-4", isSaved ? "fill-current" : "")} />
+            {isSaved ? "Saved to trip" : "Save to trip"}
+          </Button>
+          <Button
+            aria-label="Open local discussion"
+            className={cn(
+              "rounded-full",
+              activeClass("comment", commentsOpen),
+            )}
+            onClick={() => onToggleComments(post.id)}
+            type="button"
+            variant="outline"
+          >
+            <MessageCircle className="size-4" />
+            Local tips
+          </Button>
         </div>
 
         {commentsOpen ? (

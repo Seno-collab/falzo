@@ -4,16 +4,20 @@ import {
   Bookmark,
   Camera,
   Clock3,
+  Compass,
   Flame,
   LocateFixed,
   MapIcon,
+  MessageCircle,
   Menu,
   Plus,
+  Route,
   Search,
   SlidersHorizontal,
   Sparkles,
   Tags,
   UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -35,6 +39,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ReactNode } from "react";
 import MapClient from "@/components/map";
 import type { Coordinates, MapPoint } from "@/components/map";
 import {
@@ -107,6 +112,7 @@ import { notifyError, notifySuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type PostsInfiniteData = InfiniteData<PostsPage, string | null>;
+type ExploreMode = "inspire" | "nearby" | "plan" | "community";
 
 const PostDetailDialog = dynamic(
   () =>
@@ -144,6 +150,17 @@ const firstLoadTravelSuggestions = [
 const exploreHeroHeadlineWords =
   "Discover beautiful destinations and places worth visiting.".split(" ");
 
+const exploreForestHeroImageUrl =
+  "https://images.unsplash.com/photo-1762933604852-4b4409603588?auto=format&fit=crop&fm=jpg&q=80&w=2400";
+
+const bestTimeLabels = [
+  "Golden hour",
+  "Early morning",
+  "Late afternoon",
+  "Dry season",
+  "Weekend morning",
+] as const;
+
 function clampNearbyRadiusMeters(radiusMeters: number) {
   if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
     return 25_000;
@@ -156,6 +173,16 @@ function formatRadiusLabel(radiusMeters: number) {
   return radiusMeters >= 1000
     ? `${Math.round(radiusMeters / 1000)} km`
     : `${radiusMeters} m`;
+}
+
+function formatDistanceLabel(distanceMeters: number | undefined) {
+  if (typeof distanceMeters !== "number" || !Number.isFinite(distanceMeters)) {
+    return undefined;
+  }
+
+  return distanceMeters >= 1000
+    ? `${(distanceMeters / 1000).toFixed(distanceMeters >= 10_000 ? 0 : 1)} km`
+    : `${Math.max(1, Math.round(distanceMeters))} m`;
 }
 
 function getDistanceMeters(origin: Coordinates | null, target: Coordinates) {
@@ -313,6 +340,7 @@ export function ExploreScreen() {
   } | null>(null);
   const [nearbyPlaceName, setNearbyPlaceName] = useState<string | null>(null);
   const [nearbyRadiusMeters, setNearbyRadiusMeters] = useState(50_000);
+  const [activeMode, setActiveMode] = useState<ExploreMode>("inspire");
   const [showMapPanel, setShowMapPanel] = useState(false);
   const [selectedMapPostId, setSelectedMapPostId] = useState<number | null>(
     null,
@@ -796,6 +824,11 @@ export function ExploreScreen() {
     () => loadedPosts.filter((post) => isPostSaved(post, savedPosts)),
     [loadedPosts, savedPosts],
   );
+  const planBoardTitle = useMemo(() => {
+    const [firstSavedPost] = savedBoardPosts;
+    const location = firstSavedPost?.location_name?.split(",")[0]?.trim();
+    return location ? `Weekend in ${location}` : "Weekend trip board";
+  }, [savedBoardPosts]);
 
   const visiblePosts = useMemo(() => {
     const basePosts = (() => {
@@ -1168,11 +1201,35 @@ export function ExploreScreen() {
   }
 
   function toggleSavedBoard() {
-    if (!requireAuth()) {
+    changeExploreMode("plan");
+  }
+
+  function changeExploreMode(nextMode: ExploreMode) {
+    if (nextMode === "plan" && !requireAuth()) {
       return;
     }
 
-    router.push(ROUTES.saved);
+    setActiveMode(nextMode);
+    setShowFirstLoadSuggestions(false);
+
+    if (nextMode === "nearby") {
+      setShowSavedBoard(false);
+      setShowMapPanel(true);
+      locateNearbyFeed();
+      return;
+    }
+
+    if (nextMode === "plan") {
+      setShowSavedBoard(true);
+      setShowMapPanel(savedBoardPosts.length > 0);
+      return;
+    }
+
+    setShowSavedBoard(false);
+    setShowMapPanel(false);
+    if (feedSort === "nearby") {
+      setFeedSort(nextMode === "community" ? "trending" : "newest");
+    }
   }
 
   function changeCollection(collection: string) {
@@ -1181,6 +1238,7 @@ export function ExploreScreen() {
     }
 
     setShowSavedBoard(false);
+    setActiveMode("inspire");
     setActiveCollection(collection);
   }
 
@@ -1207,15 +1265,24 @@ export function ExploreScreen() {
   function changeFeedSort(nextSort: PostSort) {
     if (nextSort !== "nearby") {
       setFeedSort(nextSort);
+      if (showSavedBoard) {
+        setShowSavedBoard(false);
+      }
+      if (activeMode === "nearby") {
+        setActiveMode("inspire");
+      }
       return;
     }
 
+    setActiveMode("nearby");
+    setShowSavedBoard(false);
     setShowMapPanel(true);
     locateNearbyFeed();
   }
 
   function applyTravelPrompt(query: string, sort: PostSort) {
     setShowSavedBoard(false);
+    setActiveMode(sort === "nearby" ? "nearby" : "inspire");
     setShowFirstLoadSuggestions(false);
     setActiveCollection(ALL_COLLECTION);
     setSearchValue(query);
@@ -1366,12 +1433,41 @@ export function ExploreScreen() {
           categories={categories}
           onSelectCategory={(category) => {
             setShowSavedBoard(false);
+            setActiveMode("inspire");
             setActiveCollection(category.name);
           }}
         />
       ) : null}
 
+      <ExploreModeSwitcher
+        activeMode={activeMode}
+        nearbyLabel={nearbyPlaceName ?? "Map + nearby"}
+        onModeChange={changeExploreMode}
+        planCount={savedBoardPosts.length}
+        totalPosts={visiblePosts.length}
+      />
+
       <section className="mx-auto w-full max-w-370 px-3 pb-10 sm:px-6 sm:pb-14 lg:px-8">
+        {activeMode === "plan" ? (
+          <TripBoardPlanner
+            boardTitle={planBoardTitle}
+            onOpenSavedCollections={() => router.push(ROUTES.saved)}
+            onShowMap={() => setShowMapPanel(true)}
+            posts={savedBoardPosts}
+          />
+        ) : null}
+
+        {activeMode === "community" ? (
+          <LocalLayerPanel
+            onOpenPost={openPostDetail}
+            onOpenPostTips={(postId) => {
+              setOpenComments((current) => new Set(current).add(postId));
+              void loadComments(postId);
+            }}
+            posts={visiblePosts}
+          />
+        ) : null}
+
         {showMapPanel ? (
           <ExploreMapPanel
             currentPosition={nearbyCoords}
@@ -1468,13 +1564,20 @@ export function ExploreScreen() {
             </div>
           </div>
         ) : null}
-        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
+        <div className="columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3 xl:gap-5 2xl:columns-4 [column-fill:balance]">
           {visiblePosts.map((post, index) => (
             <ExplorePostCard
               commentValue={commentInputs[post.id] ?? ""}
               comments={commentsByPost[post.id] ?? []}
               commentsOpen={openComments.has(post.id)}
               currentUserId={currentUserId}
+              bestTimeLabel={getBestTimeLabel(post)}
+              distanceLabel={formatDistanceLabel(
+                getDistanceMeters(nearbyCoords, {
+                  latitude: post.latitude,
+                  longitude: post.longitude,
+                }),
+              )}
               editingComment={editingComments[post.id] ?? null}
               index={index}
               isAuthenticated={isAuthenticated}
@@ -1617,6 +1720,351 @@ export function ExploreScreen() {
         post={selectedPost}
       />
     </main>
+  );
+}
+
+function ExploreModeSwitcher({
+  activeMode,
+  nearbyLabel,
+  onModeChange,
+  planCount,
+  totalPosts,
+}: Readonly<{
+  activeMode: ExploreMode;
+  nearbyLabel: string;
+  onModeChange: (mode: ExploreMode) => void;
+  planCount: number;
+  totalPosts: number;
+}>) {
+  const modes: {
+    description: string;
+    icon: ReactNode;
+    label: string;
+    meta: string;
+    value: ExploreMode;
+  }[] = [
+    {
+      description: "Photo-first discovery for fast inspiration.",
+      icon: <Compass className="size-4" />,
+      label: "Inspire",
+      meta: `${totalPosts} places`,
+      value: "inspire",
+    },
+    {
+      description: "Open the map and find places around you.",
+      icon: <MapIcon className="size-4" />,
+      label: "Nearby",
+      meta: nearbyLabel,
+      value: "nearby",
+    },
+    {
+      description: "Turn saved places into a trip board.",
+      icon: <Route className="size-4" />,
+      label: "Plan",
+      meta: `${planCount} saved`,
+      value: "plan",
+    },
+    {
+      description: "Local tips, events, and place discussions.",
+      icon: <MessageCircle className="size-4" />,
+      label: "Community",
+      meta: "Tips + Q&A",
+      value: "community",
+    },
+  ];
+
+  return (
+    <section className="mx-auto w-full max-w-370 px-3 pb-5 sm:px-6 lg:px-8">
+      <div className="grid gap-2 rounded-3xl border border-black/6 bg-white p-2 shadow-[0_16px_40px_-34px_rgb(0_0_0/0.62)] sm:grid-cols-2 lg:grid-cols-4">
+        {modes.map((mode) => {
+          const isActive = activeMode === mode.value;
+          return (
+            <button
+              aria-pressed={isActive}
+              className={cn(
+                "flex min-h-28 items-start gap-3 rounded-2xl border p-3 text-left transition",
+                isActive
+                  ? "border-[#111] bg-[#111] text-white shadow-[0_18px_42px_-30px_rgb(0_0_0/0.78)]"
+                  : "border-transparent bg-[#f8f8f7] text-[#222] hover:border-black/10 hover:bg-white",
+              )}
+              key={mode.value}
+              onClick={() => onModeChange(mode.value)}
+              type="button"
+            >
+              <span
+                className={cn(
+                  "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full",
+                  isActive ? "bg-white text-[#111]" : "bg-white text-[#315f8f]",
+                )}
+              >
+                {mode.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">
+                  {mode.label}
+                </span>
+                <span
+                  className={cn(
+                    "mt-1 block text-xs leading-5",
+                    isActive ? "text-white/74" : "text-[#666]",
+                  )}
+                >
+                  {mode.description}
+                </span>
+                <span
+                  className={cn(
+                    "mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                    isActive ? "bg-white/14 text-white" : "bg-white text-[#555]",
+                  )}
+                >
+                  {mode.meta}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TripBoardPlanner({
+  boardTitle,
+  onOpenSavedCollections,
+  onShowMap,
+  posts,
+}: Readonly<{
+  boardTitle: string;
+  onOpenSavedCollections: () => void;
+  onShowMap: () => void;
+  posts: Post[];
+}>) {
+  const routeStops = posts
+    .filter((post) => post.location_name)
+    .slice(0, 4)
+    .map((post) => post.location_name);
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-3xl border border-black/6 bg-[#121712] text-white shadow-[0_24px_60px_-42px_rgb(0_0_0/0.78)]">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/54">
+                Trip board
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-normal sm:text-3xl">
+                {boardTitle}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/68">
+                Saved places now behave like a travel plan: shortlist, route,
+                notes, and shareable board in one place.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-[#111]">
+              {posts.length} stop{posts.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              {
+                icon: <Bookmark className="size-4" />,
+                label: "Saved places",
+                value: posts.length || "None yet",
+              },
+              {
+                icon: <Route className="size-4" />,
+                label: "Route",
+                value: posts.length > 1 ? `${posts.length - 1} legs` : "Draft",
+              },
+              {
+                icon: <UsersRound className="size-4" />,
+                label: "Share board",
+                value: "Private draft",
+              },
+            ].map((item) => (
+              <div
+                className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3"
+                key={item.label}
+              >
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-white/54">
+                  {item.icon}
+                  {item.label}
+                </p>
+                <p className="mt-2 text-lg font-semibold">{item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              className="rounded-full bg-white text-[#111] hover:bg-white/90"
+              onClick={onShowMap}
+              type="button"
+            >
+              <MapIcon className="size-4" />
+              View route map
+            </Button>
+            <Button
+              className="rounded-full border-white/18 bg-white/8 text-white hover:bg-white/14"
+              onClick={onOpenSavedCollections}
+              type="button"
+              variant="outline"
+            >
+              <Bookmark className="size-4" />
+              Saved collections
+            </Button>
+          </div>
+        </div>
+
+        <aside className="border-white/10 border-t bg-white/6 p-4 sm:p-5 lg:border-l lg:border-t-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/54">
+            Route notes
+          </p>
+          {routeStops.length > 0 ? (
+            <ol className="mt-3 space-y-2">
+              {routeStops.map((stop, index) => (
+                <li
+                  className="flex items-center gap-3 rounded-2xl bg-white/8 px-3 py-2 text-sm"
+                  key={`${stop}-${index}`}
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-[#111]">
+                    {index + 1}
+                  </span>
+                  <span className="line-clamp-1">{stop}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="mt-3 rounded-2xl border border-dashed border-white/16 px-3 py-4 text-sm leading-6 text-white/66">
+              Save destinations from the feed to start a board like Weekend in
+              Da Nang.
+            </div>
+          )}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function LocalLayerPanel({
+  onOpenPost,
+  onOpenPostTips,
+  posts,
+}: Readonly<{
+  onOpenPost: (postId: number) => void;
+  onOpenPostTips: (postId: number) => void;
+  posts: Post[];
+}>) {
+  const featuredPosts = posts.slice(0, 3);
+  const totalSaved = posts.reduce(
+    (count, post) => count + (post.saves_count ?? 0),
+    0,
+  );
+  const totalComments = posts.reduce(
+    (count, post) => count + (post.comments_count ?? 0),
+    0,
+  );
+
+  return (
+    <section className="mb-5 rounded-3xl border border-black/6 bg-white p-4 shadow-[0_16px_40px_-34px_rgb(0_0_0/0.62)] sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
+            Local layer
+          </p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-normal text-[#111]">
+            Tips, events, and place discussions
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#666]">
+            A tighter Facebook-style community layer, scoped to destinations
+            instead of a mixed social feed.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:min-w-56">
+          <div className="rounded-2xl bg-[#f8f8f7] px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#777]">
+              Saved
+            </p>
+            <p className="mt-1 text-lg font-semibold text-[#111]">
+              {totalSaved}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#f8f8f7] px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#777]">
+              Discussions
+            </p>
+            <p className="mt-1 text-lg font-semibold text-[#111]">
+              {totalComments}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+        {featuredPosts.length > 0 ? (
+          featuredPosts.map((post, index) => (
+            <article
+              className="overflow-hidden rounded-2xl border border-black/6 bg-[#f8f8f7]"
+              key={post.id}
+            >
+              <button
+                className="group relative block h-40 w-full overflow-hidden bg-[#e9eef3] text-left"
+                onClick={() => onOpenPost(post.id)}
+                type="button"
+              >
+                <img
+                  alt={post.caption || post.location_name || "Destination"}
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                  decoding="async"
+                  loading="lazy"
+                  src={post.image_url}
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.66)_100%)]" />
+                <p className="absolute inset-x-3 bottom-3 line-clamp-2 text-sm font-semibold text-white">
+                  {post.location_name || post.caption || "Local destination"}
+                </p>
+              </button>
+              <div className="space-y-3 p-3">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <span className="rounded-xl bg-white px-2.5 py-2 font-semibold text-[#315f8f]">
+                    {index === 0 ? "Local tip" : "Near this place"}
+                  </span>
+                  <span className="rounded-xl bg-white px-2.5 py-2 font-semibold text-[#73551b]">
+                    {index === 1 ? "Weekend event" : "Ask locals"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 rounded-full"
+                    onClick={() => onOpenPostTips(post.id)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <MessageCircle className="size-4" />
+                    Tips
+                  </Button>
+                  <Button
+                    className="flex-1 rounded-full"
+                    onClick={() => onOpenPost(post.id)}
+                    size="sm"
+                    type="button"
+                  >
+                    Open
+                  </Button>
+                </div>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-dashed border-black/10 bg-[#f8f8f7] px-4 py-8 text-center text-sm text-[#666] lg:col-span-3">
+            Search or change a theme to find places with local discussions.
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -2354,41 +2802,59 @@ function ExploreHero({
     : collections.filter((collection) => collection !== FOLLOWING_COLLECTION);
 
   return (
-    <section className="mx-auto w-full max-w-370 px-3 pb-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,31rem)] lg:items-end">
-        <div className="max-w-3xl">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-black/6 bg-white px-3 py-1.5 text-xs font-semibold text-[#555] shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)]">
-            <Sparkles className="size-3.5 text-[#ff385c]" />
-            Curated for travelers
-          </div>
-          <h1 className="max-w-2xl text-3xl font-semibold leading-[1.12] tracking-normal text-[#111] sm:text-5xl lg:text-6xl">
-            <span className="sr-only">
-              Discover beautiful destinations and places worth visiting.
-            </span>
-            <span
-              aria-hidden="true"
-              className="inline-flex flex-wrap gap-x-2 sm:gap-x-3"
-            >
-              {exploreHeroHeadlineWords.map((word, index) => (
-                <span
-                  className="inline-block animate-[hero-word-rise_0.72s_cubic-bezier(0.22,1,0.36,1)_both]"
-                  key={`${word}-${index}`}
-                  style={{ animationDelay: `${index * 78}ms` }}
-                >
-                  {word}
-                </span>
-              ))}
-            </span>
-          </h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-[#5f5f5f] sm:text-lg">
-            Falzo brings together photos, locations, and real travel stories so
-            you can quickly choose the right place for a vacation, short escape,
-            or longer journey.
-          </p>
-        </div>
+    <section className="relative isolate overflow-hidden bg-[#102018] text-white shadow-[0_30px_90px_-70px_rgb(0_0_0/0.8)]">
+      <img
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 -z-30 h-full w-full animate-[forest-hero-reveal_1.15s_cubic-bezier(0.22,1,0.36,1)_both] object-cover object-[50%_58%]"
+        decoding="async"
+        fetchPriority="high"
+        loading="eager"
+        sizes="100vw"
+        src={exploreForestHeroImageUrl}
+      />
+      <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,rgb(5_18_12/0.86)_0%,rgb(9_28_18/0.66)_42%,rgb(9_28_18/0.36)_72%,rgb(5_18_12/0.58)_100%)]" />
+      <div className="absolute inset-0 -z-20 bg-[linear-gradient(180deg,rgb(5_18_12/0.35)_0%,rgb(5_18_12/0.08)_42%,rgb(5_18_12/0.72)_100%)]" />
+      <div className="absolute inset-x-0 bottom-0 -z-10 h-[7.5rem] bg-[linear-gradient(180deg,rgb(247_247_245/0)_0%,#f7f7f5_92%)]" />
 
-        <HeroDestinationPreview onOpenPost={onOpenPost} posts={featuredPosts} />
-      </div>
+      <div className="mx-auto w-full max-w-370 px-3 pb-7 pt-5 sm:px-6 sm:pb-8 sm:pt-7 lg:px-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(21rem,31rem)] lg:items-end">
+          <div className="max-w-3xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/14 px-3 py-1.5 text-xs font-semibold text-white shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)] backdrop-blur-xl">
+              <Sparkles className="size-3.5 text-[#ff385c]" />
+              Curated for travelers
+            </div>
+            <h1 className="max-w-2xl text-3xl font-semibold leading-[1.12] tracking-normal text-white drop-shadow-[0_8px_28px_rgb(0_0_0/0.34)] sm:text-5xl lg:text-6xl">
+              <span className="sr-only">
+                Discover beautiful destinations and places worth visiting.
+              </span>
+              <span
+                aria-hidden="true"
+                className="inline-flex flex-wrap gap-x-2 sm:gap-x-3"
+              >
+                {exploreHeroHeadlineWords.map((word, index) => (
+                  <span
+                    className="inline-block animate-[hero-word-rise_0.72s_cubic-bezier(0.22,1,0.36,1)_both]"
+                    key={`${word}-${index}`}
+                    style={{ animationDelay: `${index * 78}ms` }}
+                  >
+                    {word}
+                  </span>
+                ))}
+              </span>
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-white/82 drop-shadow-[0_6px_22px_rgb(0_0_0/0.36)] sm:text-lg">
+              Falzo brings together photos, locations, and real travel stories
+              so you can quickly choose the right place for a vacation, short
+              escape, or longer journey.
+            </p>
+          </div>
+
+          <HeroDestinationPreview
+            onOpenPost={onOpenPost}
+            posts={featuredPosts}
+          />
+        </div>
 
       <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between lg:mt-6">
         <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-2">
@@ -2416,10 +2882,10 @@ function ExploreHero({
           ].map((item) => (
             <Button
               className={cn(
-                "rounded-full border-black/8 px-3",
+                "rounded-full border-white/18 px-3",
                 feedSort === item.value
                   ? "bg-[#111] text-white hover:bg-[#222]"
-                  : "bg-white",
+                  : "bg-white/92 text-[#162119] hover:bg-white",
               )}
               key={item.value}
               onClick={() => onSortChange(item.value)}
@@ -2461,7 +2927,7 @@ function ExploreHero({
               "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
               activeCollection === collection
                 ? "border-[#111] bg-[#111] text-white shadow-[0_16px_32px_-24px_rgb(0_0_0/0.75)]"
-                : "border-black/7 bg-white text-[#444] hover:border-black/15 hover:bg-[#fbfbfa]",
+                : "border-white/20 bg-white/84 text-[#162119] shadow-[0_14px_30px_-26px_rgb(0_0_0/0.7)] backdrop-blur-xl hover:border-white/32 hover:bg-white",
             )}
             key={collection}
             onClick={() => onCollectionChange(collection)}
@@ -2471,8 +2937,27 @@ function ExploreHero({
           </button>
         ))}
       </div>
+      </div>
     </section>
   );
+}
+
+function getBestTimeLabel(post: Post) {
+  const source = `${post.category_slug ?? ""} ${post.category_name ?? ""} ${
+    post.caption ?? ""
+  }`.toLowerCase();
+
+  if (source.includes("beach") || source.includes("sea")) {
+    return "Sunset";
+  }
+  if (source.includes("mountain") || source.includes("camp")) {
+    return "Early morning";
+  }
+  if (source.includes("culture") || source.includes("city")) {
+    return "Weekend morning";
+  }
+
+  return bestTimeLabels[post.id % bestTimeLabels.length];
 }
 
 function HeroDestinationPreview({
