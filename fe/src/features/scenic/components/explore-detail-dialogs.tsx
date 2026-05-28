@@ -380,7 +380,7 @@ export function PostDetailDialog({
     setZoomOrigin({ x: 50, y: 50 });
   }, [open, post?.id]);
 
-  function updateZoomOrigin(event: PointerEvent<HTMLDivElement> | MouseEvent) {
+  function updateZoomOrigin(event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
@@ -390,8 +390,9 @@ export function PostDetailDialog({
     });
   }
 
-  function toggleImageZoom(event: MouseEvent<HTMLImageElement>) {
-    if (!post) {
+  function toggleImageZoom(event: MouseEvent<HTMLButtonElement>) {
+    if (!post || didNavigateDragRef.current) {
+      didNavigateDragRef.current = false;
       return;
     }
 
@@ -404,7 +405,7 @@ export function PostDetailDialog({
     setZoomOrigin({ x: 50, y: 50 });
   }
 
-  function handleImagePointerDown(event: PointerEvent<HTMLDivElement>) {
+  function handleImagePointerDown(event: PointerEvent<HTMLButtonElement>) {
     if (!canNavigatePosts) {
       return;
     }
@@ -416,7 +417,7 @@ export function PostDetailDialog({
     }
   }
 
-  function handleImagePointerUp(event: PointerEvent<HTMLDivElement>) {
+  function handleImagePointerUp(event: PointerEvent<HTMLButtonElement>) {
     const startX = dragStartXRef.current;
     dragStartXRef.current = null;
     if (startX === null || !canNavigatePosts || didNavigateDragRef.current) {
@@ -460,33 +461,43 @@ export function PostDetailDialog({
         }
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
-          <div
-            className="relative h-[42svh] min-h-0 shrink-0 touch-pan-y overflow-hidden bg-black lg:h-auto lg:min-h-0 lg:shrink"
-            onPointerDown={handleImagePointerDown}
-            onPointerMove={(event) => {
-              if (isImageZoomed) {
-                updateZoomOrigin(event);
-              }
-            }}
-            onPointerUp={handleImagePointerUp}
-          >
+          <div className="relative h-[42svh] min-h-0 shrink-0 overflow-hidden bg-black lg:h-auto lg:min-h-0 lg:shrink">
             {post ? (
-              <img
-                alt={post.caption || post.location_name || "Destination detail"}
+              <button
+                aria-label={
+                  isImageZoomed
+                    ? "Zoom out destination photo"
+                    : "Zoom in destination photo"
+                }
                 className={cn(
-                  "h-full w-full select-none object-contain transition duration-500 ease-out",
+                  "h-full w-full touch-pan-y overflow-hidden bg-black",
                   isImageZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
                 )}
-                decoding="async"
-                draggable={false}
-                fetchPriority="high"
                 onClick={toggleImageZoom}
-                src={post.image_url}
-                style={{
-                  transform: isImageZoomed ? "scale(1.8)" : "scale(1)",
-                  transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                onPointerDown={handleImagePointerDown}
+                onPointerMove={(event) => {
+                  if (isImageZoomed) {
+                    updateZoomOrigin(event);
+                  }
                 }}
-              />
+                onPointerUp={handleImagePointerUp}
+                type="button"
+              >
+                <img
+                  alt={
+                    post.caption || post.location_name || "Destination detail"
+                  }
+                  className="pointer-events-none h-full w-full select-none object-contain transition duration-500 ease-out"
+                  decoding="async"
+                  draggable={false}
+                  fetchPriority="high"
+                  src={post.image_url}
+                  style={{
+                    transform: isImageZoomed ? "scale(1.8)" : "scale(1)",
+                    transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                  }}
+                />
+              </button>
             ) : (
               <div className="flex h-full min-h-[48vh] items-center justify-center text-sm font-semibold text-white/68">
                 Loading travel post
