@@ -92,6 +92,9 @@ func TestMapDependencyOrInternal(t *testing.T) {
 	if !errors.Is(got, dependencyErr) {
 		t.Fatalf("expected dependency error, got %v", got)
 	}
+	if !errors.Is(got, context.DeadlineExceeded) {
+		t.Fatalf("expected dependency cause to be preserved, got %v", got)
+	}
 
 	got = MapDependencyOrInternal(
 		errors.New("boom"),

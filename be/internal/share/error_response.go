@@ -33,6 +33,7 @@ func WriteError(
 
 	if mapped.LogErr {
 		source := errorLogSource(2)
+		logErr := err
 
 		entry := log.Error().
 			Err(err).
@@ -48,7 +49,24 @@ func WriteError(
 			Str("api_code", mapped.Code).
 			Str("api_detail", mapped.Detail)
 
-		chain := errorChain(err)
+		var appErr *AppError
+		if errors.As(err, &appErr) {
+			if appErr.Code != "" {
+				entry = entry.Str("app_code", appErr.Code)
+			}
+			if appErr.Operation != "" {
+				entry = entry.Str("app_operation", appErr.Operation)
+			}
+			if len(appErr.Metadata) > 0 {
+				entry = entry.Interface("app_metadata", appErr.Metadata)
+			}
+			if appErr.Internal != nil {
+				logErr = appErr.Internal
+				entry = entry.AnErr("internal_error", appErr.Internal)
+			}
+		}
+
+		chain := errorChain(logErr)
 		if len(chain) > 0 {
 			entry = entry.Strs("error_chain", chain).Str("root_error", chain[len(chain)-1])
 		}

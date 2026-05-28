@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 
@@ -60,13 +61,13 @@ func MapDependencyOrInternal(
 	return Handle(err, module, operation, requestID, func(kind Kind, _ error) error {
 		if kind == KindDependency {
 			if dependencyErr != nil {
-				return dependencyErr
+				return fmt.Errorf("%w: %w", dependencyErr, err)
 			}
 			return err
 		}
 
 		if internalErr != nil {
-			return internalErr
+			return fmt.Errorf("%w: %w", internalErr, err)
 		}
 
 		return err

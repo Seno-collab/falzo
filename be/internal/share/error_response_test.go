@@ -61,6 +61,74 @@ func TestWriteErrorLogsMappedContextAndRootCause(t *testing.T) {
 	}
 }
 
+func TestWriteErrorLogsAppErrorInternalCause(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+	log.Logger = zerolog.New(&output)
+
+	publicErr := errors.New("upload dependency unavailable")
+	root := errors.New("seaweedfs: connection refused")
+	err := NewAppError("STORAGE_UNAVAILABLE", publicErr.Error(), publicErr, root, "images.upload", map[string]string{
+		"service": "upload",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/images/upload", nil)
+	rec := httptest.NewRecorder()
+	WriteError(rec, req, err, "upload_image", func(error) ApiError {
+		return ServiceUnavailable("Image upload unavailable", "Image upload is temporarily unavailable")
+	})
+
+	var entry map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &entry); err != nil {
+		t.Fatalf("unmarshal log entry: %v", err)
+	}
+
+	if entry["error"] != publicErr.Error() {
+		t.Fatalf("expected safe public error in error field, got %#v", entry["error"])
+	}
+	if entry["internal_error"] != root.Error() {
+		t.Fatalf("expected internal error in log, got %#v", entry["internal_error"])
+	}
+	if entry["root_error"] != root.Error() {
+		t.Fatalf("expected root cause in log, got %#v", entry["root_error"])
+	}
+	if entry["app_code"] != "STORAGE_UNAVAILABLE" {
+		t.Fatalf("expected app code in log, got %#v", entry["app_code"])
+	}
+	if entry["app_operation"] != "images.upload" {
+		t.Fatalf("expected app operation in log, got %#v", entry["app_operation"])
+	}
+}
+
+func TestMapDBErrorReturnsAppErrorWithPublicErrAndCause(t *testing.T) {
+	publicErr := errors.New("auth dependency unavailable")
+	internalErr := errors.New("auth internal error")
+	cause := errors.New("dial tcp 10.0.0.1:5432: connect: connection refused")
+
+	got := MapDBError(t.Context(), "auth", "accounts.find", cause, publicErr, internalErr)
+
+	if !errors.Is(got, publicErr) {
+		t.Fatalf("expected errors.Is to match public error, got %v", got)
+	}
+	if errors.Is(got, cause) {
+		t.Fatalf("expected internal cause to be opaque to errors.Is")
+	}
+
+	var appErr *AppError
+	if !errors.As(got, &appErr) {
+		t.Fatalf("expected AppError, got %T", got)
+	}
+	if appErr.Internal != cause {
+		t.Fatalf("expected internal cause to be preserved, got %v", appErr.Internal)
+	}
+	if appErr.Code != "DB_DEPENDENCY_UNAVAILABLE" {
+		t.Fatalf("expected dependency code, got %q", appErr.Code)
+	}
+}
+
 func TestModuleFromFunction(t *testing.T) {
 	tests := []struct {
 		name     string
