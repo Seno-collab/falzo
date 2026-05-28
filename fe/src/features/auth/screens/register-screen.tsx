@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Apple, ArrowRight, Compass, UserPlus } from "lucide-react";
+import { ArrowRight, Compass, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
@@ -156,33 +156,6 @@ export function RegisterScreen() {
           <p className="text-sm leading-6 text-[#5f7894]">
             Save places, revisit moments, and shape the trips you want next.
           </p>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            className="rounded-full border-[#d7e5f4] bg-white text-[#143052] hover:bg-[#f2f7fd]"
-            type="button"
-            variant="outline"
-          >
-            <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f2f7fd] text-[10px] font-bold text-[#2f6fb8]">
-              G
-            </span>
-            Google
-          </Button>
-          <Button
-            className="rounded-full border-[#d7e5f4] bg-white text-[#143052] hover:bg-[#f2f7fd]"
-            type="button"
-            variant="outline"
-          >
-            <Apple className="size-4" />
-            Apple
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3 text-xs font-medium text-[#7892ad]">
-          <span className="h-px flex-1 bg-[#dbe6f2]" />
-          Email
-          <span className="h-px flex-1 bg-[#dbe6f2]" />
         </div>
 
         <form className="space-y-4" noValidate onSubmit={onSubmit}>
