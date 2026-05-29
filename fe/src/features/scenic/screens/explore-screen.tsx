@@ -291,10 +291,21 @@ function matchesPostSearch(post: Post, searchValue: string) {
       post.user_name,
       post.category_name,
       post.category_slug,
+      ...(post.categories ?? []).flatMap((category) => [
+        category.name,
+        category.slug,
+      ]),
     ].join(" "),
   );
 
   return terms.every((term) => searchableText.includes(term));
+}
+
+function hasPostCategorySlug(post: Post, categorySlug: string) {
+  return (
+    post.category_slug === categorySlug ||
+    (post.categories ?? []).some((category) => category.slug === categorySlug)
+  );
 }
 
 function mergeNotification(
@@ -560,7 +571,7 @@ export function ExploreScreen() {
       if (activeSearch && !matchesPostSearch(post, activeSearch)) {
         return;
       }
-      if (activeCategorySlug && post.category_slug !== activeCategorySlug) {
+      if (activeCategorySlug && !hasPostCategorySlug(post, activeCategorySlug)) {
         return;
       }
       if (activeFeed) {

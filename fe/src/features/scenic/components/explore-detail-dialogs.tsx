@@ -69,6 +69,18 @@ function getPostAvatarUrl(post: Post | null) {
   return post?.user_avatar_url || post?.avatar_url || "";
 }
 
+function getPostCategoryLabel(post: Post | null) {
+  const names = (post?.categories ?? [])
+    .map((category) => category.name.trim())
+    .filter(Boolean);
+
+  if (names.length > 0) {
+    return names.slice(0, 3).join(", ");
+  }
+
+  return post?.category_name || "Travel";
+}
+
 function getAuthorInitial(authorName: string) {
   return authorName.trim().charAt(0).toUpperCase() || "U";
 }
@@ -316,7 +328,7 @@ export function PostDetailDialog({
 }: Readonly<PostDetailDialogProps>) {
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
   const authorAvatarUrl = getPostAvatarUrl(post);
-  const categoryLabel = post?.category_name || "Travel";
+  const categoryLabel = getPostCategoryLabel(post);
   const dragStartXRef = useRef<number | null>(null);
   const didNavigateDragRef = useRef(false);
   const [isImageZoomed, setIsImageZoomed] = useState(false);

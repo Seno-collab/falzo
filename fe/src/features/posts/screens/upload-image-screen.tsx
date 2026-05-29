@@ -137,9 +137,7 @@ export function UploadImageScreen() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
     null,
   );
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
-    null,
-  );
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [submittedLocationSearch, setSubmittedLocationSearch] = useState(
     defaultLocationSearch,
   );
@@ -231,9 +229,10 @@ export function UploadImageScreen() {
     () => categoriesQuery.data ?? [],
     [categoriesQuery.data],
   );
-  const selectedCategory = useMemo(
-    () => categories.find((category) => category.id === selectedCategoryId),
-    [categories, selectedCategoryId],
+  const selectedCategories = useMemo(
+    () =>
+      categories.filter((category) => selectedCategoryIds.includes(category.id)),
+    [categories, selectedCategoryIds],
   );
 
   const mapPoints = useMemo<MapPoint[]>(() => {
@@ -279,14 +278,16 @@ export function UploadImageScreen() {
       ) {
         throw new TypeError("Choose a location before publishing.");
       }
-      if (categories.length > 0 && !selectedCategory) {
-        throw new TypeError("Choose a category before publishing.");
+      if (categories.length > 0 && selectedCategories.length === 0) {
+        throw new TypeError("Choose at least one category before publishing.");
       }
 
       return createPostApi({
         image_url: image.url,
         caption: form.caption,
-        ...(selectedCategory ? { category_id: selectedCategory.id } : {}),
+        ...(selectedCategories.length > 0
+          ? { category_ids: selectedCategories.map((category) => category.id) }
+          : {}),
         location_name: form.locationName,
         latitude,
         longitude,
@@ -302,7 +303,7 @@ export function UploadImageScreen() {
       setUploadedImage(null);
       setForm(initialForm);
       setSelectedLocation(null);
-      setSelectedCategoryId(null);
+      setSelectedCategoryIds([]);
       setLocationSearchInput("");
       await queryClient.invalidateQueries({ queryKey: ["posts"] });
       toast.success("Post successfully");
@@ -420,6 +421,14 @@ export function UploadImageScreen() {
     const image = await uploadImageApi(file);
     setUploadedImage(image);
     return image;
+  }
+
+  function toggleCategory(categoryId: number) {
+    setSelectedCategoryIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId],
+    );
   }
 
   function retryUpload() {
@@ -654,7 +663,7 @@ export function UploadImageScreen() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <Label>Category</Label>
+                <Label>Categories</Label>
                 {categoriesQuery.isFetching ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#356792]">
                     <Loader2 className="size-3.5 animate-spin" />
@@ -666,7 +675,7 @@ export function UploadImageScreen() {
               {categories.length > 0 ? (
                 <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto pr-1">
                   {categories.map((category) => {
-                    const selected = selectedCategoryId === category.id;
+                    const selected = selectedCategoryIds.includes(category.id);
 
                     return (
                       <button
@@ -678,10 +687,14 @@ export function UploadImageScreen() {
                         }`}
                         disabled={isPublishing}
                         key={category.id}
-                        onClick={() => setSelectedCategoryId(category.id)}
+                        onClick={() => toggleCategory(category.id)}
                         type="button"
                       >
-                        <Tags className="size-3.5" />
+                        {selected ? (
+                          <Check className="size-3.5" />
+                        ) : (
+                          <Tags className="size-3.5" />
+                        )}
                         {category.name}
                       </button>
                     );
@@ -830,7 +843,7 @@ export function UploadImageScreen() {
                 isBusy ||
                 !selectedFile ||
                 !selectedLocation ||
-                (categories.length > 0 && !selectedCategory)
+                (categories.length > 0 && selectedCategories.length === 0)
               }
               type="submit"
               variant="gradient"

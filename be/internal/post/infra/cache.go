@@ -20,26 +20,27 @@ type CachedPostRepository struct {
 }
 
 type cachedPost struct {
-	ID            uint64    `json:"id"`
-	UserID        uint64    `json:"user_id"`
-	UserName      string    `json:"user_name"`
-	UserAvatarURL string    `json:"user_avatar_url"`
-	CategoryID    uint64    `json:"category_id"`
-	CategoryName  string    `json:"category_name"`
-	CategorySlug  string    `json:"category_slug"`
-	ImageURL      string    `json:"image_url"`
-	Caption       string    `json:"caption"`
-	LocationName  string    `json:"location_name"`
-	Latitude      float64   `json:"latitude"`
-	Longitude     float64   `json:"longitude"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	IsLiked       bool      `json:"is_liked"`
-	IsSaved       bool      `json:"is_saved"`
-	Status        string    `json:"status"`
-	LikesCount    int       `json:"likes_count"`
-	CommentsCount int       `json:"comments_count"`
-	SavesCount    int       `json:"saves_count"`
+	ID            uint64              `json:"id"`
+	UserID        uint64              `json:"user_id"`
+	UserName      string              `json:"user_name"`
+	UserAvatarURL string              `json:"user_avatar_url"`
+	CategoryID    uint64              `json:"category_id"`
+	CategoryName  string              `json:"category_name"`
+	CategorySlug  string              `json:"category_slug"`
+	Categories    []post.PostCategory `json:"categories"`
+	ImageURL      string              `json:"image_url"`
+	Caption       string              `json:"caption"`
+	LocationName  string              `json:"location_name"`
+	Latitude      float64             `json:"latitude"`
+	Longitude     float64             `json:"longitude"`
+	CreatedAt     time.Time           `json:"created_at"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	IsLiked       bool                `json:"is_liked"`
+	IsSaved       bool                `json:"is_saved"`
+	Status        string              `json:"status"`
+	LikesCount    int                 `json:"likes_count"`
+	CommentsCount int                 `json:"comments_count"`
+	SavesCount    int                 `json:"saves_count"`
 }
 
 func NewCachedPostRepository(next post.Repository, cache pkgcache.Client, firstPageTTL time.Duration) post.Repository {
@@ -279,6 +280,7 @@ func encodePosts(items []post.Post) []cachedPost {
 			CategoryID:    item.CategoryID,
 			CategoryName:  item.CategoryName,
 			CategorySlug:  item.CategorySlug,
+			Categories:    item.Categories,
 			ImageURL:      item.ImageURL.String(),
 			Caption:       item.Caption.String(),
 			LocationName:  item.LocationName.String(),
@@ -325,6 +327,7 @@ func decodePosts(payload []byte) ([]post.Post, error) {
 			CategoryID:    item.CategoryID,
 			CategoryName:  item.CategoryName,
 			CategorySlug:  item.CategorySlug,
+			Categories:    item.Categories,
 			ImageURL:      imageURL,
 			Caption:       caption,
 			LocationName:  locationName,

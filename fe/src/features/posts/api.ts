@@ -378,6 +378,14 @@ export function parsePostCreatedEvent(
         typeof payload.category_slug === "string"
           ? payload.category_slug
           : undefined,
+      categories: Array.isArray(payload.categories)
+        ? payload.categories.filter(
+            (category) =>
+              typeof category?.id === "number" &&
+              typeof category?.name === "string" &&
+              typeof category?.slug === "string",
+          )
+        : undefined,
       user_avatar_url:
         typeof payload.user_avatar_url === "string"
           ? payload.user_avatar_url

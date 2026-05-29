@@ -7,6 +7,7 @@ export type Post = {
   category_id?: number;
   category_name?: string;
   category_slug?: string;
+  categories?: PostCategory[];
   image_url: string;
   caption: string;
   location_name: string;
@@ -19,6 +20,12 @@ export type Post = {
   comments_count?: number;
   saves_count?: number;
   created_at: string;
+};
+
+export type PostCategory = {
+  id: number;
+  name: string;
+  slug: string;
 };
 
 export type PostsPage = {
@@ -86,6 +93,7 @@ export type CreatePostPayload = {
   image_url: string;
   caption: string;
   category_id?: number;
+  category_ids?: number[];
   location_name: string;
   latitude: number;
   longitude: number;

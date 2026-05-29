@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -21,6 +22,17 @@ type PostgresRepository struct {
 
 const postRepoService = "post"
 
+const postCategoriesJSONSQL = `
+	COALESCE((
+		SELECT jsonb_agg(
+			jsonb_build_object('id', categories.id, 'name', categories.name, 'slug', categories.slug)
+			ORDER BY post_categories.created_at, post_categories.category_id
+		)
+		FROM post_categories
+		INNER JOIN categories ON categories.id = post_categories.category_id
+		WHERE post_categories.post_id = posts.id
+	), '[]'::jsonb)`
+
 func NewPostgresRepository(db database.Client) *PostgresRepository {
 	return &PostgresRepository{db: db}
 }
@@ -29,6 +41,7 @@ func postSelectSQL(viewerParam string) string {
 	return `
 		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
+				` + postCategoriesJSONSQL + `::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -73,26 +86,26 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 	if item == nil {
 		return post.ErrInternal
 	}
-	if item.CategoryID != 0 {
-		if err := r.ensureCategoryExists(ctx, item.CategoryID); err != nil {
+	categoryIDs, err := post.NormalizeCategoryIDs(item.CategoryID, item.CategoryIDs)
+	if err != nil {
+		return err
+	}
+	if len(categoryIDs) > 0 {
+		if err := r.ensureCategoriesExist(ctx, categoryIDs); err != nil {
 			return err
 		}
 	}
 
-	err := r.db.Pool().QueryRow(ctx, `
-		WITH inserted AS (
-			INSERT INTO posts (user_id, image_url, caption, location_name, latitude, longitude, category_id)
-			VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, 0))
-			RETURNING id, category_id, created_at, updated_at
-		)
-		SELECT inserted.id, users.user_name, COALESCE(users.avatar_url, ''),
-			COALESCE(categories.id, 0),
-			COALESCE(categories.name, ''),
-			COALESCE(categories.slug, ''),
-			inserted.created_at, inserted.updated_at
-		FROM inserted
-		INNER JOIN users ON users.id = $1
-		LEFT JOIN categories ON categories.id = inserted.category_id
+	tx, err := r.db.Pool().Begin(ctx)
+	if err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.insert.begin", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+	defer tx.Rollback(ctx)
+
+	err = tx.QueryRow(ctx, `
+		INSERT INTO posts (user_id, image_url, caption, location_name, latitude, longitude, category_id)
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, 0))
+		RETURNING id, created_at, updated_at
 	`,
 		item.UserID,
 		item.ImageURL.String(),
@@ -100,11 +113,25 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 		item.LocationName.String(),
 		item.Latitude,
 		item.Longitude,
-		item.CategoryID,
-	).Scan(&item.ID, &item.UserName, &item.UserAvatarURL, &item.CategoryID, &item.CategoryName, &item.CategorySlug, &item.CreatedAt, &item.UpdatedAt)
+		firstCategoryID(categoryIDs),
+	).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		return share.MapDBError(ctx, postRepoService, "posts.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
+
+	if err := r.replacePostCategories(ctx, tx, item.ID, categoryIDs); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return share.MapDBError(ctx, postRepoService, "posts.insert.commit", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	loaded, err := r.loadPost(ctx, item.ID, item.UserID)
+	if err != nil {
+		return err
+	}
+	*item = loaded
 
 	return nil
 }
@@ -113,8 +140,12 @@ func (r *PostgresRepository) UpdatePost(ctx context.Context, postID uint64, user
 	if r.db == nil || r.db.Pool() == nil {
 		return post.Post{}, post.ErrDependencyUnavailable
 	}
-	if update.CategoryID != 0 {
-		if err := r.ensureCategoryExists(ctx, update.CategoryID); err != nil {
+	categoryIDs, err := post.NormalizeCategoryIDs(update.CategoryID, update.CategoryIDs)
+	if err != nil {
+		return post.Post{}, err
+	}
+	if len(categoryIDs) > 0 {
+		if err := r.ensureCategoriesExist(ctx, categoryIDs); err != nil {
 			return post.Post{}, err
 		}
 	}
@@ -130,7 +161,13 @@ func (r *PostgresRepository) UpdatePost(ctx context.Context, postID uint64, user
 		LIMIT 1
 	`, postID, userID))
 	if err == nil {
-		_, err = r.db.Pool().Exec(ctx, `
+		tx, err := r.db.Pool().Begin(ctx)
+		if err != nil {
+			return post.Post{}, share.MapDBError(ctx, postRepoService, "posts.update.begin", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+		defer tx.Rollback(ctx)
+
+		_, err = tx.Exec(ctx, `
 			UPDATE posts
 			SET caption = $3,
 				location_name = $4,
@@ -139,9 +176,15 @@ func (r *PostgresRepository) UpdatePost(ctx context.Context, postID uint64, user
 				category_id = NULLIF($7, 0),
 				updated_at = CURRENT_TIMESTAMP
 			WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
-		`, postID, userID, update.Caption.String(), update.LocationName.String(), update.Latitude, update.Longitude, update.CategoryID)
+		`, postID, userID, update.Caption.String(), update.LocationName.String(), update.Latitude, update.Longitude, firstCategoryID(categoryIDs))
 		if err != nil {
 			return post.Post{}, share.MapDBError(ctx, postRepoService, "posts.update", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+		if err := r.replacePostCategories(ctx, tx, postID, categoryIDs); err != nil {
+			return post.Post{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return post.Post{}, share.MapDBError(ctx, postRepoService, "posts.update.commit", err, post.ErrDependencyUnavailable, post.ErrInternal)
 		}
 
 		return r.loadPost(ctx, postID, userID)
@@ -353,6 +396,7 @@ func (r *PostgresRepository) ListSavedPosts(ctx context.Context, userID uint64) 
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
+				`+postCategoriesJSONSQL+`::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -686,6 +730,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					COALESCE(categories.id, 0) AS category_id,
 					COALESCE(categories.name, '') AS category_name,
 					COALESCE(categories.slug, '') AS category_slug,
+					`+postCategoriesJSONSQL+`::text AS categories,
 					COALESCE(posts.latitude, 0) AS latitude,
 					COALESCE(posts.longitude, 0) AS longitude,
 					EXISTS (
@@ -729,8 +774,21 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					WHERE post_saves.post_id = posts.id
 				) saves ON TRUE
 				WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4
-					OR categories.name ILIKE $4 OR categories.slug ILIKE $4)
-					AND ($5 = '' OR categories.slug = $5)
+					OR categories.name ILIKE $4 OR categories.slug ILIKE $4
+					OR EXISTS (
+						SELECT 1
+						FROM post_categories search_post_categories
+						INNER JOIN categories search_categories ON search_categories.id = search_post_categories.category_id
+						WHERE search_post_categories.post_id = posts.id
+							AND (search_categories.name ILIKE $4 OR search_categories.slug ILIKE $4)
+					))
+					AND ($5 = '' OR categories.slug = $5 OR EXISTS (
+						SELECT 1
+						FROM post_categories filter_post_categories
+						INNER JOIN categories filter_categories ON filter_categories.id = filter_post_categories.category_id
+						WHERE filter_post_categories.post_id = posts.id
+							AND filter_categories.slug = $5
+					))
 					AND posts.deleted_at IS NULL
 					AND posts.status = 'visible'
 					AND (
@@ -764,7 +822,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 			),
 			ranked_posts AS (
 				SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
-					category_id, category_name, category_slug, latitude, longitude,
+					category_id, category_name, category_slug, categories, latitude, longitude,
 					is_liked, is_saved, status, likes_count, comments_count, saves_count,
 					created_at, updated_at,
 					CASE
@@ -776,7 +834,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 				FROM base_posts
 			)
 			SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
-				category_id, category_name, category_slug, latitude, longitude,
+				category_id, category_name, category_slug, categories, latitude, longitude,
 				is_liked, is_saved, status, likes_count, comments_count, saves_count,
 				created_at, updated_at, rank_value
 			FROM ranked_posts
@@ -1099,6 +1157,49 @@ func (r *PostgresRepository) ensureCategoryExists(ctx context.Context, categoryI
 	return nil
 }
 
+func (r *PostgresRepository) ensureCategoriesExist(ctx context.Context, categoryIDs []uint64) error {
+	for _, categoryID := range categoryIDs {
+		if err := r.ensureCategoryExists(ctx, categoryID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type postCategoryWriter interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+func (r *PostgresRepository) replacePostCategories(ctx context.Context, tx postCategoryWriter, postID uint64, categoryIDs []uint64) error {
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM post_categories
+		WHERE post_id = $1
+	`, postID); err != nil {
+		return share.MapDBError(ctx, postRepoService, "post_categories.delete", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	for _, categoryID := range categoryIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO post_categories (post_id, category_id)
+			VALUES ($1, $2)
+			ON CONFLICT (post_id, category_id) DO NOTHING
+		`, postID, categoryID); err != nil {
+			return share.MapDBError(ctx, postRepoService, "post_categories.insert", err, post.ErrDependencyUnavailable, post.ErrInternal)
+		}
+	}
+
+	return nil
+}
+
+func firstCategoryID(categoryIDs []uint64) uint64 {
+	if len(categoryIDs) == 0 {
+		return 0
+	}
+
+	return categoryIDs[0]
+}
+
 func (r *PostgresRepository) ensurePostExists(ctx context.Context, postID uint64) error {
 	var exists bool
 	err := r.db.Pool().QueryRow(ctx, `
@@ -1174,6 +1275,7 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
+				`+postCategoriesJSONSQL+`::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -1221,6 +1323,38 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 	return posts, nil
 }
 
+func applyScannedCategories(item *post.Post, rawCategories string) error {
+	if strings.TrimSpace(rawCategories) != "" {
+		var categories []post.PostCategory
+		if err := json.Unmarshal([]byte(rawCategories), &categories); err != nil {
+			return err
+		}
+		item.Categories = categories
+		item.CategoryIDs = make([]uint64, 0, len(categories))
+		for _, category := range categories {
+			if category.ID == 0 {
+				continue
+			}
+			item.CategoryIDs = append(item.CategoryIDs, category.ID)
+		}
+	}
+	if len(item.Categories) == 0 && item.CategoryID != 0 {
+		item.Categories = []post.PostCategory{{
+			ID:   item.CategoryID,
+			Name: item.CategoryName,
+			Slug: item.CategorySlug,
+		}}
+		item.CategoryIDs = []uint64{item.CategoryID}
+	}
+	if item.CategoryID == 0 && len(item.Categories) > 0 {
+		item.CategoryID = item.Categories[0].ID
+		item.CategoryName = item.Categories[0].Name
+		item.CategorySlug = item.Categories[0].Slug
+	}
+
+	return nil
+}
+
 func applyScannedCommentContent(comment *post.Comment, rawContent string) error {
 	content, err := post.NewContent(rawContent)
 	if err != nil {
@@ -1262,6 +1396,7 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		rawImageURL     string
 		rawCaption      string
 		rawLocationName string
+		rawCategories   string
 	)
 
 	err := scanner.Scan(
@@ -1275,6 +1410,7 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		&item.CategoryID,
 		&item.CategoryName,
 		&item.CategorySlug,
+		&rawCategories,
 		&item.Latitude,
 		&item.Longitude,
 		&item.IsLiked,
@@ -1287,6 +1423,9 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		&item.UpdatedAt,
 	)
 	if err != nil {
+		return post.Post{}, err
+	}
+	if err := applyScannedCategories(&item, rawCategories); err != nil {
 		return post.Post{}, err
 	}
 
@@ -1315,6 +1454,7 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 		rawImageURL     string
 		rawCaption      string
 		rawLocationName string
+		rawCategories   string
 	)
 
 	err := scanner.Scan(
@@ -1328,6 +1468,7 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 		&item.CategoryID,
 		&item.CategoryName,
 		&item.CategorySlug,
+		&rawCategories,
 		&item.Latitude,
 		&item.Longitude,
 		&item.IsLiked,
@@ -1341,6 +1482,9 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 		&item.CursorRank,
 	)
 	if err != nil {
+		return post.Post{}, err
+	}
+	if err := applyScannedCategories(&item, rawCategories); err != nil {
 		return post.Post{}, err
 	}
 

@@ -167,12 +167,13 @@ func (h *Handler) Routes() chi.Router {
 }
 
 type CreatePostRequest struct {
-	ImageURL     string  `json:"image_url"`
-	Caption      string  `json:"caption"`
-	LocationName string  `json:"location_name"`
-	Latitude     float64 `json:"latitude"`
-	Longitude    float64 `json:"longitude"`
-	CategoryID   uint64  `json:"category_id"`
+	ImageURL     string   `json:"image_url"`
+	Caption      string   `json:"caption"`
+	LocationName string   `json:"location_name"`
+	Latitude     float64  `json:"latitude"`
+	Longitude    float64  `json:"longitude"`
+	CategoryID   uint64   `json:"category_id"`
+	CategoryIDs  []uint64 `json:"category_ids"`
 }
 
 type CommentPostRequest struct {
@@ -217,6 +218,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	post, err := h.service.CreatePost(r.Context(), CreatePostInput{
 		UserID:       principal.UserID,
 		CategoryID:   req.CategoryID,
+		CategoryIDs:  req.CategoryIDs,
 		ImageURL:     req.ImageURL,
 		Caption:      req.Caption,
 		LocationName: req.LocationName,
@@ -261,6 +263,7 @@ func (h *Handler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		PostID:       postID,
 		UserID:       principal.UserID,
 		CategoryID:   req.CategoryID,
+		CategoryIDs:  req.CategoryIDs,
 		Caption:      req.Caption,
 		LocationName: req.LocationName,
 		Latitude:     req.Latitude,

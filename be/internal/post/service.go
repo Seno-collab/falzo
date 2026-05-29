@@ -54,6 +54,7 @@ type UpdatePostInput struct {
 	PostID       uint64
 	UserID       uint64
 	CategoryID   uint64
+	CategoryIDs  []uint64
 	Caption      string
 	LocationName string
 	Latitude     float64
@@ -148,6 +149,7 @@ func (s *Service) UpdatePost(ctx context.Context, input UpdatePostInput) (PostVi
 
 	update, err := NewPostUpdate(NewPostInput{
 		CategoryID:   input.CategoryID,
+		CategoryIDs:  input.CategoryIDs,
 		Caption:      input.Caption,
 		LocationName: input.LocationName,
 		Latitude:     input.Latitude,

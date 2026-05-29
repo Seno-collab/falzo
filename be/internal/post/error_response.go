@@ -59,6 +59,8 @@ func mapPostError(err error) share.ApiError {
 		return share.BadRequest("location_name", "location_name exceeds max length")
 	case errors.Is(err, ErrCategoryNotFound):
 		return share.BadRequest("category_id", "category does not exist")
+	case errors.Is(err, ErrTooManyCategories):
+		return share.BadRequest("category_ids", "category_ids must not contain more than 20 items")
 	case errors.Is(err, ErrCommentRequired):
 		return share.Required("content", "comment content is required")
 	case errors.Is(err, ErrCommentTooLong):

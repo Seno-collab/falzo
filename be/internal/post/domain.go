@@ -31,6 +31,7 @@ var (
 	ErrCaptionTooLong            = errors.New("caption exceeds max length")
 	ErrLocationNameTooLong       = errors.New("location name exceeds max length")
 	ErrCategoryNotFound          = errors.New("category not found")
+	ErrTooManyCategories         = errors.New("too many categories")
 	ErrCommentRequired           = errors.New("comment content is required")
 	ErrCommentTooLong            = errors.New("comment content exceeds max length")
 	ErrReplyCommentNotFound      = errors.New("reply comment not found")
@@ -81,52 +82,57 @@ type Repository interface {
 }
 
 type Post struct {
-	ID            uint64       `json:"id"`
-	UserID        uint64       `json:"user_id"`
-	UserName      string       `json:"user_name"`
-	UserAvatarURL string       `json:"user_avatar_url,omitempty"`
-	CategoryID    uint64       `json:"category_id,omitempty"`
-	CategoryName  string       `json:"category_name,omitempty"`
-	CategorySlug  string       `json:"category_slug,omitempty"`
-	ImageURL      ImageURL     `json:"-"`
-	Caption       Caption      `json:"-"`
-	LocationName  LocationName `json:"-"`
-	Latitude      float64      `json:"latitude"`
-	Longitude     float64      `json:"longitude"`
-	CreatedAt     time.Time    `json:"created_at"`
-	UpdatedAt     time.Time    `json:"-"`
-	CursorRank    float64      `json:"-"`
-	IsLiked       bool         `json:"is_liked"`
-	IsSaved       bool         `json:"is_saved"`
-	Status        string       `json:"status"`
-	LikesCount    int          `json:"likes_count"`
-	CommentsCount int          `json:"comments_count"`
-	SavesCount    int          `json:"saves_count"`
+	ID            uint64         `json:"id"`
+	UserID        uint64         `json:"user_id"`
+	UserName      string         `json:"user_name"`
+	UserAvatarURL string         `json:"user_avatar_url,omitempty"`
+	CategoryID    uint64         `json:"category_id,omitempty"`
+	CategoryName  string         `json:"category_name,omitempty"`
+	CategorySlug  string         `json:"category_slug,omitempty"`
+	CategoryIDs   []uint64       `json:"-"`
+	Categories    []PostCategory `json:"categories,omitempty"`
+	ImageURL      ImageURL       `json:"-"`
+	Caption       Caption        `json:"-"`
+	LocationName  LocationName   `json:"-"`
+	Latitude      float64        `json:"latitude"`
+	Longitude     float64        `json:"longitude"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"-"`
+	CursorRank    float64        `json:"-"`
+	IsLiked       bool           `json:"is_liked"`
+	IsSaved       bool           `json:"is_saved"`
+	Status        string         `json:"status"`
+	LikesCount    int            `json:"likes_count"`
+	CommentsCount int            `json:"comments_count"`
+	SavesCount    int            `json:"saves_count"`
 }
 
 type PostView struct {
-	ID            uint64    `json:"id"`
-	UserID        uint64    `json:"user_id"`
-	UserName      string    `json:"user_name"`
-	UserAvatarURL string    `json:"user_avatar_url,omitempty"`
-	CategoryID    uint64    `json:"category_id,omitempty"`
-	CategoryName  string    `json:"category_name,omitempty"`
-	CategorySlug  string    `json:"category_slug,omitempty"`
-	ImageURL      string    `json:"image_url"`
-	Caption       string    `json:"caption"`
-	LocationName  string    `json:"location_name"`
-	Latitude      float64   `json:"latitude"`
-	Longitude     float64   `json:"longitude"`
-	CreatedAt     time.Time `json:"created_at"`
-	IsLiked       bool      `json:"is_liked"`
-	IsSaved       bool      `json:"is_saved"`
-	Status        string    `json:"status"`
-	LikesCount    int       `json:"likes_count"`
-	CommentsCount int       `json:"comments_count"`
-	SavesCount    int       `json:"saves_count"`
+	ID            uint64         `json:"id"`
+	UserID        uint64         `json:"user_id"`
+	UserName      string         `json:"user_name"`
+	UserAvatarURL string         `json:"user_avatar_url,omitempty"`
+	CategoryID    uint64         `json:"category_id,omitempty"`
+	CategoryName  string         `json:"category_name,omitempty"`
+	CategorySlug  string         `json:"category_slug,omitempty"`
+	Categories    []PostCategory `json:"categories,omitempty"`
+	ImageURL      string         `json:"image_url"`
+	Caption       string         `json:"caption"`
+	LocationName  string         `json:"location_name"`
+	Latitude      float64        `json:"latitude"`
+	Longitude     float64        `json:"longitude"`
+	CreatedAt     time.Time      `json:"created_at"`
+	IsLiked       bool           `json:"is_liked"`
+	IsSaved       bool           `json:"is_saved"`
+	Status        string         `json:"status"`
+	LikesCount    int            `json:"likes_count"`
+	CommentsCount int            `json:"comments_count"`
+	SavesCount    int            `json:"saves_count"`
 }
 
 func (p Post) View() PostView {
+	categories := normalizedPostCategories(p)
+
 	return PostView{
 		ID:            p.ID,
 		UserID:        p.UserID,
@@ -135,6 +141,7 @@ func (p Post) View() PostView {
 		CategoryID:    p.CategoryID,
 		CategoryName:  p.CategoryName,
 		CategorySlug:  p.CategorySlug,
+		Categories:    categories,
 		ImageURL:      p.ImageURL.String(),
 		Caption:       p.Caption.String(),
 		LocationName:  p.LocationName.String(),
@@ -153,6 +160,7 @@ func (p Post) View() PostView {
 type NewPostInput struct {
 	UserID       uint64
 	CategoryID   uint64
+	CategoryIDs  []uint64
 	ImageURL     string
 	Caption      string
 	LocationName string
@@ -166,6 +174,13 @@ type PostUpdate struct {
 	Latitude     float64
 	Longitude    float64
 	CategoryID   uint64
+	CategoryIDs  []uint64
+}
+
+type PostCategory struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 type ModerationActor struct {
@@ -380,10 +395,16 @@ func NewPost(input NewPostInput) (Post, error) {
 		return Post{}, err
 	}
 
+	categoryIDs, err := NormalizeCategoryIDs(input.CategoryID, input.CategoryIDs)
+	if err != nil {
+		return Post{}, err
+	}
+
 	now := time.Now().UTC()
 	return Post{
 		UserID:       input.UserID,
-		CategoryID:   input.CategoryID,
+		CategoryID:   firstCategoryID(categoryIDs),
+		CategoryIDs:  categoryIDs,
 		ImageURL:     imageURL,
 		Caption:      caption,
 		LocationName: locationName,
@@ -412,13 +433,67 @@ func NewPostUpdate(input NewPostInput) (PostUpdate, error) {
 		return PostUpdate{}, err
 	}
 
+	categoryIDs, err := NormalizeCategoryIDs(input.CategoryID, input.CategoryIDs)
+	if err != nil {
+		return PostUpdate{}, err
+	}
+
 	return PostUpdate{
 		Caption:      caption,
 		LocationName: locationName,
 		Latitude:     input.Latitude,
 		Longitude:    input.Longitude,
-		CategoryID:   input.CategoryID,
+		CategoryID:   firstCategoryID(categoryIDs),
+		CategoryIDs:  categoryIDs,
 	}, nil
+}
+
+func NormalizeCategoryIDs(categoryID uint64, categoryIDs []uint64) ([]uint64, error) {
+	seen := make(map[uint64]struct{}, len(categoryIDs)+1)
+	normalized := make([]uint64, 0, len(categoryIDs)+1)
+
+	if categoryID != 0 {
+		normalized = append(normalized, categoryID)
+		seen[categoryID] = struct{}{}
+	}
+	for _, id := range categoryIDs {
+		if id == 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		normalized = append(normalized, id)
+		seen[id] = struct{}{}
+	}
+	if len(normalized) > 20 {
+		return nil, ErrTooManyCategories
+	}
+
+	return normalized, nil
+}
+
+func firstCategoryID(categoryIDs []uint64) uint64 {
+	if len(categoryIDs) == 0 {
+		return 0
+	}
+
+	return categoryIDs[0]
+}
+
+func normalizedPostCategories(p Post) []PostCategory {
+	if len(p.Categories) > 0 {
+		return p.Categories
+	}
+	if p.CategoryID == 0 {
+		return nil
+	}
+
+	return []PostCategory{{
+		ID:   p.CategoryID,
+		Name: p.CategoryName,
+		Slug: p.CategorySlug,
+	}}
 }
 
 type ImageURL string

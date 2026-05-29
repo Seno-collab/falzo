@@ -80,6 +80,18 @@ function getPostAvatarUrl(post: Post) {
   return post.user_avatar_url || post.avatar_url || "";
 }
 
+function getPostCategoryLabel(post: Post) {
+  const names = (post.categories ?? [])
+    .map((category) => category.name.trim())
+    .filter(Boolean);
+
+  if (names.length > 0) {
+    return names.slice(0, 3).join(", ");
+  }
+
+  return post.category_name || "Travel";
+}
+
 function getAuthorInitial(authorName: string) {
   return authorName.trim().charAt(0).toUpperCase() || "U";
 }
@@ -329,7 +341,7 @@ export function ExplorePostCard({
   const title = post.caption || "Travel story";
   const location = post.location_name || "Destination";
   const authorName = post.user_name || `User #${post.user_id}`;
-  const categoryLabel = post.category_name || "Travel";
+  const categoryLabel = getPostCategoryLabel(post);
   const authorAvatarUrl = getPostAvatarUrl(post);
   const isInitialImage = index < 2;
   const frameIndex = index % imageFrameClasses.length;
