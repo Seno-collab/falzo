@@ -791,6 +791,12 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					COALESCE(likes.likes_count, 0) AS likes_count,
 					COALESCE(comments.comments_count, 0) AS comments_count,
 					COALESCE(saves.saves_count, 0) AS saves_count,
+					COALESCE(trust_votes.credible_count, 0) AS credible_count,
+					COALESCE(trust_votes.suspicious_count, 0) AS suspicious_count,
+					COALESCE(trust_votes.ai_generated_count, 0) AS ai_generated_count,
+					COALESCE(trust_votes.wrong_context_count, 0) AS wrong_context_count,
+					COALESCE(trust_votes.unsure_count, 0) AS unsure_count,
+					COALESCE(viewer_trust_vote.vote_type, '') AS viewer_vote,
 					posts.created_at,
 					posts.updated_at,
 					(
@@ -817,6 +823,23 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					FROM post_saves
 					WHERE post_saves.post_id = posts.id
 				) saves ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT
+						COUNT(*) FILTER (WHERE vote_type = 'credible') AS credible_count,
+						COUNT(*) FILTER (WHERE vote_type = 'suspicious') AS suspicious_count,
+						COUNT(*) FILTER (WHERE vote_type = 'ai_generated') AS ai_generated_count,
+						COUNT(*) FILTER (WHERE vote_type = 'wrong_context') AS wrong_context_count,
+						COUNT(*) FILTER (WHERE vote_type = 'unsure') AS unsure_count
+					FROM post_trust_votes
+					WHERE post_trust_votes.post_id = posts.id
+				) trust_votes ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT post_trust_votes.vote_type
+					FROM post_trust_votes
+					WHERE post_trust_votes.post_id = posts.id
+						AND post_trust_votes.user_id = $3
+					LIMIT 1
+				) viewer_trust_vote ON TRUE
 				WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4
 					OR categories.name ILIKE $4 OR categories.slug ILIKE $4
 					OR EXISTS (
@@ -868,6 +891,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 				SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
 					category_id, category_name, category_slug, categories, latitude, longitude,
 					is_liked, is_saved, status, likes_count, comments_count, saves_count,
+					credible_count, suspicious_count, ai_generated_count, wrong_context_count, unsure_count, viewer_vote,
 					created_at, updated_at,
 					CASE
 						WHEN $7 = 'nearby' THEN nearby_rank
@@ -880,6 +904,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 			SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
 				category_id, category_name, category_slug, categories, latitude, longitude,
 				is_liked, is_saved, status, likes_count, comments_count, saves_count,
+				credible_count, suspicious_count, ai_generated_count, wrong_context_count, unsure_count, viewer_vote,
 				created_at, updated_at, rank_value
 			FROM ranked_posts
 			WHERE (
