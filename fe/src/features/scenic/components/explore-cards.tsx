@@ -4,6 +4,7 @@ import {
   Bookmark,
   CalendarDays,
   Bot,
+  ChevronDown,
   Flag,
   Heart,
   HelpCircle,
@@ -133,13 +134,39 @@ function activeClass(type: "heart" | "save" | "comment", active: boolean) {
 const trustVoteOptions: Array<{
   type: PostTrustVoteType;
   label: string;
+  description: string;
   icon: LucideIcon;
 }> = [
-  { type: "credible", label: "Real", icon: ShieldCheck },
-  { type: "suspicious", label: "Doubt", icon: TriangleAlert },
-  { type: "ai_generated", label: "AI", icon: Bot },
-  { type: "wrong_context", label: "Context", icon: Flag },
-  { type: "unsure", label: "Unsure", icon: HelpCircle },
+  {
+    type: "credible",
+    label: "Looks real",
+    description: "Place and image feel authentic",
+    icon: ShieldCheck,
+  },
+  {
+    type: "suspicious",
+    label: "Suspicious",
+    description: "Something looks manipulated",
+    icon: TriangleAlert,
+  },
+  {
+    type: "ai_generated",
+    label: "AI generated",
+    description: "Looks synthetic or overprocessed",
+    icon: Bot,
+  },
+  {
+    type: "wrong_context",
+    label: "Wrong context",
+    description: "Place, time, or caption seems off",
+    icon: Flag,
+  },
+  {
+    type: "unsure",
+    label: "Not sure",
+    description: "Needs more community review",
+    icon: HelpCircle,
+  },
 ];
 
 function getTrustSummary(post: Post): PostTrustSummary {
@@ -203,9 +230,65 @@ function TrustSignals({
     summary.suspicious_count +
     summary.ai_generated_count +
     summary.wrong_context_count;
+  const getVoteCount = (type: PostTrustVoteType) => {
+    switch (type) {
+      case "credible":
+        return summary.credible_count;
+      case "suspicious":
+        return summary.suspicious_count;
+      case "ai_generated":
+        return summary.ai_generated_count;
+      case "wrong_context":
+        return summary.wrong_context_count;
+      case "unsure":
+        return summary.unsure_count;
+    }
+  };
+  const renderVoteButton = (option: (typeof trustVoteOptions)[number]) => {
+    const Icon = option.icon;
+    const active = summary.viewer_vote === option.type;
+    const voteCount = getVoteCount(option.type);
+
+    return (
+      <button
+        aria-label={`Mark image as ${option.label}: ${option.description}`}
+        className={cn(
+          "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-1.5 text-xs font-bold text-[#444] transition hover:border-[#9abfe5] hover:bg-[#f8fbff] hover:text-[#245f9a] disabled:cursor-not-allowed disabled:opacity-55",
+          active &&
+            "border-[#2f6fb8] bg-[#eef6ff] text-[#245f9a] shadow-[0_12px_28px_-22px_rgb(47_111_184/0.75)]",
+        )}
+        disabled={disabled || isSubmitting}
+        key={option.type}
+        onClick={() => onVote(option.type)}
+        type="button"
+      >
+        <span
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-full bg-[#f1f1ef] text-[#666]",
+            active && "bg-white text-[#245f9a]",
+          )}
+        >
+          <Icon className="size-3.5" />
+        </span>
+        <span className="whitespace-nowrap">{option.label}</span>
+        <span
+          className={cn(
+            "shrink-0 rounded-full bg-[#f4f4f2] px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#777]",
+            active && "bg-white text-[#245f9a]",
+          )}
+        >
+          {voteCount}
+        </span>
+      </button>
+    );
+  };
+  const selectedOption = trustVoteOptions.find(
+    (option) => option.type === summary.viewer_vote,
+  );
+  const SelectedIcon = selectedOption?.icon ?? ShieldCheck;
 
   return (
-    <div className="rounded-2xl border border-black/6 bg-[#f8f8f7] p-2.5">
+    <div className="group/trust rounded-2xl border border-black/6 bg-[#f8f8f7] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge className={badge.className} variant="outline">
           <ShieldCheck className="size-3" />
@@ -217,28 +300,32 @@ function TrustSignals({
             : "No community ratings"}
         </p>
       </div>
-      <div className="mt-2 grid grid-cols-5 gap-1.5">
-        {trustVoteOptions.map((option) => {
-          const Icon = option.icon;
-          const active = summary.viewer_vote === option.type;
-
-          return (
-            <button
-              aria-label={`Mark image as ${option.label}`}
-              className={cn(
-                "flex h-10 min-w-0 items-center justify-center gap-1 rounded-xl border bg-white px-1.5 text-[11px] font-semibold text-[#555] transition hover:border-[#9abfe5] hover:text-[#245f9a] disabled:cursor-not-allowed disabled:opacity-55",
-                active && "border-[#2f6fb8] bg-[#eef6ff] text-[#245f9a]",
-              )}
-              disabled={disabled || isSubmitting}
-              key={option.type}
-              onClick={() => onVote(option.type)}
-              type="button"
-            >
-              <Icon className="size-3.5 shrink-0" />
-              <span className="truncate">{option.label}</span>
-            </button>
-          );
-        })}
+      <button
+        aria-haspopup="listbox"
+        className="mt-3 flex w-full items-center gap-3 rounded-xl border border-black/6 bg-white px-3.5 py-3 text-left transition hover:border-[#9abfe5] hover:bg-[#f8fbff] focus-visible:border-[#2f6fb8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6fb8]/25 disabled:cursor-not-allowed disabled:opacity-55"
+        disabled={disabled || isSubmitting}
+        type="button"
+      >
+        <span
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-full bg-[#f1f1ef] text-[#666]",
+            selectedOption && "bg-[#eef6ff] text-[#245f9a]",
+          )}
+        >
+          <SelectedIcon className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold leading-5 text-[#333]">
+            {selectedOption?.label ?? "Choose trust rating"}
+          </span>
+          <span className="mt-0.5 block text-xs font-semibold leading-4 text-[#777]">
+            {selectedOption?.description ?? "Hover to select how this image feels"}
+          </span>
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-[#777] transition group-hover/trust:rotate-180 group-focus-within/trust:rotate-180" />
+      </button>
+      <div className="flex max-h-0 flex-wrap gap-2 overflow-hidden opacity-0 transition-all duration-200 group-hover/trust:mt-2 group-hover/trust:max-h-32 group-hover/trust:opacity-100 group-focus-within/trust:mt-2 group-focus-within/trust:max-h-32 group-focus-within/trust:opacity-100">
+        {trustVoteOptions.map((option) => renderVoteButton(option))}
       </div>
     </div>
   );

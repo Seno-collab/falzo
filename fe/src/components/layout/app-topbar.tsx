@@ -87,6 +87,15 @@ function mobileNavItemClass(isActive: boolean) {
   );
 }
 
+function mobileUploadNavItemClass(isActive: boolean) {
+  return cn(
+    "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-bold text-white shadow-[0_14px_32px_-22px_rgb(255_56_92/0.95)] transition",
+    isActive
+      ? "bg-[#111] ring-2 ring-[#ff385c]/35 ring-offset-2 ring-offset-[#f7f7f5]"
+      : "bg-[#ff385c] hover:bg-[#e63253]",
+  );
+}
+
 function isActiveRoute(pathname: string, route: string) {
   if (route === ROUTES.explore) {
     return pathname === route;
@@ -229,15 +238,11 @@ export function AppTopbar({
                   <Link
                     aria-current={isUploadActive ? "page" : undefined}
                     aria-label="Upload"
-                    className={cn(
-                      "mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)] transition",
-                      isUploadActive
-                        ? "ring-2 ring-[#111] ring-offset-2 ring-offset-[#f7f7f5]"
-                        : "hover:bg-[#e63253]",
-                    )}
+                    className={mobileUploadNavItemClass(isUploadActive)}
                     href={ROUTES.upload}
                   >
-                    <Plus className="size-5" />
+                    <Plus className="size-4" />
+                    Upload
                   </Link>
                   <Link
                     aria-current={isSavedActive ? "page" : undefined}
