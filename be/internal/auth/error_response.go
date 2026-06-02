@@ -71,6 +71,10 @@ func mapAuthError(err error) share.ApiError {
 		}
 	case errors.Is(err, ErrInvalidPassword):
 		return share.BadRequest("new_password", "new_password must be at least 8 characters and contain letters and digits")
+	case errors.Is(err, ErrInvalidUsername):
+		return share.BadRequest("user_name", "user_name must be between 3 and 50 characters")
+	case errors.Is(err, ErrInvalidEmail):
+		return share.BadRequest("email", "email must be a valid email")
 	case errors.Is(err, ErrInvalidAvatarURL):
 		return share.BadRequest("avatar_url", "avatar_url must be a valid URL")
 	case errors.Is(err, ErrDependencyUnavailable) || errors.Is(err, ErrTemporarilyUnavailable):

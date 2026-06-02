@@ -97,6 +97,20 @@ func TestRegisterHandler(t *testing.T) {
 	}
 }
 
+func TestRegisterHandlerMapsInvalidUsernameToBadRequest(t *testing.T) {
+	handler := NewHandler(fakeService{registerErr: ErrInvalidUsername})
+
+	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"user_name":"ad","email":"admin@example.com","password":"admin123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
 func TestLoginHandler(t *testing.T) {
 	handler := NewHandler(fakeService{loginTokens: TokenPair{AccessToken: "signed-token", RefreshToken: "refresh-token", TokenType: "Bearer"}})
 

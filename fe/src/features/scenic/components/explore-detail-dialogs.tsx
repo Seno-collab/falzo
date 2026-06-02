@@ -456,6 +456,7 @@ export function PostDetailDialog({
       <DialogContent
         className="h-[min(94svh,860px)] w-[calc(100vw-1rem)] overflow-hidden border-white/16 bg-[#050505]/94 p-0 text-white shadow-[0_36px_110px_-44px_rgb(0_0_0/0.92)] backdrop-blur-xl sm:w-[min(98vw,86rem)]"
         overlayClassName="overflow-hidden bg-black/72 backdrop-blur-0"
+        showCloseButton={false}
         overlayChildren={
           post ? (
             <div className="pointer-events-none absolute inset-0">
@@ -516,13 +517,13 @@ export function PostDetailDialog({
               </div>
             )}
 
-            <div className="absolute left-3 top-3 max-w-[calc(100%-7rem)] rounded-2xl border border-white/14 bg-black/42 px-3 py-2 text-white shadow-lg backdrop-blur-xl sm:left-5 sm:top-5">
+            <div className="absolute left-3 top-3 z-20 max-w-[calc(100%-9.75rem)] rounded-2xl border border-white/14 bg-black/42 px-2.5 py-2 text-white shadow-lg backdrop-blur-xl sm:left-5 sm:top-5 sm:max-w-[calc(100%-11rem)] sm:px-3">
               <div className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded-full bg-white text-[#111]">
                   <ZoomIn className="size-3.5" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/68">
+                  <p className="hidden text-xs font-bold uppercase tracking-[0.14em] text-white/68 sm:block">
                     Travel lens
                   </p>
                   <p className="truncate text-sm font-semibold">
@@ -534,7 +535,7 @@ export function PostDetailDialog({
               </div>
             </div>
 
-            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full border border-white/14 bg-black/42 p-1 shadow-lg backdrop-blur-xl sm:right-5 sm:top-5">
+            <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-full border border-white/14 bg-black/42 p-1 shadow-lg backdrop-blur-xl sm:right-5 sm:top-5">
               <button
                 aria-label={isImageZoomed ? "Zoom out" : "Zoom in"}
                 className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16"
@@ -556,6 +557,14 @@ export function PostDetailDialog({
                 type="button"
               >
                 <RotateCcw className="size-4" />
+              </button>
+              <button
+                aria-label="Close image viewer"
+                className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16"
+                onClick={onClose}
+                type="button"
+              >
+                <X className="size-4" />
               </button>
             </div>
 
@@ -582,12 +591,12 @@ export function PostDetailDialog({
             ) : null}
 
             {carouselLabel ? (
-              <div className="-translate-x-1/2 absolute left-1/2 top-4 rounded-full bg-black/48 px-3 py-1 text-xs font-bold text-white/86 backdrop-blur-xl">
+              <div className="-translate-x-1/2 absolute left-1/2 top-14 z-20 rounded-full bg-black/48 px-3 py-1 text-xs font-bold text-white/86 backdrop-blur-xl sm:top-4">
                 {carouselLabel}
               </div>
             ) : null}
 
-            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pt-20 sm:px-5 sm:pb-5 sm:pt-24">
+            <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pr-[4.5rem] pt-20 sm:px-5 sm:pb-5 sm:pr-24 sm:pt-24">
               <div className="max-w-2xl">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <RainbowAvatar

@@ -1812,35 +1812,30 @@ function ExploreModeSwitcher({
   totalPosts: number;
 }>) {
   const modes: {
-    description: string;
     icon: ReactNode;
     label: string;
     meta: string;
     value: ExploreMode;
   }[] = [
     {
-      description: "Photo-first discovery for fast inspiration.",
       icon: <Compass className="size-4" />,
       label: "Inspire",
       meta: `${totalPosts} places`,
       value: "inspire",
     },
     {
-      description: "Open the map and find places around you.",
       icon: <MapIcon className="size-4" />,
       label: "Nearby",
       meta: nearbyLabel,
       value: "nearby",
     },
     {
-      description: "Turn saved places into a trip board.",
       icon: <Route className="size-4" />,
       label: "Plan",
       meta: `${planCount} saved`,
       value: "plan",
     },
     {
-      description: "Local tips, events, and place discussions.",
       icon: <MessageCircle className="size-4" />,
       label: "Community",
       meta: "Tips + Q&A",
@@ -1849,15 +1844,15 @@ function ExploreModeSwitcher({
   ];
 
   return (
-    <section className="mx-auto w-full max-w-370 px-3 pb-5 sm:px-6 lg:px-8">
-      <div className="grid gap-2 rounded-3xl border border-black/6 bg-white p-2 shadow-[0_16px_40px_-34px_rgb(0_0_0/0.62)] sm:grid-cols-2 lg:grid-cols-4">
+    <section className="mx-auto w-full max-w-370 px-3 pb-4 sm:px-6 lg:px-8">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-black/6 bg-white p-2 shadow-[0_12px_32px_-28px_rgb(0_0_0/0.48)] scrollbar-none [&::-webkit-scrollbar]:hidden">
         {modes.map((mode) => {
           const isActive = activeMode === mode.value;
           return (
             <button
               aria-pressed={isActive}
               className={cn(
-                "flex min-h-28 items-start gap-3 rounded-2xl border p-3 text-left transition",
+                "inline-flex min-w-fit items-center gap-2 rounded-xl border px-3 py-2 text-left transition",
                 isActive
                   ? "border-[#111] bg-[#111] text-white shadow-[0_18px_42px_-30px_rgb(0_0_0/0.78)]"
                   : "border-transparent bg-[#f8f8f7] text-[#222] hover:border-black/10 hover:bg-white",
@@ -1868,28 +1863,18 @@ function ExploreModeSwitcher({
             >
               <span
                 className={cn(
-                  "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full",
+                  "flex size-8 shrink-0 items-center justify-center rounded-full",
                   isActive ? "bg-white text-[#111]" : "bg-white text-[#315f8f]",
                 )}
               >
                 {mode.icon}
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold">
-                  {mode.label}
-                </span>
+                <span className="block text-sm font-semibold">{mode.label}</span>
                 <span
                   className={cn(
-                    "mt-1 block text-xs leading-5",
-                    isActive ? "text-white/74" : "text-[#666]",
-                  )}
-                >
-                  {mode.description}
-                </span>
-                <span
-                  className={cn(
-                    "mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                    isActive ? "bg-white/14 text-white" : "bg-white text-[#555]",
+                    "mt-0.5 block whitespace-nowrap text-[11px] font-semibold",
+                    isActive ? "text-white/72" : "text-[#666]",
                   )}
                 >
                   {mode.meta}

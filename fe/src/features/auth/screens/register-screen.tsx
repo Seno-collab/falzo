@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  getApiFieldErrors,
   getApiErrorMessage,
   hasAuthSession,
   registerApi,
@@ -40,10 +41,29 @@ export function RegisterScreen() {
     () =>
       z
         .object({
-          fullName: z.string().trim().min(2, copy.fullNameMin),
+          fullName: z
+            .string()
+            .trim()
+            .min(3, "Username must be between 3 and 50 characters.")
+            .max(50, "Username must be between 3 and 50 characters."),
           email: z.string().trim().email({ message: copy.emailInvalid }),
-          password: z.string().min(6, copy.passwordMin),
-          confirmPassword: z.string().min(6, copy.confirmPasswordMin),
+          password: z
+            .string()
+            .min(
+              8,
+              "Password must be at least 8 characters and contain letters and digits.",
+            )
+            .regex(
+              /[A-Za-z]/,
+              "Password must be at least 8 characters and contain letters and digits.",
+            )
+            .regex(
+              /\d/,
+              "Password must be at least 8 characters and contain letters and digits.",
+            ),
+          confirmPassword: z
+            .string()
+            .min(8, "Confirm password must be at least 8 characters."),
         })
         .refine((data) => data.password === data.confirmPassword, {
           path: ["confirmPassword"],
@@ -53,12 +73,11 @@ export function RegisterScreen() {
       copy.confirmPasswordMin,
       copy.confirmPasswordMismatch,
       copy.emailInvalid,
-      copy.fullNameMin,
-      copy.passwordMin,
     ],
   );
 
-  const { register, handleSubmit, formState } = useForm<RegisterFormValues>({
+  const { register, handleSubmit, formState, setError } =
+    useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       fullName: "",
@@ -93,6 +112,25 @@ export function RegisterScreen() {
       });
       router.replace(ROUTES.login);
     } catch (error) {
+      const fieldMap: Record<string, keyof RegisterFormValues> = {
+        email: "email",
+        password: "password",
+        userName: "fullName",
+        user_name: "fullName",
+      };
+      const fieldErrors = getApiFieldErrors(error);
+      fieldErrors.forEach((fieldError) => {
+        const field = fieldMap[fieldError.field];
+        if (!field) {
+          return;
+        }
+
+        setError(field, {
+          type: "server",
+          message: fieldError.message,
+        });
+      });
+
       toast.error(copy.errorTitle, {
         description: getApiErrorMessage(error),
       });

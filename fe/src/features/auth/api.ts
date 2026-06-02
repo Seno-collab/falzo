@@ -87,6 +87,34 @@ function readMessage(data: unknown): string | null {
   return typeof message === "string" && message.trim() ? message : null;
 }
 
+export function getApiFieldErrors(error: unknown) {
+  if (!(error instanceof AxiosError)) {
+    return [];
+  }
+
+  const payload = asRecord(error.response?.data);
+  const errors = Array.isArray(payload?.errors) ? payload.errors : [];
+
+  return errors
+    .map((item) => {
+      const detail = asRecord(item);
+      const field = detail?.field;
+      const message = detail?.message;
+
+      if (typeof field !== "string" || typeof message !== "string") {
+        return null;
+      }
+
+      return {
+        field,
+        message,
+      };
+    })
+    .filter((item): item is { field: string; message: string } =>
+      Boolean(item),
+    );
+}
+
 function writeStorage(scope: StorageScope, key: string, value: string) {
   if (globalThis.window === undefined) {
     return;

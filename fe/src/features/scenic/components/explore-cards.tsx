@@ -17,11 +17,11 @@ import {
   ShieldCheck,
   TriangleAlert,
   Trash2,
-  UsersRound,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -224,6 +224,7 @@ function TrustSignals({
   onVote: (type: PostTrustVoteType) => void;
   post: Post;
 }>) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const summary = getTrustSummary(post);
   const badge = getTrustBadge(summary);
   const concernCount =
@@ -259,7 +260,10 @@ function TrustSignals({
         )}
         disabled={disabled || isSubmitting}
         key={option.type}
-        onClick={() => onVote(option.type)}
+        onClick={() => {
+          onVote(option.type);
+          setIsPickerOpen(false);
+        }}
         type="button"
       >
         <span
@@ -301,9 +305,11 @@ function TrustSignals({
         </p>
       </div>
       <button
+        aria-expanded={isPickerOpen}
         aria-haspopup="listbox"
         className="mt-3 flex w-full items-center gap-3 rounded-xl border border-black/6 bg-white px-3.5 py-3 text-left transition hover:border-[#9abfe5] hover:bg-[#f8fbff] focus-visible:border-[#2f6fb8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f6fb8]/25 disabled:cursor-not-allowed disabled:opacity-55"
         disabled={disabled || isSubmitting}
+        onClick={() => setIsPickerOpen((current) => !current)}
         type="button"
       >
         <span
@@ -322,9 +328,19 @@ function TrustSignals({
             {selectedOption?.description ?? "Hover to select how this image feels"}
           </span>
         </span>
-        <ChevronDown className="size-4 shrink-0 text-[#777] transition group-hover/trust:rotate-180 group-focus-within/trust:rotate-180" />
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-[#777] transition sm:group-hover/trust:rotate-180 sm:group-focus-within/trust:rotate-180",
+            isPickerOpen && "rotate-180 sm:rotate-0",
+          )}
+        />
       </button>
-      <div className="flex max-h-0 flex-wrap gap-2 overflow-hidden opacity-0 transition-all duration-200 group-hover/trust:mt-2 group-hover/trust:max-h-32 group-hover/trust:opacity-100 group-focus-within/trust:mt-2 group-focus-within/trust:max-h-32 group-focus-within/trust:opacity-100">
+      <div
+        className={cn(
+          "flex flex-wrap gap-2 overflow-hidden transition-all duration-200 sm:max-h-0 sm:opacity-0 sm:group-hover/trust:mt-2 sm:group-hover/trust:max-h-32 sm:group-hover/trust:opacity-100 sm:group-focus-within/trust:mt-2 sm:group-focus-within/trust:max-h-32 sm:group-focus-within/trust:opacity-100",
+          isPickerOpen ? "mt-2 max-h-32 opacity-100" : "max-h-0 opacity-0",
+        )}
+      >
         {trustVoteOptions.map((option) => renderVoteButton(option))}
       </div>
     </div>
@@ -584,7 +600,7 @@ export function ExplorePostCard({
         />
         <div className={overlayClass} />
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-          <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl">
+          <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
             {categoryLabel}
           </span>
           <div className="flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
@@ -624,10 +640,23 @@ export function ExplorePostCard({
           </div>
         </div>
         <div className="absolute inset-x-4 bottom-4 text-white">
-          <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/16 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/86 backdrop-blur-xl">
-            <MapPin className="size-3.5 shrink-0" />
-            <span className="truncate">{location}</span>
-          </p>
+          <div className="mb-2 flex min-w-0 items-center gap-2">
+            <RainbowAvatar
+              alt={authorName}
+              className="shadow-[0_12px_26px_-18px_rgb(255_255_255/0.45),0_0_0_1px_rgb(255_255_255/0.24)]"
+              fallback={getAuthorInitial(authorName)}
+              size="sm"
+              src={authorAvatarUrl}
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold leading-5">
+                {authorName}
+              </p>
+              <p className="hidden truncate text-xs font-semibold text-white/68 sm:block">
+                {location}
+              </p>
+            </div>
+          </div>
           <h2
             className={cn(
               "mt-1 font-semibold leading-tight tracking-normal",
@@ -641,7 +670,7 @@ export function ExplorePostCard({
         </div>
       </div>
 
-      <div className="space-y-3 p-3.5 sm:p-4">
+      <div className="space-y-3 p-3.5 transition-all duration-200 sm:max-h-0 sm:overflow-hidden sm:p-0 sm:opacity-0 sm:group-hover:max-h-[30rem] sm:group-hover:p-4 sm:group-hover:opacity-100 sm:group-focus-within:max-h-[30rem] sm:group-focus-within:p-4 sm:group-focus-within:opacity-100">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link
@@ -669,117 +698,117 @@ export function ExplorePostCard({
               </p>
             </div>
           </div>
-          <div
-            className={cn(
-              "grid gap-1 sm:flex sm:shrink-0 sm:items-center",
-              isAuthenticated ? "grid-cols-5" : "grid-cols-2",
-            )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 rounded-2xl border border-black/6 bg-[#f8f8f7] p-2">
+          <Button
+            aria-label="Open image"
+            className="h-8 rounded-full px-3 text-xs"
+            onClick={() => onOpen(post.id)}
+            size="sm"
+            type="button"
+            variant="outline"
           >
+            <Maximize2 className="size-3.5" />
+            Open
+          </Button>
+          {isAuthenticated ? (
             <Button
-              aria-label="Open image"
-              className="rounded-full"
-              onClick={() => onOpen(post.id)}
-              size="icon-sm"
+              aria-label={isLiked ? "Liked" : "Like travel post"}
+              className={cn(
+                "h-8 rounded-full px-3 text-xs",
+                activeClass("heart", isLiked),
+              )}
+              onClick={() => onLike(post.id)}
+              size="sm"
               type="button"
               variant="outline"
             >
-              <Maximize2 className="size-4" />
+              <Heart className={cn("size-3.5", isLiked ? "fill-current" : "")} />
+              {isLiked ? "Liked" : "Like"}
             </Button>
-            {isAuthenticated ? (
+          ) : null}
+          <Button
+            aria-label="View comments"
+            className={cn(
+              "h-8 rounded-full px-3 text-xs",
+              activeClass("comment", commentsOpen),
+            )}
+            onClick={() => onToggleComments(post.id)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <MessageCircle className="size-3.5" />
+            Tips
+            {comments.length > 0 ? (
+              <span className="rounded-full bg-black/6 px-1.5 text-[11px]">
+                {comments.length}
+              </span>
+            ) : null}
+          </Button>
+          {isAuthenticated ? (
+            <Button
+              aria-label={isSaved ? "Saved" : "Save destination"}
+              className={cn(
+                "h-8 rounded-full px-3 text-xs",
+                isSaved
+                  ? "border-[#111] bg-[#111] text-white hover:bg-[#222]"
+                  : activeClass("save", isSaved),
+              )}
+              onClick={() => onSave(post.id)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Bookmark
+                className={cn("size-3.5", isSaved ? "fill-current" : "")}
+              />
+              {isSaved ? "Saved" : "Save"}
+            </Button>
+          ) : null}
+          {isAuthenticated ? (
+            currentUserId === post.user_id ? (
               <Button
-                aria-label={isLiked ? "Liked" : "Like travel post"}
-                className={cn("rounded-full", activeClass("heart", isLiked))}
-                onClick={() => onLike(post.id)}
-                size="icon-sm"
+                aria-label="Delete travel post"
+                className="h-8 rounded-full px-3 text-xs text-[#b4233f]"
+                onClick={() => onDelete(post.id)}
+                size="sm"
                 type="button"
                 variant="outline"
               >
-                <Heart className={cn("size-4", isLiked ? "fill-current" : "")} />
+                <Trash2 className="size-3.5" />
+                Delete
               </Button>
-            ) : null}
-            <Button
-              aria-label="View comments"
-              className={cn(
-                "rounded-full",
-                activeClass("comment", commentsOpen),
-              )}
-              onClick={() => onToggleComments(post.id)}
-              size="icon-sm"
-              type="button"
-              variant="outline"
-            >
-              <MessageCircle className="size-4" />
-            </Button>
-            {isAuthenticated ? (
-              <>
-                <Button
-                  aria-label={isSaved ? "Saved" : "Save destination"}
-                  className={cn("rounded-full", activeClass("save", isSaved))}
-                  onClick={() => onSave(post.id)}
-                  size="icon-sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Bookmark
-                    className={cn("size-4", isSaved ? "fill-current" : "")}
-                  />
-                </Button>
-                {currentUserId === post.user_id ? (
-                  <Button
-                    aria-label="Delete travel post"
-                    className="rounded-full text-[#b4233f]"
-                    onClick={() => onDelete(post.id)}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    aria-label="Report travel post"
-                    className="rounded-full"
-                    onClick={() => onReport(post.id)}
-                    size="icon-sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Flag className="size-4" />
-                  </Button>
-                )}
-              </>
-            ) : null}
-          </div>
+            ) : (
+              <Button
+                aria-label="Report travel post"
+                className="h-8 rounded-full px-3 text-xs"
+                onClick={() => onReport(post.id)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <Flag className="size-3.5" />
+                Report
+              </Button>
+            )
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-black/6 bg-[#f8f8f7] p-2">
-          <div className="min-w-0 rounded-xl bg-white px-2.5 py-2">
-            <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#777]">
-              <MapPin className="size-3" />
-              Place
-            </p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#222]">
-              {distanceLabel ?? location}
-            </p>
-          </div>
-          <div className="min-w-0 rounded-xl bg-white px-2.5 py-2">
-            <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#777]">
-              <CalendarDays className="size-3" />
-              Best
-            </p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#222]">
-              {bestTimeLabel ?? "Golden hour"}
-            </p>
-          </div>
-          <div className="min-w-0 rounded-xl bg-white px-2.5 py-2">
-            <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#777]">
-              <UsersRound className="size-3" />
-              Saved
-            </p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#222]">
-              {savedCount > 0 ? `${savedCount} saved` : "Start board"}
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#555]">
+          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#f8f8f7] px-2.5 py-1">
+            <MapPin className="size-3.5 shrink-0 text-[#777]" />
+            <span className="truncate">{distanceLabel ?? location}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#f8f8f7] px-2.5 py-1">
+            <CalendarDays className="size-3.5 text-[#777]" />
+            {bestTimeLabel ?? "Golden hour"}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#f8f8f7] px-2.5 py-1">
+            <Bookmark className="size-3.5 text-[#777]" />
+            {savedCount > 0 ? `${savedCount} saved` : "No saves"}
+          </span>
         </div>
 
         <TrustSignals
@@ -788,36 +817,6 @@ export function ExplorePostCard({
           onVote={(type) => onTrustVote(post.id, type)}
           post={post}
         />
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            aria-label={isSaved ? "Saved to trip" : "Save destination to trip"}
-            className={cn(
-              "min-w-0 flex-1 rounded-full",
-              isSaved
-                ? "bg-[#111] text-white hover:bg-[#222]"
-                : "bg-[#ff385c] text-white hover:bg-[#e93152]",
-            )}
-            onClick={() => onSave(post.id)}
-            type="button"
-          >
-            <Bookmark className={cn("size-4", isSaved ? "fill-current" : "")} />
-            {isSaved ? "Saved to trip" : "Save to trip"}
-          </Button>
-          <Button
-            aria-label="Open local discussion"
-            className={cn(
-              "rounded-full",
-              activeClass("comment", commentsOpen),
-            )}
-            onClick={() => onToggleComments(post.id)}
-            type="button"
-            variant="outline"
-          >
-            <MessageCircle className="size-4" />
-            Local tips
-          </Button>
-        </div>
 
         {commentsOpen ? (
           <div className="rounded-2xl border border-black/6 bg-[#f8f8f7] p-3">
