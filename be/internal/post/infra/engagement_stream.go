@@ -71,6 +71,10 @@ func (r *EngagementStreamRepository) ReportComment(ctx context.Context, report p
 	return r.next.ReportComment(ctx, report)
 }
 
+func (r *EngagementStreamRepository) UpsertTrustVote(ctx context.Context, vote post.TrustVote) (post.PostTrustSummary, error) {
+	return r.next.UpsertTrustVote(ctx, vote)
+}
+
 func (r *EngagementStreamRepository) DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor) error {
 	return r.next.DeleteComment(ctx, postID, commentID, actor)
 }

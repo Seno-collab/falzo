@@ -50,6 +50,9 @@ var (
 	ErrNearbyRadiusTooLarge      = errors.New("nearby radius exceeds maximum")
 	ErrReportReasonRequired      = errors.New("report reason is required")
 	ErrReportReasonTooLong       = errors.New("report reason exceeds max length")
+	ErrTrustVoteTypeRequired     = errors.New("trust vote type is required")
+	ErrInvalidTrustVoteType      = errors.New("invalid trust vote type")
+	ErrTrustVoteReasonTooLong    = errors.New("trust vote reason exceeds max length")
 )
 
 type Repository interface {
@@ -59,6 +62,7 @@ type Repository interface {
 	HidePost(ctx context.Context, postID uint64, actor ModerationActor, reason ReportReason) error
 	ReportPost(ctx context.Context, report ContentReport) error
 	ReportComment(ctx context.Context, report ContentReport) error
+	UpsertTrustVote(ctx context.Context, vote TrustVote) (PostTrustSummary, error)
 	DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor ModerationActor) error
 	HideComment(ctx context.Context, postID uint64, commentID uint64, actor ModerationActor, reason ReportReason) error
 	Comment(ctx context.Context, comment *Comment) error
@@ -82,52 +86,54 @@ type Repository interface {
 }
 
 type Post struct {
-	ID            uint64         `json:"id"`
-	UserID        uint64         `json:"user_id"`
-	UserName      string         `json:"user_name"`
-	UserAvatarURL string         `json:"user_avatar_url,omitempty"`
-	CategoryID    uint64         `json:"category_id,omitempty"`
-	CategoryName  string         `json:"category_name,omitempty"`
-	CategorySlug  string         `json:"category_slug,omitempty"`
-	CategoryIDs   []uint64       `json:"-"`
-	Categories    []PostCategory `json:"categories,omitempty"`
-	ImageURL      ImageURL       `json:"-"`
-	Caption       Caption        `json:"-"`
-	LocationName  LocationName   `json:"-"`
-	Latitude      float64        `json:"latitude"`
-	Longitude     float64        `json:"longitude"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"-"`
-	CursorRank    float64        `json:"-"`
-	IsLiked       bool           `json:"is_liked"`
-	IsSaved       bool           `json:"is_saved"`
-	Status        string         `json:"status"`
-	LikesCount    int            `json:"likes_count"`
-	CommentsCount int            `json:"comments_count"`
-	SavesCount    int            `json:"saves_count"`
+	ID            uint64           `json:"id"`
+	UserID        uint64           `json:"user_id"`
+	UserName      string           `json:"user_name"`
+	UserAvatarURL string           `json:"user_avatar_url,omitempty"`
+	CategoryID    uint64           `json:"category_id,omitempty"`
+	CategoryName  string           `json:"category_name,omitempty"`
+	CategorySlug  string           `json:"category_slug,omitempty"`
+	CategoryIDs   []uint64         `json:"-"`
+	Categories    []PostCategory   `json:"categories,omitempty"`
+	ImageURL      ImageURL         `json:"-"`
+	Caption       Caption          `json:"-"`
+	LocationName  LocationName     `json:"-"`
+	Latitude      float64          `json:"latitude"`
+	Longitude     float64          `json:"longitude"`
+	CreatedAt     time.Time        `json:"created_at"`
+	UpdatedAt     time.Time        `json:"-"`
+	CursorRank    float64          `json:"-"`
+	IsLiked       bool             `json:"is_liked"`
+	IsSaved       bool             `json:"is_saved"`
+	Status        string           `json:"status"`
+	LikesCount    int              `json:"likes_count"`
+	CommentsCount int              `json:"comments_count"`
+	SavesCount    int              `json:"saves_count"`
+	TrustSummary  PostTrustSummary `json:"trust_summary"`
 }
 
 type PostView struct {
-	ID            uint64         `json:"id"`
-	UserID        uint64         `json:"user_id"`
-	UserName      string         `json:"user_name"`
-	UserAvatarURL string         `json:"user_avatar_url,omitempty"`
-	CategoryID    uint64         `json:"category_id,omitempty"`
-	CategoryName  string         `json:"category_name,omitempty"`
-	CategorySlug  string         `json:"category_slug,omitempty"`
-	Categories    []PostCategory `json:"categories,omitempty"`
-	ImageURL      string         `json:"image_url"`
-	Caption       string         `json:"caption"`
-	LocationName  string         `json:"location_name"`
-	Latitude      float64        `json:"latitude"`
-	Longitude     float64        `json:"longitude"`
-	CreatedAt     time.Time      `json:"created_at"`
-	IsLiked       bool           `json:"is_liked"`
-	IsSaved       bool           `json:"is_saved"`
-	Status        string         `json:"status"`
-	LikesCount    int            `json:"likes_count"`
-	CommentsCount int            `json:"comments_count"`
-	SavesCount    int            `json:"saves_count"`
+	ID            uint64           `json:"id"`
+	UserID        uint64           `json:"user_id"`
+	UserName      string           `json:"user_name"`
+	UserAvatarURL string           `json:"user_avatar_url,omitempty"`
+	CategoryID    uint64           `json:"category_id,omitempty"`
+	CategoryName  string           `json:"category_name,omitempty"`
+	CategorySlug  string           `json:"category_slug,omitempty"`
+	Categories    []PostCategory   `json:"categories,omitempty"`
+	ImageURL      string           `json:"image_url"`
+	Caption       string           `json:"caption"`
+	LocationName  string           `json:"location_name"`
+	Latitude      float64          `json:"latitude"`
+	Longitude     float64          `json:"longitude"`
+	CreatedAt     time.Time        `json:"created_at"`
+	IsLiked       bool             `json:"is_liked"`
+	IsSaved       bool             `json:"is_saved"`
+	Status        string           `json:"status"`
+	LikesCount    int              `json:"likes_count"`
+	CommentsCount int              `json:"comments_count"`
+	SavesCount    int              `json:"saves_count"`
+	TrustSummary  PostTrustSummary `json:"trust_summary"`
 }
 
 func (p Post) View() PostView {
@@ -154,6 +160,7 @@ func (p Post) View() PostView {
 		LikesCount:    p.LikesCount,
 		CommentsCount: p.CommentsCount,
 		SavesCount:    p.SavesCount,
+		TrustSummary:  p.TrustSummary.WithStatus(),
 	}
 }
 
@@ -193,6 +200,97 @@ type ContentReport struct {
 	PostID         uint64
 	CommentID      uint64
 	Reason         ReportReason
+}
+
+type TrustVoteType string
+
+const (
+	TrustVoteCredible     TrustVoteType = "credible"
+	TrustVoteSuspicious   TrustVoteType = "suspicious"
+	TrustVoteAIGenerated  TrustVoteType = "ai_generated"
+	TrustVoteWrongContext TrustVoteType = "wrong_context"
+	TrustVoteUnsure       TrustVoteType = "unsure"
+)
+
+type TrustVote struct {
+	PostID uint64
+	UserID uint64
+	Type   TrustVoteType
+	Reason string
+}
+
+type PostTrustSummary struct {
+	Status            string `json:"status"`
+	TotalCount        int    `json:"total_count"`
+	CredibleCount     int    `json:"credible_count"`
+	SuspiciousCount   int    `json:"suspicious_count"`
+	AIGeneratedCount  int    `json:"ai_generated_count"`
+	WrongContextCount int    `json:"wrong_context_count"`
+	UnsureCount       int    `json:"unsure_count"`
+	ViewerVote        string `json:"viewer_vote,omitempty"`
+}
+
+func NewTrustVote(postID uint64, userID uint64, rawType string, rawReason string) (TrustVote, error) {
+	if postID == 0 {
+		return TrustVote{}, ErrPostIDRequired
+	}
+	if userID == 0 {
+		return TrustVote{}, ErrUserIDRequired
+	}
+
+	voteType, err := NewTrustVoteType(rawType)
+	if err != nil {
+		return TrustVote{}, err
+	}
+
+	reason := strings.TrimSpace(rawReason)
+	if len(reason) > 500 {
+		return TrustVote{}, ErrTrustVoteReasonTooLong
+	}
+
+	return TrustVote{
+		PostID: postID,
+		UserID: userID,
+		Type:   voteType,
+		Reason: reason,
+	}, nil
+}
+
+func NewTrustVoteType(raw string) (TrustVoteType, error) {
+	value := TrustVoteType(strings.TrimSpace(raw))
+	if value == "" {
+		return "", ErrTrustVoteTypeRequired
+	}
+
+	switch value {
+	case TrustVoteCredible, TrustVoteSuspicious, TrustVoteAIGenerated, TrustVoteWrongContext, TrustVoteUnsure:
+		return value, nil
+	default:
+		return "", ErrInvalidTrustVoteType
+	}
+}
+
+func (s PostTrustSummary) WithStatus() PostTrustSummary {
+	if s.Status != "" {
+		return s
+	}
+
+	s.TotalCount = s.CredibleCount + s.SuspiciousCount + s.AIGeneratedCount + s.WrongContextCount + s.UnsureCount
+	concernCount := s.SuspiciousCount + s.AIGeneratedCount + s.WrongContextCount
+	switch {
+	case s.TotalCount == 0:
+		s.Status = "unreviewed"
+	case concernCount >= 3 && concernCount > s.CredibleCount:
+		s.Status = "community_suspicious"
+	case s.CredibleCount >= 3 && s.CredibleCount >= concernCount*2:
+		s.Status = "community_trusted"
+	case s.CredibleCount > 0 && concernCount > 0:
+		s.Status = "disputed"
+	default:
+		s.Status = "needs_more_context"
+	}
+
+	return s
 }
 
 type PostListFilter struct {

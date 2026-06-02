@@ -20,27 +20,28 @@ type CachedPostRepository struct {
 }
 
 type cachedPost struct {
-	ID            uint64              `json:"id"`
-	UserID        uint64              `json:"user_id"`
-	UserName      string              `json:"user_name"`
-	UserAvatarURL string              `json:"user_avatar_url"`
-	CategoryID    uint64              `json:"category_id"`
-	CategoryName  string              `json:"category_name"`
-	CategorySlug  string              `json:"category_slug"`
-	Categories    []post.PostCategory `json:"categories"`
-	ImageURL      string              `json:"image_url"`
-	Caption       string              `json:"caption"`
-	LocationName  string              `json:"location_name"`
-	Latitude      float64             `json:"latitude"`
-	Longitude     float64             `json:"longitude"`
-	CreatedAt     time.Time           `json:"created_at"`
-	UpdatedAt     time.Time           `json:"updated_at"`
-	IsLiked       bool                `json:"is_liked"`
-	IsSaved       bool                `json:"is_saved"`
-	Status        string              `json:"status"`
-	LikesCount    int                 `json:"likes_count"`
-	CommentsCount int                 `json:"comments_count"`
-	SavesCount    int                 `json:"saves_count"`
+	ID            uint64                `json:"id"`
+	UserID        uint64                `json:"user_id"`
+	UserName      string                `json:"user_name"`
+	UserAvatarURL string                `json:"user_avatar_url"`
+	CategoryID    uint64                `json:"category_id"`
+	CategoryName  string                `json:"category_name"`
+	CategorySlug  string                `json:"category_slug"`
+	Categories    []post.PostCategory   `json:"categories"`
+	ImageURL      string                `json:"image_url"`
+	Caption       string                `json:"caption"`
+	LocationName  string                `json:"location_name"`
+	Latitude      float64               `json:"latitude"`
+	Longitude     float64               `json:"longitude"`
+	CreatedAt     time.Time             `json:"created_at"`
+	UpdatedAt     time.Time             `json:"updated_at"`
+	IsLiked       bool                  `json:"is_liked"`
+	IsSaved       bool                  `json:"is_saved"`
+	Status        string                `json:"status"`
+	LikesCount    int                   `json:"likes_count"`
+	CommentsCount int                   `json:"comments_count"`
+	SavesCount    int                   `json:"saves_count"`
+	TrustSummary  post.PostTrustSummary `json:"trust_summary"`
 }
 
 func NewCachedPostRepository(next post.Repository, cache pkgcache.Client, firstPageTTL time.Duration) post.Repository {
@@ -90,6 +91,15 @@ func (r *CachedPostRepository) ReportPost(ctx context.Context, report post.Conte
 
 func (r *CachedPostRepository) ReportComment(ctx context.Context, report post.ContentReport) error {
 	return r.next.ReportComment(ctx, report)
+}
+
+func (r *CachedPostRepository) UpsertTrustVote(ctx context.Context, vote post.TrustVote) (post.PostTrustSummary, error) {
+	summary, err := r.next.UpsertTrustVote(ctx, vote)
+	if err != nil {
+		return post.PostTrustSummary{}, err
+	}
+	r.invalidatePublicFeed(ctx)
+	return summary, nil
 }
 
 func (r *CachedPostRepository) DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor) error {
@@ -294,6 +304,7 @@ func encodePosts(items []post.Post) []cachedPost {
 			LikesCount:    item.LikesCount,
 			CommentsCount: item.CommentsCount,
 			SavesCount:    item.SavesCount,
+			TrustSummary:  item.TrustSummary,
 		})
 	}
 	return cached
@@ -341,6 +352,7 @@ func decodePosts(payload []byte) ([]post.Post, error) {
 			LikesCount:    item.LikesCount,
 			CommentsCount: item.CommentsCount,
 			SavesCount:    item.SavesCount,
+			TrustSummary:  item.TrustSummary.WithStatus(),
 		})
 	}
 	return items, nil

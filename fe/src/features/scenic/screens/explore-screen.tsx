@@ -96,9 +96,16 @@ import {
   unlikePostApi,
   unsavePostApi,
   updatePostCommentApi,
+  upsertPostTrustVoteApi,
 } from "@/features/posts/api";
-import type { Post, PostComment, PostsPage } from "@/features/posts/types";
-import type { PostSort } from "@/features/posts/types";
+import type {
+  Post,
+  PostComment,
+  PostTrustSummary,
+  PostTrustVoteType,
+  PostsPage,
+  PostSort,
+} from "@/features/posts/types";
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
 import {
   ALL_COLLECTION,
@@ -262,6 +269,14 @@ function isPostLiked(post: Post | null, likedPosts: PostActionOverrides) {
 
 function isPostSaved(post: Post | null, savedPosts: PostActionOverrides) {
   return Boolean(post && (savedPosts[post.id] ?? post.is_saved));
+}
+
+function withPostTrustSummary(
+  post: Post,
+  postId: number,
+  summary: PostTrustSummary,
+) {
+  return post.id === postId ? { ...post, trust_summary: summary } : post;
 }
 
 function readAuthUserId(user: AuthUser | null | undefined) {
@@ -788,6 +803,45 @@ export function ExploreScreen() {
     onSuccess: () => notifySuccess("Report sent."),
   });
 
+  const trustVoteMutation = useMutation({
+    mutationFn: ({
+      postId,
+      type,
+    }: {
+      postId: number;
+      type: PostTrustVoteType;
+    }) => upsertPostTrustVoteApi({ postId, type }),
+    onError: (error) => notifyError(getApiErrorMessage(error)),
+    onSuccess: (summary, variables) => {
+      queryClient.setQueriesData<PostsInfiniteData>(
+        { queryKey: ["posts", "explore"] },
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.map((post) =>
+                withPostTrustSummary(post, variables.postId, summary),
+              ),
+            })),
+          };
+        },
+      );
+      queryClient.setQueriesData<Post>(
+        { queryKey: ["posts", "detail"] },
+        (current) =>
+          current
+            ? withPostTrustSummary(current, variables.postId, summary)
+            : current,
+      );
+      notifySuccess("Image rating saved.");
+    },
+  });
+
   const commentMutation = useMutation({
     mutationFn: createPostCommentApi,
     onError: (error) => notifyError(getApiErrorMessage(error)),
@@ -1211,6 +1265,14 @@ export function ExploreScreen() {
     reportPostMutation.mutate({ postId, reason });
   }
 
+  function handleTrustVote(postId: number, type: PostTrustVoteType) {
+    if (!requireAuth() || trustVoteMutation.isPending) {
+      return;
+    }
+
+    trustVoteMutation.mutate({ postId, type });
+  }
+
   function toggleSavedBoard() {
     changeExploreMode("plan");
   }
@@ -1598,6 +1660,7 @@ export function ExploreScreen() {
               isSubmittingComment={
                 commentMutation.isPending || updateCommentMutation.isPending
               }
+              isSubmittingTrustVote={trustVoteMutation.isPending}
               key={`post-${post.id}`}
               onCancelEdit={cancelEdit}
               onCancelReply={cancelReply}
@@ -1614,6 +1677,7 @@ export function ExploreScreen() {
               onSave={handleSavePost}
               onSubmitComment={submitComment}
               onToggleComments={toggleComments}
+              onTrustVote={handleTrustVote}
               post={post}
               replyTarget={replyTargets[post.id] ?? null}
             />

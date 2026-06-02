@@ -34,6 +34,10 @@ func (f *fakePostHandlerService) ReportPost(context.Context, ReportInput) error 
 	return nil
 }
 
+func (f *fakePostHandlerService) UpsertTrustVote(context.Context, TrustVoteInput) (PostTrustSummary, error) {
+	return PostTrustSummary{}, nil
+}
+
 func (f *fakePostHandlerService) LikePost(context.Context, PostActionInput) error { return nil }
 
 func (f *fakePostHandlerService) UnlikePost(context.Context, PostActionInput) error { return nil }

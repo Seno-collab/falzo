@@ -19,7 +19,26 @@ export type Post = {
   likes_count?: number;
   comments_count?: number;
   saves_count?: number;
+  trust_summary?: PostTrustSummary;
   created_at: string;
+};
+
+export type PostTrustVoteType =
+  | "credible"
+  | "suspicious"
+  | "ai_generated"
+  | "wrong_context"
+  | "unsure";
+
+export type PostTrustSummary = {
+  status: string;
+  total_count: number;
+  credible_count: number;
+  suspicious_count: number;
+  ai_generated_count: number;
+  wrong_context_count: number;
+  unsure_count: number;
+  viewer_vote?: PostTrustVoteType | "";
 };
 
 export type PostCategory = {
@@ -127,6 +146,12 @@ export type UpdateSavedCollectionPayload = {
 
 export type ReportContentPayload = {
   reason: string;
+};
+
+export type TrustVotePayload = {
+  postId: number;
+  type: PostTrustVoteType;
+  reason?: string;
 };
 
 export type PostSort = "newest" | "popular" | "trending" | "nearby";

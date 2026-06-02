@@ -24,6 +24,7 @@ type handlerService interface {
 	DeletePost(ctx context.Context, input ModerationInput) error
 	HidePost(ctx context.Context, input ModerationInput) error
 	ReportPost(ctx context.Context, input ReportInput) error
+	UpsertTrustVote(ctx context.Context, input TrustVoteInput) (PostTrustSummary, error)
 	LikePost(ctx context.Context, input PostActionInput) error
 	UnlikePost(ctx context.Context, input PostActionInput) error
 	SavePost(ctx context.Context, input PostActionInput) error
@@ -156,6 +157,7 @@ func (h *Handler) Routes() chi.Router {
 		protected.Delete("/{id}/like", h.UnlikePost)
 		protected.Post("/{id}/save", h.SavePost)
 		protected.Delete("/{id}/save", h.UnsavePost)
+		protected.Post("/{id}/trust-vote", h.UpsertTrustVote)
 		protected.With(h.commentMiddlewares...).Post("/{id}/comments", h.CommentPost)
 		protected.With(h.commentMiddlewares...).Put("/{id}/comments/{commentID}", h.UpdateComment)
 		protected.Delete("/{id}/comments/{commentID}", h.DeleteComment)
@@ -190,6 +192,11 @@ type ModerateContentRequest struct {
 }
 
 type ReportContentRequest struct {
+	Reason string `json:"reason"`
+}
+
+type TrustVoteRequest struct {
+	Type   string `json:"type"`
 	Reason string `json:"reason"`
 }
 
@@ -314,6 +321,39 @@ func (h *Handler) ReportPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusCreated, "Post reported successfully", nil, r)
+}
+
+func (h *Handler) UpsertTrustVote(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseRouteUint(r, "id")
+	if err != nil {
+		share.WriteError(w, r, errInvalidPostIDParam, "upsert_trust_vote", mapPostError)
+		return
+	}
+
+	principal, ok := auth.AuthenticatedUserFromContext(r.Context())
+	if !ok || principal == nil || principal.UserID == 0 {
+		share.WriteError(w, r, ErrUserIDRequired, "upsert_trust_vote", mapPostError)
+		return
+	}
+
+	var req TrustVoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		share.WriteError(w, r, errInvalidJSONPayload, "upsert_trust_vote", mapPostError)
+		return
+	}
+
+	summary, err := h.service.UpsertTrustVote(r.Context(), TrustVoteInput{
+		PostID: postID,
+		UserID: principal.UserID,
+		Type:   req.Type,
+		Reason: req.Reason,
+	})
+	if err != nil {
+		share.WriteError(w, r, err, "upsert_trust_vote", mapPostError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Trust vote saved successfully", summary, r)
 }
 
 func (h *Handler) GetPostDetail(w http.ResponseWriter, r *http.Request) {

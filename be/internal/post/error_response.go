@@ -112,6 +112,12 @@ func mapPostError(err error) share.ApiError {
 		return share.Required("reason", "reason is required")
 	case errors.Is(err, ErrReportReasonTooLong):
 		return share.BadRequest("reason", "reason must not exceed 500 characters")
+	case errors.Is(err, ErrTrustVoteTypeRequired):
+		return share.Required("type", "trust vote type is required")
+	case errors.Is(err, ErrInvalidTrustVoteType):
+		return share.BadRequest("type", "type must be credible, suspicious, ai_generated, wrong_context, or unsure")
+	case errors.Is(err, ErrTrustVoteReasonTooLong):
+		return share.BadRequest("reason", "reason must not exceed 500 characters")
 	case errors.Is(err, ErrNotFound):
 		return share.NotFound("Post not found", "Requested post does not exist")
 	case errors.Is(err, ErrDependencyUnavailable):

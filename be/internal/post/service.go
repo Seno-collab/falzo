@@ -47,6 +47,13 @@ type ReportInput struct {
 	Reason         string
 }
 
+type TrustVoteInput struct {
+	PostID uint64
+	UserID uint64
+	Type   string
+	Reason string
+}
+
 type CommentPostInput = NewCommentInput
 type CreateSavedCollectionInput = NewSavedCollectionInput
 
@@ -204,6 +211,24 @@ func (s *Service) ReportComment(ctx context.Context, input ReportInput) error {
 	}
 
 	return s.posts.ReportComment(ctx, report)
+}
+
+func (s *Service) UpsertTrustVote(ctx context.Context, input TrustVoteInput) (PostTrustSummary, error) {
+	if s.posts == nil {
+		return PostTrustSummary{}, ErrDependencyUnavailable
+	}
+
+	vote, err := NewTrustVote(input.PostID, input.UserID, input.Type, input.Reason)
+	if err != nil {
+		return PostTrustSummary{}, err
+	}
+
+	summary, err := s.posts.UpsertTrustVote(ctx, vote)
+	if err != nil {
+		return PostTrustSummary{}, err
+	}
+
+	return summary.WithStatus(), nil
 }
 
 func (s *Service) LikePost(ctx context.Context, input PostActionInput) error {

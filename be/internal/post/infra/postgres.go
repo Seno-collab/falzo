@@ -57,6 +57,17 @@ func postSelectSQL(viewerParam string) string {
 				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
 				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
 				(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'credible'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'suspicious'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'ai_generated'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'wrong_context'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'unsure'),
+				COALESCE((
+					SELECT post_trust_votes.vote_type
+					FROM post_trust_votes
+					WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.user_id = ` + viewerParam + `
+					LIMIT 1
+				), ''),
 				posts.created_at, posts.updated_at
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
@@ -240,6 +251,28 @@ func (r *PostgresRepository) ReportComment(ctx context.Context, report post.Cont
 	return nil
 }
 
+func (r *PostgresRepository) UpsertTrustVote(ctx context.Context, vote post.TrustVote) (post.PostTrustSummary, error) {
+	if r.db == nil || r.db.Pool() == nil {
+		return post.PostTrustSummary{}, post.ErrDependencyUnavailable
+	}
+	if err := r.ensurePostExists(ctx, vote.PostID); err != nil {
+		return post.PostTrustSummary{}, err
+	}
+
+	if _, err := r.db.Pool().Exec(ctx, `
+		INSERT INTO post_trust_votes (post_id, user_id, vote_type, reason)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (post_id, user_id) DO UPDATE
+		SET vote_type = EXCLUDED.vote_type,
+			reason = EXCLUDED.reason,
+			updated_at = CURRENT_TIMESTAMP
+	`, vote.PostID, vote.UserID, string(vote.Type), vote.Reason); err != nil {
+		return post.PostTrustSummary{}, share.MapDBError(ctx, postRepoService, "post_trust_votes.upsert", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return r.getPostTrustSummary(ctx, vote.PostID, vote.UserID)
+}
+
 func (r *PostgresRepository) DeleteComment(ctx context.Context, postID uint64, commentID uint64, actor post.ModerationActor) error {
 	return r.moderateComment(ctx, postID, commentID, actor, "", true)
 }
@@ -408,6 +441,17 @@ func (r *PostgresRepository) ListSavedPosts(ctx context.Context, userID uint64) 
 				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
 				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
 				(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'credible'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'suspicious'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'ai_generated'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'wrong_context'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'unsure'),
+				COALESCE((
+					SELECT post_trust_votes.vote_type
+					FROM post_trust_votes
+					WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.user_id = $1
+					LIMIT 1
+				), ''),
 				posts.created_at, posts.updated_at
 		FROM post_saves
 		INNER JOIN posts ON posts.id = post_saves.post_id
@@ -1219,6 +1263,37 @@ func (r *PostgresRepository) ensurePostExists(ctx context.Context, postID uint64
 	return nil
 }
 
+func (r *PostgresRepository) getPostTrustSummary(ctx context.Context, postID uint64, viewerUserID uint64) (post.PostTrustSummary, error) {
+	var summary post.PostTrustSummary
+	if err := r.db.Pool().QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE vote_type = 'credible'),
+			COUNT(*) FILTER (WHERE vote_type = 'suspicious'),
+			COUNT(*) FILTER (WHERE vote_type = 'ai_generated'),
+			COUNT(*) FILTER (WHERE vote_type = 'wrong_context'),
+			COUNT(*) FILTER (WHERE vote_type = 'unsure'),
+			COALESCE((
+				SELECT viewer_vote.vote_type
+				FROM post_trust_votes viewer_vote
+				WHERE viewer_vote.post_id = $1 AND viewer_vote.user_id = $2
+				LIMIT 1
+			), '')
+		FROM post_trust_votes
+		WHERE post_id = $1
+	`, postID, viewerUserID).Scan(
+		&summary.CredibleCount,
+		&summary.SuspiciousCount,
+		&summary.AIGeneratedCount,
+		&summary.WrongContextCount,
+		&summary.UnsureCount,
+		&summary.ViewerVote,
+	); err != nil {
+		return post.PostTrustSummary{}, share.MapDBError(ctx, postRepoService, "post_trust_votes.summary", err, post.ErrDependencyUnavailable, post.ErrInternal)
+	}
+
+	return summary.WithStatus(), nil
+}
+
 func (r *PostgresRepository) ensureSavedCollectionOwner(ctx context.Context, collectionID uint64, userID uint64) error {
 	var exists bool
 	err := r.db.Pool().QueryRow(ctx, `
@@ -1291,6 +1366,17 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 				(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id),
 				(SELECT COUNT(*) FROM post_comments WHERE post_comments.post_id = posts.id AND post_comments.deleted_at IS NULL AND post_comments.status = 'visible'),
 				(SELECT COUNT(*) FROM post_saves WHERE post_saves.post_id = posts.id),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'credible'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'suspicious'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'ai_generated'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'wrong_context'),
+				(SELECT COUNT(*) FROM post_trust_votes WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.vote_type = 'unsure'),
+				COALESCE((
+					SELECT post_trust_votes.vote_type
+					FROM post_trust_votes
+					WHERE post_trust_votes.post_id = posts.id AND post_trust_votes.user_id = $3
+					LIMIT 1
+				), ''),
 				posts.created_at, posts.updated_at
 		FROM saved_collection_posts
 		INNER JOIN posts ON posts.id = saved_collection_posts.post_id
@@ -1419,6 +1505,12 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		&item.LikesCount,
 		&item.CommentsCount,
 		&item.SavesCount,
+		&item.TrustSummary.CredibleCount,
+		&item.TrustSummary.SuspiciousCount,
+		&item.TrustSummary.AIGeneratedCount,
+		&item.TrustSummary.WrongContextCount,
+		&item.TrustSummary.UnsureCount,
+		&item.TrustSummary.ViewerVote,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
@@ -1444,6 +1536,7 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 	if item.CreatedAt.IsZero() {
 		item.CreatedAt = time.Now().UTC()
 	}
+	item.TrustSummary = item.TrustSummary.WithStatus()
 
 	return item, nil
 }
@@ -1477,6 +1570,12 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 		&item.LikesCount,
 		&item.CommentsCount,
 		&item.SavesCount,
+		&item.TrustSummary.CredibleCount,
+		&item.TrustSummary.SuspiciousCount,
+		&item.TrustSummary.AIGeneratedCount,
+		&item.TrustSummary.WrongContextCount,
+		&item.TrustSummary.UnsureCount,
+		&item.TrustSummary.ViewerVote,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 		&item.CursorRank,
@@ -1503,6 +1602,7 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 	if item.CreatedAt.IsZero() {
 		item.CreatedAt = time.Now().UTC()
 	}
+	item.TrustSummary = item.TrustSummary.WithStatus()
 
 	return item, nil
 }

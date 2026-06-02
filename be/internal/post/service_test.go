@@ -21,6 +21,7 @@ type fakePostRepository struct {
 	sort             string
 	radiusMeters     int
 	posts            []Post
+	trustVote        TrustVote
 }
 
 func (f *fakePostRepository) Create(_ context.Context, post *Post) error {
@@ -41,6 +42,14 @@ func (f *fakePostRepository) HidePost(context.Context, uint64, ModerationActor, 
 func (f *fakePostRepository) ReportPost(context.Context, ContentReport) error { return nil }
 
 func (f *fakePostRepository) ReportComment(context.Context, ContentReport) error { return nil }
+
+func (f *fakePostRepository) UpsertTrustVote(_ context.Context, vote TrustVote) (PostTrustSummary, error) {
+	f.trustVote = vote
+	return PostTrustSummary{
+		CredibleCount: 1,
+		ViewerVote:    string(vote.Type),
+	}.WithStatus(), nil
+}
 
 func (f *fakePostRepository) DeleteComment(context.Context, uint64, uint64, ModerationActor) error {
 	return nil
@@ -230,6 +239,41 @@ func TestCommentPost(t *testing.T) {
 
 	if comment.ID != 10 || comment.Content != "Nice image" {
 		t.Fatalf("expected persisted comment view, got %+v", comment)
+	}
+}
+
+func TestUpsertTrustVoteValidatesAndReturnsSummary(t *testing.T) {
+	repo := &fakePostRepository{}
+	service := NewService(repo)
+
+	summary, err := service.UpsertTrustVote(t.Context(), TrustVoteInput{
+		PostID: 1,
+		UserID: 2,
+		Type:   "credible",
+		Reason: "I visited this place.",
+	})
+	if err != nil {
+		t.Fatalf("upsert trust vote: %v", err)
+	}
+
+	if repo.trustVote.PostID != 1 || repo.trustVote.UserID != 2 || repo.trustVote.Type != TrustVoteCredible {
+		t.Fatalf("expected trusted vote to reach repo, got %+v", repo.trustVote)
+	}
+	if summary.ViewerVote != "credible" || summary.Status == "" {
+		t.Fatalf("expected summary with viewer vote and status, got %+v", summary)
+	}
+}
+
+func TestUpsertTrustVoteRejectsInvalidType(t *testing.T) {
+	service := NewService(&fakePostRepository{})
+
+	_, err := service.UpsertTrustVote(t.Context(), TrustVoteInput{
+		PostID: 1,
+		UserID: 2,
+		Type:   "fake",
+	})
+	if err != ErrInvalidTrustVoteType {
+		t.Fatalf("expected ErrInvalidTrustVoteType, got %v", err)
 	}
 }
 

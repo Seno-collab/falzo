@@ -23,10 +23,12 @@ import type {
   PostCommentCreatedEvent,
   PostCreatedEvent,
   PostDeletedEvent,
+  PostTrustSummary,
   PostsPage,
   PostSort,
   ReportContentPayload,
   SavedCollection,
+  TrustVotePayload,
   UpdatePostCommentPayload,
   UpdatePostPayload,
   UpdateSavedCollectionPayload,
@@ -163,6 +165,20 @@ export async function reportPostApi(
   initializeAuthHeader();
 
   await apiPost(endpointPath(POSTS_ENDPOINT, postId, "report"), payload);
+}
+
+export async function upsertPostTrustVoteApi(
+  payload: TrustVotePayload,
+): Promise<PostTrustSummary> {
+  initializeAuthHeader();
+
+  return apiPost<PostTrustSummary>(
+    endpointPath(POSTS_ENDPOINT, payload.postId, "trust-vote"),
+    {
+      type: payload.type,
+      reason: payload.reason ?? "",
+    },
+  );
 }
 
 export async function likePostApi(postId: number): Promise<void> {

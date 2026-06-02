@@ -3,23 +3,34 @@
 import {
   Bookmark,
   CalendarDays,
+  Bot,
   Flag,
   Heart,
+  HelpCircle,
   MapPin,
   Maximize2,
   MessageCircle,
   Pencil,
   Reply,
   Send,
+  ShieldCheck,
+  TriangleAlert,
   Trash2,
   UsersRound,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
-import type { Post, PostComment } from "@/features/posts/types";
+import type {
+  Post,
+  PostComment,
+  PostTrustSummary,
+  PostTrustVoteType,
+} from "@/features/posts/types";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -39,11 +50,13 @@ type PostCardProps = {
   bestTimeLabel?: string;
   distanceLabel?: string;
   isSubmittingComment: boolean;
+  isSubmittingTrustVote: boolean;
   onOpen: (postId: number) => void;
   onLike: (postId: number) => void;
   onSave: (postId: number) => void;
   onDelete: (postId: number) => void;
   onReport: (postId: number) => void;
+  onTrustVote: (postId: number, type: PostTrustVoteType) => void;
   onToggleComments: (postId: number) => void;
   onCommentChange: (postId: number, value: string) => void;
   onCancelReply: (postId: number) => void;
@@ -115,6 +128,120 @@ function activeClass(type: "heart" | "save" | "comment", active: boolean) {
   }
 
   return "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]";
+}
+
+const trustVoteOptions: Array<{
+  type: PostTrustVoteType;
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { type: "credible", label: "Real", icon: ShieldCheck },
+  { type: "suspicious", label: "Doubt", icon: TriangleAlert },
+  { type: "ai_generated", label: "AI", icon: Bot },
+  { type: "wrong_context", label: "Context", icon: Flag },
+  { type: "unsure", label: "Unsure", icon: HelpCircle },
+];
+
+function getTrustSummary(post: Post): PostTrustSummary {
+  return (
+    post.trust_summary ?? {
+      status: "unreviewed",
+      total_count: 0,
+      credible_count: 0,
+      suspicious_count: 0,
+      ai_generated_count: 0,
+      wrong_context_count: 0,
+      unsure_count: 0,
+    }
+  );
+}
+
+function getTrustBadge(summary: PostTrustSummary) {
+  switch (summary.status) {
+    case "community_trusted":
+      return {
+        label: "Community trusted",
+        className: "border-[#b7dfc1] bg-[#eef9f0] text-[#236238]",
+      };
+    case "community_suspicious":
+      return {
+        label: "Community doubts",
+        className: "border-[#f0c2c2] bg-[#fff1f1] text-[#9f2f2f]",
+      };
+    case "disputed":
+      return {
+        label: "Disputed",
+        className: "border-[#ebd59c] bg-[#fff8df] text-[#7b5a11]",
+      };
+    case "needs_more_context":
+      return {
+        label: "Needs context",
+        className: "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]",
+      };
+    default:
+      return {
+        label: "Not reviewed",
+        className: "border-black/10 bg-white text-[#555]",
+      };
+  }
+}
+
+function TrustSignals({
+  disabled,
+  isSubmitting,
+  onVote,
+  post,
+}: Readonly<{
+  disabled: boolean;
+  isSubmitting: boolean;
+  onVote: (type: PostTrustVoteType) => void;
+  post: Post;
+}>) {
+  const summary = getTrustSummary(post);
+  const badge = getTrustBadge(summary);
+  const concernCount =
+    summary.suspicious_count +
+    summary.ai_generated_count +
+    summary.wrong_context_count;
+
+  return (
+    <div className="rounded-2xl border border-black/6 bg-[#f8f8f7] p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge className={badge.className} variant="outline">
+          <ShieldCheck className="size-3" />
+          {badge.label}
+        </Badge>
+        <p className="text-xs font-semibold text-[#666]">
+          {summary.total_count > 0
+            ? `${summary.total_count} ratings / ${summary.credible_count} real / ${concernCount} flags`
+            : "No community ratings"}
+        </p>
+      </div>
+      <div className="mt-2 grid grid-cols-5 gap-1.5">
+        {trustVoteOptions.map((option) => {
+          const Icon = option.icon;
+          const active = summary.viewer_vote === option.type;
+
+          return (
+            <button
+              aria-label={`Mark image as ${option.label}`}
+              className={cn(
+                "flex h-10 min-w-0 items-center justify-center gap-1 rounded-xl border bg-white px-1.5 text-[11px] font-semibold text-[#555] transition hover:border-[#9abfe5] hover:text-[#245f9a] disabled:cursor-not-allowed disabled:opacity-55",
+                active && "border-[#2f6fb8] bg-[#eef6ff] text-[#245f9a]",
+              )}
+              disabled={disabled || isSubmitting}
+              key={option.type}
+              onClick={() => onVote(option.type)}
+              type="button"
+            >
+              <Icon className="size-3.5 shrink-0" />
+              <span className="truncate">{option.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function isCommentEdited(comment: PostComment) {
@@ -324,11 +451,13 @@ export function ExplorePostCard({
   bestTimeLabel,
   distanceLabel,
   isSubmittingComment,
+  isSubmittingTrustVote,
   onOpen,
   onLike,
   onSave,
   onDelete,
   onReport,
+  onTrustVote,
   onToggleComments,
   onCommentChange,
   onCancelReply,
@@ -565,6 +694,13 @@ export function ExplorePostCard({
             </p>
           </div>
         </div>
+
+        <TrustSignals
+          disabled={!isAuthenticated}
+          isSubmitting={isSubmittingTrustVote}
+          onVote={(type) => onTrustVote(post.id, type)}
+          post={post}
+        />
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button
