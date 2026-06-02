@@ -19,6 +19,8 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("HTTP_IDLE_TIMEOUT", "")
 	t.Setenv("HTTP_READ_RATE_LIMIT_PER_MIN", "")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "")
+	t.Setenv("HTTP_INTERNAL_HEADER_NAME", "")
+	t.Setenv("HTTP_INTERNAL_HEADER_VALUE", "")
 	t.Setenv("POSTGRES_SSL_MODE", "")
 	t.Setenv("REDIS_ADDR", "")
 	t.Setenv("CACHE_CATEGORIES_TTL", "")
@@ -73,6 +75,14 @@ func TestLoadUsesDefaults(t *testing.T) {
 
 	if cfg.HTTP.TrustProxyHeaders {
 		t.Fatal("expected default trusted proxy headers to be disabled")
+	}
+
+	if cfg.HTTP.InternalHeaderName != "X-Falzo-Internal-Key" {
+		t.Fatalf("expected default internal header name, got %q", cfg.HTTP.InternalHeaderName)
+	}
+
+	if cfg.HTTP.InternalHeaderValue != "" {
+		t.Fatalf("expected default internal header value to be empty, got %q", cfg.HTTP.InternalHeaderValue)
 	}
 
 	if cfg.Redis.Addr != "127.0.0.1:6379" {
@@ -155,6 +165,8 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("HTTP_IDLE_TIMEOUT", "33s")
 	t.Setenv("HTTP_READ_RATE_LIMIT_PER_MIN", "44")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "true")
+	t.Setenv("HTTP_INTERNAL_HEADER_NAME", "X-Test-Internal")
+	t.Setenv("HTTP_INTERNAL_HEADER_VALUE", "01234567890123456789012345678901")
 	t.Setenv("POSTGRES_SSL_MODE", "require")
 	t.Setenv("REDIS_DB", "4")
 	t.Setenv("CACHE_CATEGORIES_TTL", "5m")
@@ -214,6 +226,14 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if !cfg.HTTP.TrustProxyHeaders {
 		t.Fatal("expected env trusted proxy headers to be enabled")
+	}
+
+	if cfg.HTTP.InternalHeaderName != "X-Test-Internal" {
+		t.Fatalf("expected env internal header name, got %q", cfg.HTTP.InternalHeaderName)
+	}
+
+	if cfg.HTTP.InternalHeaderValue != "01234567890123456789012345678901" {
+		t.Fatalf("expected env internal header value, got %q", cfg.HTTP.InternalHeaderValue)
 	}
 
 	if cfg.Redis.DB != 4 {
@@ -335,6 +355,22 @@ func TestValidateRejectsWildcardCORSCredentialsOutsideDevelopment(t *testing.T) 
 
 	if err := Validate(cfg); err == nil {
 		t.Fatal("expected validation error for wildcard cors credentials")
+	}
+}
+
+func TestValidateRejectsMissingInternalHeaderOutsideDevelopment(t *testing.T) {
+	cfg := Config{
+		App: AppConfig{Env: "production"},
+		Auth: AuthConfig{
+			JWTSecret: "01234567890123456789012345678901",
+		},
+		Postgres: PostgresConfig{
+			SSLMode: "require",
+		},
+	}
+
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected validation error for missing internal header")
 	}
 }
 

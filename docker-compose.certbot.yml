@@ -1,6 +1,6 @@
 services:
   nginx:
     volumes:
-      - ./be/nginx/default.bootstrap.conf.template:/etc/nginx/nginx.conf:ro
+      - ./be/nginx/default.bootstrap.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt

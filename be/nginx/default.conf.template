@@ -142,6 +142,7 @@ http {
             proxy_set_header X-Forwarded-Port $server_port;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header X-Request-ID $request_id;
+            proxy_set_header ${HTTP_INTERNAL_HEADER_NAME} "${HTTP_INTERNAL_HEADER_VALUE}";
 
             proxy_connect_timeout 5s;
             proxy_send_timeout 60s;

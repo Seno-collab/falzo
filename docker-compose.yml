@@ -76,11 +76,14 @@ services:
     restart: unless-stopped
     networks:
       - falzo
+    env_file: ./be/.env
+    environment:
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./be/nginx/default.conf.template:/etc/nginx/nginx.conf:ro
+      - ./be/nginx/default.conf.template:/etc/nginx/templates/nginx.conf:ro
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
     depends_on:

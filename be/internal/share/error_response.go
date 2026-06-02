@@ -280,3 +280,15 @@ func UnauthorizedCredentials(message, detail string) ApiError {
 		Detail:  detail,
 	}
 }
+
+func Forbidden(message, detail string) ApiError {
+	if message == "" {
+		message = "Forbidden"
+	}
+	return ApiError{
+		Status:  http.StatusForbidden,
+		Message: message,
+		Code:    FORBIDDEN,
+		Detail:  detail,
+	}
+}

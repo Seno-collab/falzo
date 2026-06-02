@@ -34,6 +34,8 @@ type HTTPConfig struct {
 	WriteTimeout         time.Duration
 	IdleTimeout          time.Duration
 	TrustProxyHeaders    bool
+	InternalHeaderName   string
+	InternalHeaderValue  string
 	CORSAllowedOrigins   []string
 	CORSAllowedMethods   []string
 	CORSAllowedHeaders   []string
@@ -119,6 +121,8 @@ func Load() Config {
 			WriteTimeout:         GetDuration("HTTP_WRITE_TIMEOUT", 0),
 			IdleTimeout:          GetDuration("HTTP_IDLE_TIMEOUT", 120*time.Second),
 			TrustProxyHeaders:    GetBool("HTTP_TRUST_PROXY_HEADERS", false),
+			InternalHeaderName:   GetEnv("HTTP_INTERNAL_HEADER_NAME", "X-Falzo-Internal-Key"),
+			InternalHeaderValue:  GetEnv("HTTP_INTERNAL_HEADER_VALUE", ""),
 			CORSAllowedOrigins:   getCSV("HTTP_CORS_ALLOWED_ORIGINS", []string{"*"}),
 			CORSAllowedMethods:   getCSV("HTTP_CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
 			CORSAllowedHeaders:   getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
@@ -198,6 +202,9 @@ func Validate(cfg Config) error {
 				return errors.New("HTTP_CORS_ALLOWED_ORIGINS must not include * when HTTP_CORS_ALLOW_CREDENTIALS is true outside development")
 			}
 		}
+	}
+	if strings.TrimSpace(cfg.HTTP.InternalHeaderValue) == "" || len(strings.TrimSpace(cfg.HTTP.InternalHeaderValue)) < 32 {
+		return errors.New("HTTP_INTERNAL_HEADER_VALUE must be set to a strong value outside development")
 	}
 
 	return nil

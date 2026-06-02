@@ -200,6 +200,10 @@ func Run() {
 		w.Write([]byte("Hello world!"))
 	})
 	r.Route("/api", func(api chi.Router) {
+		api.Use(httpMiddleware.InternalHeader(httpMiddleware.InternalHeaderConfig{
+			Name:  cfg.HTTP.InternalHeaderName,
+			Value: cfg.HTTP.InternalHeaderValue,
+		}))
 		api.Mount("/auth", authHandler.Routes())
 		api.Mount("/locations", locationHandler.Routes())
 		api.Mount("/posts", postHandler.Routes())
