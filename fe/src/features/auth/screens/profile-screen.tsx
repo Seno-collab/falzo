@@ -589,13 +589,26 @@ export function ProfileScreen() {
   const applyAvatarFile = async (file: File) => {
     const uploaded = await uploadImageApi(file);
     const updatedProfile = await updateAvatarApi(uploaded.url);
-    setProfile((current) => ({
-      ...(current ?? {}),
+    const nextProfile = {
+      ...(profile ?? {}),
       ...updatedProfile,
       avatar_url: updatedProfile.avatar_url ?? uploaded.url,
       avatarUrl: updatedProfile.avatarUrl ?? uploaded.url,
+    };
+
+    setProfile(nextProfile);
+    queryClient.setQueryData(["me"], nextProfile);
+    queryClient.setQueriesData<AuthUser>({ queryKey: ["auth"] }, (current) => ({
+      ...(current ?? {}),
+      ...nextProfile,
     }));
     void queryClient.invalidateQueries({ queryKey: ["me"] });
+    void queryClient.invalidateQueries({ queryKey: ["auth"] });
+    window.dispatchEvent(
+      new CustomEvent<AuthUser>("falzo:avatar-updated", {
+        detail: nextProfile,
+      }),
+    );
   };
 
   const handleAvatarFileChange = async (

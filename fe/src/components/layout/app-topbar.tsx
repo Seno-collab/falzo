@@ -156,9 +156,21 @@ export function AppTopbar({
     };
 
     void loadProfile();
+    const handleAvatarUpdated = (event: Event) => {
+      const updatedProfile = (event as CustomEvent<AuthUser>).detail;
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+        return;
+      }
+
+      void loadProfile();
+    };
+
+    window.addEventListener("falzo:avatar-updated", handleAvatarUpdated);
 
     return () => {
       disposed = true;
+      window.removeEventListener("falzo:avatar-updated", handleAvatarUpdated);
     };
   }, []);
 
