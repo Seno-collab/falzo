@@ -19,6 +19,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("HTTP_IDLE_TIMEOUT", "")
 	t.Setenv("HTTP_READ_RATE_LIMIT_PER_MIN", "")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "")
+	t.Setenv("HTTP_INTERNAL_HEADER_REQUIRED", "")
 	t.Setenv("HTTP_INTERNAL_HEADER_NAME", "")
 	t.Setenv("HTTP_INTERNAL_HEADER_VALUE", "")
 	t.Setenv("POSTGRES_SSL_MODE", "")
@@ -75,6 +76,10 @@ func TestLoadUsesDefaults(t *testing.T) {
 
 	if cfg.HTTP.TrustProxyHeaders {
 		t.Fatal("expected default trusted proxy headers to be disabled")
+	}
+
+	if cfg.HTTP.InternalHeaderRequired {
+		t.Fatal("expected default internal header to be disabled in development")
 	}
 
 	if cfg.HTTP.InternalHeaderName != "X-Falzo-Internal-Key" {
@@ -165,6 +170,7 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("HTTP_IDLE_TIMEOUT", "33s")
 	t.Setenv("HTTP_READ_RATE_LIMIT_PER_MIN", "44")
 	t.Setenv("HTTP_TRUST_PROXY_HEADERS", "true")
+	t.Setenv("HTTP_INTERNAL_HEADER_REQUIRED", "true")
 	t.Setenv("HTTP_INTERNAL_HEADER_NAME", "X-Test-Internal")
 	t.Setenv("HTTP_INTERNAL_HEADER_VALUE", "01234567890123456789012345678901")
 	t.Setenv("POSTGRES_SSL_MODE", "require")
@@ -226,6 +232,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 	if !cfg.HTTP.TrustProxyHeaders {
 		t.Fatal("expected env trusted proxy headers to be enabled")
+	}
+
+	if !cfg.HTTP.InternalHeaderRequired {
+		t.Fatal("expected env internal header to be required")
 	}
 
 	if cfg.HTTP.InternalHeaderName != "X-Test-Internal" {
@@ -367,10 +377,33 @@ func TestValidateRejectsMissingInternalHeaderOutsideDevelopment(t *testing.T) {
 		Postgres: PostgresConfig{
 			SSLMode: "require",
 		},
+		HTTP: HTTPConfig{
+			InternalHeaderRequired: true,
+		},
 	}
 
 	if err := Validate(cfg); err == nil {
 		t.Fatal("expected validation error for missing internal header")
+	}
+}
+
+func TestValidateRejectsDisabledInternalHeaderOutsideDevelopment(t *testing.T) {
+	cfg := Config{
+		App: AppConfig{Env: "production"},
+		Auth: AuthConfig{
+			JWTSecret: "01234567890123456789012345678901",
+		},
+		Postgres: PostgresConfig{
+			SSLMode: "require",
+		},
+		HTTP: HTTPConfig{
+			InternalHeaderRequired: false,
+			InternalHeaderValue:    "01234567890123456789012345678901",
+		},
+	}
+
+	if err := Validate(cfg); err == nil {
+		t.Fatal("expected validation error for disabled internal header")
 	}
 }
 

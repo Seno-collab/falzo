@@ -11,8 +11,9 @@ import (
 const defaultInternalHeaderName = "X-Falzo-Internal-Key"
 
 type InternalHeaderConfig struct {
-	Name  string
-	Value string
+	Required bool
+	Name     string
+	Value    string
 }
 
 func InternalHeader(cfg InternalHeaderConfig) func(http.Handler) http.Handler {
@@ -24,7 +25,7 @@ func InternalHeader(cfg InternalHeaderConfig) func(http.Handler) http.Handler {
 	expected := strings.TrimSpace(cfg.Value)
 
 	return func(next http.Handler) http.Handler {
-		if expected == "" {
+		if !cfg.Required {
 			return next
 		}
 

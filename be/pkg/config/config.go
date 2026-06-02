@@ -27,21 +27,22 @@ type AppConfig struct {
 }
 
 type HTTPConfig struct {
-	Addr                 string
-	ShutdownTimeout      time.Duration
-	ReadTimeout          time.Duration
-	ReadHeaderTimeout    time.Duration
-	WriteTimeout         time.Duration
-	IdleTimeout          time.Duration
-	TrustProxyHeaders    bool
-	InternalHeaderName   string
-	InternalHeaderValue  string
-	CORSAllowedOrigins   []string
-	CORSAllowedMethods   []string
-	CORSAllowedHeaders   []string
-	CORSAllowCredentials bool
-	CORSMaxAgeSeconds    int
-	ReadRateLimitPerMin  int
+	Addr                   string
+	ShutdownTimeout        time.Duration
+	ReadTimeout            time.Duration
+	ReadHeaderTimeout      time.Duration
+	WriteTimeout           time.Duration
+	IdleTimeout            time.Duration
+	TrustProxyHeaders      bool
+	InternalHeaderRequired bool
+	InternalHeaderName     string
+	InternalHeaderValue    string
+	CORSAllowedOrigins     []string
+	CORSAllowedMethods     []string
+	CORSAllowedHeaders     []string
+	CORSAllowCredentials   bool
+	CORSMaxAgeSeconds      int
+	ReadRateLimitPerMin    int
 }
 
 type GRPCConfig struct {
@@ -108,27 +109,31 @@ func Load() Config {
 
 	seaweedFSBaseURL := GetEnv("SEAWEEDFS_BASE_URL", "http://127.0.0.1:8888")
 
+	appEnv := GetEnv("APP_ENV", "development")
+	internalHeaderRequiredDefault := !strings.EqualFold(appEnv, "development")
+
 	return Config{
 		App: AppConfig{
 			Name: GetEnv("APP_NAME", "falzo-api"),
-			Env:  GetEnv("APP_ENV", "development"),
+			Env:  appEnv,
 		},
 		HTTP: HTTPConfig{
-			Addr:                 GetEnv("HTTP_ADDR", ":8080"),
-			ShutdownTimeout:      GetDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
-			ReadTimeout:          GetDuration("HTTP_READ_TIMEOUT", 15*time.Second),
-			ReadHeaderTimeout:    GetDuration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second),
-			WriteTimeout:         GetDuration("HTTP_WRITE_TIMEOUT", 0),
-			IdleTimeout:          GetDuration("HTTP_IDLE_TIMEOUT", 120*time.Second),
-			TrustProxyHeaders:    GetBool("HTTP_TRUST_PROXY_HEADERS", false),
-			InternalHeaderName:   GetEnv("HTTP_INTERNAL_HEADER_NAME", "X-Falzo-Internal-Key"),
-			InternalHeaderValue:  GetEnv("HTTP_INTERNAL_HEADER_VALUE", ""),
-			CORSAllowedOrigins:   getCSV("HTTP_CORS_ALLOWED_ORIGINS", []string{"*"}),
-			CORSAllowedMethods:   getCSV("HTTP_CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
-			CORSAllowedHeaders:   getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
-			CORSAllowCredentials: GetBool("HTTP_CORS_ALLOW_CREDENTIALS", false),
-			CORSMaxAgeSeconds:    GetInt("HTTP_CORS_MAX_AGE_SECONDS", 600),
-			ReadRateLimitPerMin:  GetInt("HTTP_READ_RATE_LIMIT_PER_MIN", 240),
+			Addr:                   GetEnv("HTTP_ADDR", ":8080"),
+			ShutdownTimeout:        GetDuration("HTTP_SHUTDOWN_TIMEOUT", 60*time.Second),
+			ReadTimeout:            GetDuration("HTTP_READ_TIMEOUT", 15*time.Second),
+			ReadHeaderTimeout:      GetDuration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second),
+			WriteTimeout:           GetDuration("HTTP_WRITE_TIMEOUT", 0),
+			IdleTimeout:            GetDuration("HTTP_IDLE_TIMEOUT", 120*time.Second),
+			TrustProxyHeaders:      GetBool("HTTP_TRUST_PROXY_HEADERS", false),
+			InternalHeaderRequired: GetBool("HTTP_INTERNAL_HEADER_REQUIRED", internalHeaderRequiredDefault),
+			InternalHeaderName:     GetEnv("HTTP_INTERNAL_HEADER_NAME", "X-Falzo-Internal-Key"),
+			InternalHeaderValue:    GetEnv("HTTP_INTERNAL_HEADER_VALUE", ""),
+			CORSAllowedOrigins:     getCSV("HTTP_CORS_ALLOWED_ORIGINS", []string{"*"}),
+			CORSAllowedMethods:     getCSV("HTTP_CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
+			CORSAllowedHeaders:     getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
+			CORSAllowCredentials:   GetBool("HTTP_CORS_ALLOW_CREDENTIALS", false),
+			CORSMaxAgeSeconds:      GetInt("HTTP_CORS_MAX_AGE_SECONDS", 600),
+			ReadRateLimitPerMin:    GetInt("HTTP_READ_RATE_LIMIT_PER_MIN", 240),
 		},
 		GRPC: GRPCConfig{
 			Addr: GetEnv("GRPC_ADDR", ":9090"),
@@ -202,6 +207,9 @@ func Validate(cfg Config) error {
 				return errors.New("HTTP_CORS_ALLOWED_ORIGINS must not include * when HTTP_CORS_ALLOW_CREDENTIALS is true outside development")
 			}
 		}
+	}
+	if !cfg.HTTP.InternalHeaderRequired {
+		return errors.New("HTTP_INTERNAL_HEADER_REQUIRED must be true outside development")
 	}
 	if strings.TrimSpace(cfg.HTTP.InternalHeaderValue) == "" || len(strings.TrimSpace(cfg.HTTP.InternalHeaderValue)) < 32 {
 		return errors.New("HTTP_INTERNAL_HEADER_VALUE must be set to a strong value outside development")

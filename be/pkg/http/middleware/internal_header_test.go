@@ -8,8 +8,9 @@ import (
 
 func TestInternalHeaderAllowsMatchingHeader(t *testing.T) {
 	mw := InternalHeader(InternalHeaderConfig{
-		Name:  "X-Test-Key",
-		Value: "expected",
+		Required: true,
+		Name:     "X-Test-Key",
+		Value:    "expected",
 	})
 	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -28,8 +29,9 @@ func TestInternalHeaderAllowsMatchingHeader(t *testing.T) {
 
 func TestInternalHeaderRejectsMissingHeader(t *testing.T) {
 	mw := InternalHeader(InternalHeaderConfig{
-		Name:  "X-Test-Key",
-		Value: "expected",
+		Required: true,
+		Name:     "X-Test-Key",
+		Value:    "expected",
 	})
 	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("request should not reach next handler")
@@ -45,9 +47,10 @@ func TestInternalHeaderRejectsMissingHeader(t *testing.T) {
 	}
 }
 
-func TestInternalHeaderDisabledWhenValueEmpty(t *testing.T) {
+func TestInternalHeaderDisabledWhenNotRequired(t *testing.T) {
 	mw := InternalHeader(InternalHeaderConfig{
-		Name: "X-Test-Key",
+		Name:  "X-Test-Key",
+		Value: "expected",
 	})
 	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
