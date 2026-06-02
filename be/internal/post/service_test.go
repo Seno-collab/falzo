@@ -9,6 +9,7 @@ import (
 type fakePostRepository struct {
 	commentReplyToID uint64
 	createCategoryID uint64
+	createdPost      Post
 	updateUserID     uint64
 	page             int
 	limit            int
@@ -26,6 +27,7 @@ type fakePostRepository struct {
 
 func (f *fakePostRepository) Create(_ context.Context, post *Post) error {
 	f.createCategoryID = post.CategoryID
+	f.createdPost = *post
 	return nil
 }
 
@@ -169,6 +171,36 @@ func TestCreatePostPassesCategoryToRepository(t *testing.T) {
 
 	if repo.createCategoryID != 4 {
 		t.Fatalf("expected category id 4, got %d", repo.createCategoryID)
+	}
+}
+
+func TestCreatePostKeepsMultipleImageURLs(t *testing.T) {
+	repo := &fakePostRepository{}
+	service := NewService(repo)
+
+	view, err := service.CreatePost(t.Context(), CreatePostInput{
+		UserID: 2,
+		ImageURLs: []string{
+			"https://example.com/cover.jpg",
+			"https://example.com/detail.jpg",
+		},
+		Caption:      "Gallery post",
+		LocationName: "Da Nang",
+		Latitude:     16.0471,
+		Longitude:    108.2068,
+	})
+	if err != nil {
+		t.Fatalf("create post: %v", err)
+	}
+
+	if view.ImageURL != "https://example.com/cover.jpg" {
+		t.Fatalf("expected cover image url, got %q", view.ImageURL)
+	}
+	if len(view.ImageURLs) != 2 || view.ImageURLs[1] != "https://example.com/detail.jpg" {
+		t.Fatalf("expected two image urls, got %#v", view.ImageURLs)
+	}
+	if len(repo.createdPost.ImageURLs) != 2 {
+		t.Fatalf("expected repository post to keep image urls, got %#v", repo.createdPost.ImageURLs)
 	}
 }
 

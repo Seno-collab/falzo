@@ -33,13 +33,16 @@ const postCategoriesJSONSQL = `
 		WHERE post_categories.post_id = posts.id
 	), '[]'::jsonb)`
 
+const postImageURLsJSONSQL = `COALESCE(NULLIF(posts.image_urls, '[]'::jsonb), jsonb_build_array(posts.image_url))`
+
 func NewPostgresRepository(db database.Client) *PostgresRepository {
 	return &PostgresRepository{db: db}
 }
 
 func postSelectSQL(viewerParam string) string {
 	return `
-		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url, posts.caption, posts.location_name,
+		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url,
+				` + postImageURLsJSONSQL + `::text, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
 				` + postCategoriesJSONSQL + `::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
@@ -113,13 +116,19 @@ func (r *PostgresRepository) Create(ctx context.Context, item *post.Post) error 
 	}
 	defer tx.Rollback(ctx)
 
+	imageURLsJSON, err := marshalImageURLs(item.ImageURL, item.ImageURLs)
+	if err != nil {
+		return err
+	}
+
 	err = tx.QueryRow(ctx, `
-		INSERT INTO posts (user_id, image_url, caption, location_name, latitude, longitude, category_id)
-		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, 0))
+		INSERT INTO posts (user_id, image_url, image_urls, caption, location_name, latitude, longitude, category_id)
+		VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, NULLIF($8, 0))
 		RETURNING id, created_at, updated_at
 	`,
 		item.UserID,
 		item.ImageURL.String(),
+		imageURLsJSON,
 		item.Caption.String(),
 		item.LocationName.String(),
 		item.Latitude,
@@ -427,7 +436,8 @@ func (r *PostgresRepository) ListSavedPosts(ctx context.Context, userID uint64) 
 	}
 
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url, posts.caption, posts.location_name,
+		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url,
+				`+postImageURLsJSONSQL+`::text, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
 				`+postCategoriesJSONSQL+`::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
@@ -770,7 +780,8 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 
 	rows, err := r.db.Pool().Query(ctx, `
 			WITH base_posts AS (
-				SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, '') AS user_avatar_url, posts.image_url, posts.caption, posts.location_name,
+				SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, '') AS user_avatar_url, posts.image_url,
+					`+postImageURLsJSONSQL+`::text AS image_urls, posts.caption, posts.location_name,
 					COALESCE(categories.id, 0) AS category_id,
 					COALESCE(categories.name, '') AS category_name,
 					COALESCE(categories.slug, '') AS category_slug,
@@ -888,7 +899,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					)
 			),
 			ranked_posts AS (
-				SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
+				SELECT id, user_id, user_name, user_avatar_url, image_url, image_urls, caption, location_name,
 					category_id, category_name, category_slug, categories, latitude, longitude,
 					is_liked, is_saved, status, likes_count, comments_count, saves_count,
 					credible_count, suspicious_count, ai_generated_count, wrong_context_count, unsure_count, viewer_vote,
@@ -901,7 +912,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					END AS rank_value
 				FROM base_posts
 			)
-			SELECT id, user_id, user_name, user_avatar_url, image_url, caption, location_name,
+			SELECT id, user_id, user_name, user_avatar_url, image_url, image_urls, caption, location_name,
 				category_id, category_name, category_slug, categories, latitude, longitude,
 				is_liked, is_saved, status, likes_count, comments_count, saves_count,
 				credible_count, suspicious_count, ai_generated_count, wrong_context_count, unsure_count, viewer_vote,
@@ -1373,7 +1384,8 @@ func (r *PostgresRepository) loadSavedCollection(ctx context.Context, viewerUser
 
 func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, collectionID uint64, ownerUserID uint64, viewerUserID uint64) ([]post.Post, error) {
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url, posts.caption, posts.location_name,
+		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url,
+				`+postImageURLsJSONSQL+`::text, posts.caption, posts.location_name,
 				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
 				`+postCategoriesJSONSQL+`::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
@@ -1505,6 +1517,7 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 	var (
 		item            post.Post
 		rawImageURL     string
+		rawImageURLs    string
 		rawCaption      string
 		rawLocationName string
 		rawCategories   string
@@ -1516,6 +1529,7 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		&item.UserName,
 		&item.UserAvatarURL,
 		&rawImageURL,
+		&rawImageURLs,
 		&rawCaption,
 		&rawLocationName,
 		&item.CategoryID,
@@ -1546,7 +1560,7 @@ func scanPost(scanner rowScanner) (post.Post, error) {
 		return post.Post{}, err
 	}
 
-	item.ImageURL, err = post.NewImageURL(rawImageURL)
+	item.ImageURL, item.ImageURLs, err = post.NewPostImageURLs(rawImageURL, parseScannedImageURLs(rawImageURLs))
 	if err != nil {
 		return post.Post{}, err
 	}
@@ -1570,6 +1584,7 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 	var (
 		item            post.Post
 		rawImageURL     string
+		rawImageURLs    string
 		rawCaption      string
 		rawLocationName string
 		rawCategories   string
@@ -1581,6 +1596,7 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 		&item.UserName,
 		&item.UserAvatarURL,
 		&rawImageURL,
+		&rawImageURLs,
 		&rawCaption,
 		&rawLocationName,
 		&item.CategoryID,
@@ -1612,7 +1628,7 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 		return post.Post{}, err
 	}
 
-	item.ImageURL, err = post.NewImageURL(rawImageURL)
+	item.ImageURL, item.ImageURLs, err = post.NewPostImageURLs(rawImageURL, parseScannedImageURLs(rawImageURLs))
 	if err != nil {
 		return post.Post{}, err
 	}
@@ -1630,6 +1646,36 @@ func scanPostWithRank(scanner rowScanner) (post.Post, error) {
 	item.TrustSummary = item.TrustSummary.WithStatus()
 
 	return item, nil
+}
+
+func marshalImageURLs(primary post.ImageURL, imageURLs []post.ImageURL) (string, error) {
+	values := make([]string, 0, len(imageURLs))
+	source := imageURLs
+	if len(source) == 0 && primary != "" {
+		source = []post.ImageURL{primary}
+	}
+	for _, imageURL := range source {
+		if imageURL == "" {
+			continue
+		}
+		values = append(values, imageURL.String())
+	}
+
+	payload, err := json.Marshal(values)
+	if err != nil {
+		return "", post.ErrInternal
+	}
+
+	return string(payload), nil
+}
+
+func parseScannedImageURLs(raw string) []string {
+	var values []string
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil
+	}
+
+	return values
 }
 
 var _ post.Repository = (*PostgresRepository)(nil)

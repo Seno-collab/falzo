@@ -9,6 +9,7 @@ export type Post = {
   category_slug?: string;
   categories?: PostCategory[];
   image_url: string;
+  image_urls?: string[];
   caption: string;
   location_name: string;
   latitude: number;
@@ -110,6 +111,7 @@ export type UserAvatarUpdatedEvent = {
 
 export type CreatePostPayload = {
   image_url: string;
+  image_urls?: string[];
   caption: string;
   category_id?: number;
   category_ids?: number[];

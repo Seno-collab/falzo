@@ -53,6 +53,8 @@ func mapPostError(err error) share.ApiError {
 		return share.Required("image_url", "image_url is required")
 	case errors.Is(err, ErrInvalidImageURL):
 		return share.BadRequest("image_url", "image_url must be a valid URL")
+	case errors.Is(err, ErrTooManyPostImages):
+		return share.BadRequest("image_urls", "image_urls must not contain more than 10 items")
 	case errors.Is(err, ErrCaptionTooLong):
 		return share.BadRequest("caption", "caption exceeds max length")
 	case errors.Is(err, ErrLocationNameTooLong):

@@ -69,6 +69,15 @@ function getPostAvatarUrl(post: Post | null) {
   return post?.user_avatar_url || post?.avatar_url || "";
 }
 
+function getPostImageUrls(post: Post | null) {
+  if (!post) {
+    return [];
+  }
+
+  const urls = (post.image_urls ?? []).map((url) => url.trim()).filter(Boolean);
+  return urls.length > 0 ? urls : [post.image_url];
+}
+
 function getPostCategoryLabel(post: Post | null) {
   const names = (post?.categories ?? [])
     .map((category) => category.name.trim())
@@ -332,7 +341,11 @@ export function PostDetailDialog({
   const dragStartXRef = useRef<number | null>(null);
   const didNavigateDragRef = useRef(false);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
+  const imageUrls = getPostImageUrls(post);
+  const activeImageUrl = imageUrls[activeImageIndex] ?? post?.image_url ?? "";
+  const hasMultipleImages = imageUrls.length > 1;
   const canNavigatePosts = Boolean(onPreviousPost || onNextPost);
   const getCommentPlaceholder = () => {
     if (!isChatOpen) return "Open comments";
@@ -389,8 +402,29 @@ export function PostDetailDialog({
 
   useEffect(() => {
     setIsImageZoomed(false);
+    setActiveImageIndex(0);
     setZoomOrigin({ x: 50, y: 50 });
   }, [open, post?.id]);
+
+  function showPreviousImage() {
+    if (!hasMultipleImages) {
+      return;
+    }
+
+    setIsImageZoomed(false);
+    setActiveImageIndex((current) =>
+      current <= 0 ? imageUrls.length - 1 : current - 1,
+    );
+  }
+
+  function showNextImage() {
+    if (!hasMultipleImages) {
+      return;
+    }
+
+    setIsImageZoomed(false);
+    setActiveImageIndex((current) => (current + 1) % imageUrls.length);
+  }
 
   function updateZoomOrigin(event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -465,7 +499,7 @@ export function PostDetailDialog({
                 aria-hidden="true"
                 className="h-full w-full scale-110 object-cover opacity-55 blur-2xl saturate-125"
                 decoding="async"
-                src={post.image_url}
+                src={activeImageUrl}
               />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_48%,rgb(0_0_0/0.18)_0%,rgb(0_0_0/0.42)_46%,rgb(0_0_0/0.82)_100%)]" />
               <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(0_0_0/0.62)_0%,rgb(0_0_0/0.2)_48%,rgb(0_0_0/0.66)_100%)]" />
@@ -504,7 +538,7 @@ export function PostDetailDialog({
                   decoding="async"
                   draggable={false}
                   fetchPriority="high"
-                  src={post.image_url}
+                  src={activeImageUrl}
                   style={{
                     transform: isImageZoomed ? "scale(1.8)" : "scale(1)",
                     transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
@@ -568,6 +602,30 @@ export function PostDetailDialog({
               </button>
             </div>
 
+            {hasMultipleImages ? (
+              <div className="-translate-x-1/2 absolute left-1/2 top-16 z-30 flex items-center gap-1 rounded-full border border-white/14 bg-black/46 p-1 text-white shadow-lg backdrop-blur-xl sm:top-5">
+                <button
+                  aria-label="Previous image in post"
+                  className="flex size-8 items-center justify-center rounded-full transition hover:bg-white/16"
+                  onClick={showPreviousImage}
+                  type="button"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                <span className="min-w-14 px-2 text-center text-xs font-bold">
+                  {activeImageIndex + 1} / {imageUrls.length}
+                </span>
+                <button
+                  aria-label="Next image in post"
+                  className="flex size-8 items-center justify-center rounded-full transition hover:bg-white/16"
+                  onClick={showNextImage}
+                  type="button"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+            ) : null}
+
             {onPreviousPost ? (
               <button
                 aria-label="Previous post"
@@ -591,7 +649,12 @@ export function PostDetailDialog({
             ) : null}
 
             {carouselLabel ? (
-              <div className="-translate-x-1/2 absolute left-1/2 top-14 z-20 rounded-full bg-black/48 px-3 py-1 text-xs font-bold text-white/86 backdrop-blur-xl sm:top-4">
+              <div
+                className={cn(
+                  "-translate-x-1/2 absolute left-1/2 z-20 rounded-full bg-black/48 px-3 py-1 text-xs font-bold text-white/86 backdrop-blur-xl",
+                  hasMultipleImages ? "top-28 sm:top-16" : "top-14 sm:top-4",
+                )}
+              >
                 {carouselLabel}
               </div>
             ) : null}

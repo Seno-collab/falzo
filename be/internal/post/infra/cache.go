@@ -29,6 +29,7 @@ type cachedPost struct {
 	CategorySlug  string                `json:"category_slug"`
 	Categories    []post.PostCategory   `json:"categories"`
 	ImageURL      string                `json:"image_url"`
+	ImageURLs     []string              `json:"image_urls"`
 	Caption       string                `json:"caption"`
 	LocationName  string                `json:"location_name"`
 	Latitude      float64               `json:"latitude"`
@@ -292,6 +293,7 @@ func encodePosts(items []post.Post) []cachedPost {
 			CategorySlug:  item.CategorySlug,
 			Categories:    item.Categories,
 			ImageURL:      item.ImageURL.String(),
+			ImageURLs:     cachedImageURLStrings(item.ImageURL, item.ImageURLs),
 			Caption:       item.Caption.String(),
 			LocationName:  item.LocationName.String(),
 			Latitude:      item.Latitude,
@@ -318,7 +320,7 @@ func decodePosts(payload []byte) ([]post.Post, error) {
 
 	items := make([]post.Post, 0, len(cached))
 	for _, item := range cached {
-		imageURL, err := post.NewImageURL(item.ImageURL)
+		imageURL, imageURLs, err := post.NewPostImageURLs(item.ImageURL, item.ImageURLs)
 		if err != nil {
 			return nil, err
 		}
@@ -340,6 +342,7 @@ func decodePosts(payload []byte) ([]post.Post, error) {
 			CategorySlug:  item.CategorySlug,
 			Categories:    item.Categories,
 			ImageURL:      imageURL,
+			ImageURLs:     imageURLs,
 			Caption:       caption,
 			LocationName:  locationName,
 			Latitude:      item.Latitude,
@@ -356,6 +359,23 @@ func decodePosts(payload []byte) ([]post.Post, error) {
 		})
 	}
 	return items, nil
+}
+
+func cachedImageURLStrings(primary post.ImageURL, imageURLs []post.ImageURL) []string {
+	source := imageURLs
+	if len(source) == 0 && primary != "" {
+		source = []post.ImageURL{primary}
+	}
+
+	values := make([]string, 0, len(source))
+	for _, imageURL := range source {
+		if imageURL == "" {
+			continue
+		}
+		values = append(values, imageURL.String())
+	}
+
+	return values
 }
 
 var _ post.Repository = (*CachedPostRepository)(nil)

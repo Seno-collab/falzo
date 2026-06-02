@@ -28,6 +28,7 @@ var (
 	ErrLongitudeOutOfRange       = errors.New("longitude must be between -180 and 180")
 	ErrImageURLRequired          = errors.New("image url is required")
 	ErrInvalidImageURL           = errors.New("invalid image url")
+	ErrTooManyPostImages         = errors.New("too many post images")
 	ErrCaptionTooLong            = errors.New("caption exceeds max length")
 	ErrLocationNameTooLong       = errors.New("location name exceeds max length")
 	ErrCategoryNotFound          = errors.New("category not found")
@@ -96,6 +97,7 @@ type Post struct {
 	CategoryIDs   []uint64         `json:"-"`
 	Categories    []PostCategory   `json:"categories,omitempty"`
 	ImageURL      ImageURL         `json:"-"`
+	ImageURLs     []ImageURL       `json:"-"`
 	Caption       Caption          `json:"-"`
 	LocationName  LocationName     `json:"-"`
 	Latitude      float64          `json:"latitude"`
@@ -122,6 +124,7 @@ type PostView struct {
 	CategorySlug  string           `json:"category_slug,omitempty"`
 	Categories    []PostCategory   `json:"categories,omitempty"`
 	ImageURL      string           `json:"image_url"`
+	ImageURLs     []string         `json:"image_urls"`
 	Caption       string           `json:"caption"`
 	LocationName  string           `json:"location_name"`
 	Latitude      float64          `json:"latitude"`
@@ -149,6 +152,7 @@ func (p Post) View() PostView {
 		CategorySlug:  p.CategorySlug,
 		Categories:    categories,
 		ImageURL:      p.ImageURL.String(),
+		ImageURLs:     postImageURLStrings(p.ImageURL, p.ImageURLs),
 		Caption:       p.Caption.String(),
 		LocationName:  p.LocationName.String(),
 		Latitude:      p.Latitude,
@@ -169,11 +173,14 @@ type NewPostInput struct {
 	CategoryID   uint64
 	CategoryIDs  []uint64
 	ImageURL     string
+	ImageURLs    []string
 	Caption      string
 	LocationName string
 	Latitude     float64
 	Longitude    float64
 }
+
+const maxPostImages = 10
 
 type PostUpdate struct {
 	Caption      Caption
@@ -480,7 +487,7 @@ func NewPost(input NewPostInput) (Post, error) {
 		return Post{}, ErrLongitudeOutOfRange
 	}
 
-	imageURL, err := NewImageURL(input.ImageURL)
+	imageURL, imageURLs, err := NewPostImageURLs(input.ImageURL, input.ImageURLs)
 	if err != nil {
 		return Post{}, err
 	}
@@ -504,6 +511,7 @@ func NewPost(input NewPostInput) (Post, error) {
 		CategoryID:   firstCategoryID(categoryIDs),
 		CategoryIDs:  categoryIDs,
 		ImageURL:     imageURL,
+		ImageURLs:    imageURLs,
 		Caption:      caption,
 		LocationName: locationName,
 		Latitude:     input.Latitude,
@@ -612,6 +620,47 @@ func NewImageURL(raw string) (ImageURL, error) {
 
 func (i ImageURL) String() string {
 	return string(i)
+}
+
+func NewPostImageURLs(primary string, rawURLs []string) (ImageURL, []ImageURL, error) {
+	values := rawURLs
+	if len(values) == 0 {
+		values = []string{primary}
+	}
+	if len(values) > maxPostImages {
+		return "", nil, ErrTooManyPostImages
+	}
+
+	imageURLs := make([]ImageURL, 0, len(values))
+	for _, rawURL := range values {
+		imageURL, err := NewImageURL(rawURL)
+		if err != nil {
+			return "", nil, err
+		}
+		imageURLs = append(imageURLs, imageURL)
+	}
+	if len(imageURLs) == 0 {
+		return "", nil, ErrImageURLRequired
+	}
+
+	return imageURLs[0], imageURLs, nil
+}
+
+func postImageURLStrings(primary ImageURL, imageURLs []ImageURL) []string {
+	source := imageURLs
+	if len(source) == 0 && primary != "" {
+		source = []ImageURL{primary}
+	}
+
+	values := make([]string, 0, len(source))
+	for _, imageURL := range source {
+		if imageURL == "" {
+			continue
+		}
+		values = append(values, imageURL.String())
+	}
+
+	return values
 }
 
 type Caption string

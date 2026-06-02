@@ -64,6 +64,7 @@ const initialForm: FormState = {
 const currentLocationId = "__current-location";
 const mapSelectionLocationId = "__map-selection";
 const maxImageSize = 10 * 1024 * 1024;
+const maxPostImages = 10;
 const acceptedImageTypes = new Set([
   "image/jpeg",
   "image/png",
@@ -75,15 +76,18 @@ function parseCoordinate(value: string) {
   return Number.isFinite(normalized) ? normalized : Number.NaN;
 }
 
-function isSameFile(left: File | null, right: File) {
-  if (!left) {
-    return false;
-  }
-
+function isSameFileList(left: File[], right: File[]) {
   return (
-    left.name === right.name &&
-    left.size === right.size &&
-    left.lastModified === right.lastModified
+    left.length === right.length &&
+    left.every((file, index) => {
+      const other = right[index];
+      return (
+        other &&
+        file.name === other.name &&
+        file.size === other.size &&
+        file.lastModified === other.lastModified
+      );
+    })
   );
 }
 
@@ -120,14 +124,12 @@ function locationToMapPoint(location: Location): MapPoint {
 export function UploadImageScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const selectedFileRef = useRef<File | null>(null);
+  const selectedFilesRef = useRef<File[]>([]);
   const heroFileInputRef = useRef<HTMLInputElement | null>(null);
   const formFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isSessionChecking, setIsSessionChecking] = useState(true);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
-    null,
-  );
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(
     null,
@@ -142,13 +144,11 @@ export function UploadImageScreen() {
     defaultLocationSearch,
   );
 
-  const previewUrl = useMemo(() => {
-    if (!selectedFile) {
-      return null;
-    }
-
-    return URL.createObjectURL(selectedFile);
-  }, [selectedFile]);
+  const previewUrls = useMemo(
+    () => selectedFiles.map((file) => URL.createObjectURL(file)),
+    [selectedFiles],
+  );
+  const primaryPreviewUrl = previewUrls[0] ?? null;
 
   useEffect(() => {
     document.title = "Upload Image | Falzo";
@@ -185,30 +185,34 @@ export function UploadImageScreen() {
 
   useEffect(() => {
     return () => {
-      if (previewUrl) {
+      for (const previewUrl of previewUrls) {
         URL.revokeObjectURL(previewUrl);
       }
     };
-  }, [previewUrl]);
+  }, [previewUrls]);
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      await checkImageApi(file);
-      return uploadImageApi(file);
+    mutationFn: async (files: File[]) => {
+      return Promise.all(
+        files.map(async (file) => {
+          await checkImageApi(file);
+          return uploadImageApi(file);
+        }),
+      );
     },
-    onError: (error, file) => {
-      if (isSameFile(selectedFileRef.current, file)) {
-        setUploadedImage(null);
+    onError: (error, files) => {
+      if (isSameFileList(selectedFilesRef.current, files)) {
+        setUploadedImages([]);
       }
       toast.error(getApiErrorMessage(error));
     },
-    onSuccess: (image, file) => {
-      if (!isSameFile(selectedFileRef.current, file)) {
+    onSuccess: (images, files) => {
+      if (!isSameFileList(selectedFilesRef.current, files)) {
         return;
       }
 
-      setUploadedImage(image);
-      toast.success("Image uploaded.");
+      setUploadedImages(images);
+      toast.success(images.length > 1 ? "Images uploaded." : "Image uploaded.");
     },
   });
 
@@ -263,11 +267,16 @@ export function UploadImageScreen() {
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedFile && !uploadedImage?.url) {
-        throw new Error("Choose an image before publishing.");
+      if (selectedFiles.length === 0 && uploadedImages.length === 0) {
+        throw new Error("Choose at least one image before publishing.");
       }
 
-      const image = uploadedImage ?? (await uploadSelectedFile());
+      const images =
+        uploadedImages.length > 0 ? uploadedImages : await uploadSelectedFiles();
+      const imageUrls = images.map((image) => image.url).filter(Boolean);
+      if (imageUrls.length === 0) {
+        throw new Error("Choose at least one image before publishing.");
+      }
       const latitude = parseCoordinate(form.latitude);
       const longitude = parseCoordinate(form.longitude);
       if (
@@ -283,7 +292,8 @@ export function UploadImageScreen() {
       }
 
       return createPostApi({
-        image_url: image.url,
+        image_url: imageUrls[0],
+        image_urls: imageUrls,
         caption: form.caption,
         ...(selectedCategories.length > 0
           ? { category_ids: selectedCategories.map((category) => category.id) }
@@ -298,9 +308,9 @@ export function UploadImageScreen() {
     },
     onSuccess: async () => {
       toast.success("Post published.");
-      setSelectedFile(null);
-      selectedFileRef.current = null;
-      setUploadedImage(null);
+      setSelectedFiles([]);
+      selectedFilesRef.current = [];
+      setUploadedImages([]);
       setForm(initialForm);
       setSelectedLocation(null);
       setSelectedCategoryIds([]);
@@ -402,25 +412,29 @@ export function UploadImageScreen() {
     }
   }
 
-  function clearSelectedImage() {
-    selectedFileRef.current = null;
-    setSelectedFile(null);
-    setUploadedImage(null);
+  function clearSelectedImages() {
+    selectedFilesRef.current = [];
+    setSelectedFiles([]);
+    setUploadedImages([]);
     uploadMutation.reset();
     publishMutation.reset();
     resetFileInputs();
   }
 
-  async function uploadSelectedFile() {
-    const file = selectedFileRef.current;
-    if (!file) {
-      throw new Error("Choose an image before publishing.");
+  async function uploadSelectedFiles() {
+    const files = selectedFilesRef.current;
+    if (files.length === 0) {
+      throw new Error("Choose at least one image before publishing.");
     }
 
-    await checkImageApi(file);
-    const image = await uploadImageApi(file);
-    setUploadedImage(image);
-    return image;
+    const images = await Promise.all(
+      files.map(async (file) => {
+        await checkImageApi(file);
+        return uploadImageApi(file);
+      }),
+    );
+    setUploadedImages(images);
+    return images;
   }
 
   function toggleCategory(categoryId: number) {
@@ -432,35 +446,44 @@ export function UploadImageScreen() {
   }
 
   function retryUpload() {
-    const file = selectedFileRef.current;
-    if (!file) {
-      toast.error("Choose an image before uploading.");
+    const files = selectedFilesRef.current;
+    if (files.length === 0) {
+      toast.error("Choose at least one image before uploading.");
       return;
     }
 
-    uploadMutation.mutate(file);
+    uploadMutation.mutate(files);
   }
 
-  function handleImageChange(file: File | null) {
+  function handleImageChange(files: FileList | File[] | null) {
     uploadMutation.reset();
     publishMutation.reset();
 
-    if (!file) {
-      clearSelectedImage();
+    const nextFiles = Array.from(files ?? []);
+    if (nextFiles.length === 0) {
+      clearSelectedImages();
       return;
     }
 
-    const validationError = getImageValidationError(file);
+    if (nextFiles.length > maxPostImages) {
+      toast.error(`Choose up to ${maxPostImages} images per post.`);
+      resetFileInputs();
+      return;
+    }
+
+    const validationError = nextFiles
+      .map((file) => getImageValidationError(file))
+      .find(Boolean);
     if (validationError) {
       toast.error(validationError);
       resetFileInputs();
       return;
     }
 
-    selectedFileRef.current = file;
-    setSelectedFile(file);
-    setUploadedImage(null);
-    uploadMutation.mutate(file);
+    selectedFilesRef.current = nextFiles;
+    setSelectedFiles(nextFiles);
+    setUploadedImages([]);
+    uploadMutation.mutate(nextFiles);
   }
 
   const isPublishing = publishMutation.isPending;
@@ -510,18 +533,20 @@ export function UploadImageScreen() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.58fr)]">
           <section className="app-panel overflow-hidden rounded-2xl border-[#d6e5f6] bg-white/92">
             <div className="relative min-h-105 bg-[#edf4fb]">
-              {previewUrl ? (
+              {primaryPreviewUrl ? (
                 <>
                   <img
                     alt="Selected upload preview"
                     className="h-full min-h-105 w-full object-cover"
                     decoding="async"
-                    src={previewUrl}
+                    src={primaryPreviewUrl}
                   />
                   <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-3">
                     <div className="min-w-0 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#315578] shadow-sm backdrop-blur-xl">
                       <span className="block truncate">
-                        {selectedFile?.name}
+                        {selectedFiles.length === 1
+                          ? selectedFiles[0]?.name
+                          : `${selectedFiles.length} images selected`}
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -530,8 +555,9 @@ export function UploadImageScreen() {
                         className="sr-only"
                         disabled={isBusy}
                         onChange={(event) => {
-                          handleImageChange(event.target.files?.[0] ?? null);
+                          handleImageChange(event.target.files);
                         }}
+                        multiple
                         ref={heroFileInputRef}
                         type="file"
                       />
@@ -547,10 +573,10 @@ export function UploadImageScreen() {
                         Change
                       </Button>
                       <Button
-                        aria-label="Remove image"
+                        aria-label="Remove images"
                         className="rounded-full bg-white/90 shadow-sm backdrop-blur-xl"
                         disabled={isBusy}
-                        onClick={clearSelectedImage}
+                        onClick={clearSelectedImages}
                         size="icon-sm"
                         type="button"
                         variant="outline"
@@ -559,6 +585,23 @@ export function UploadImageScreen() {
                       </Button>
                     </div>
                   </div>
+                  {previewUrls.length > 1 ? (
+                    <div className="absolute bottom-4 left-4 right-4 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
+                      {previewUrls.map((url, index) => (
+                        <span
+                          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-white shadow-lg"
+                          key={`${selectedFiles[index]?.name ?? "image"}-${index}`}
+                        >
+                          <img
+                            alt={`Selected upload ${index + 1}`}
+                            className="h-full w-full object-cover"
+                            decoding="async"
+                            src={url}
+                          />
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <label className="flex min-h-105 cursor-pointer flex-col items-center justify-center gap-4 px-6 text-center">
@@ -566,15 +609,16 @@ export function UploadImageScreen() {
                     <ImagePlus className="size-7" />
                   </span>
                   <span className="max-w-sm text-sm font-semibold text-[#315578]">
-                    Choose a JPG, PNG, or WebP image to upload.
+                    Choose up to {maxPostImages} JPG, PNG, or WebP images to upload.
                   </span>
                   <input
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
                     disabled={isBusy}
                     onChange={(event) => {
-                      handleImageChange(event.target.files?.[0] ?? null);
+                      handleImageChange(event.target.files);
                     }}
+                    multiple
                     ref={heroFileInputRef}
                     type="file"
                   />
@@ -606,26 +650,30 @@ export function UploadImageScreen() {
                 disabled={isBusy}
                 id="image-file"
                 onChange={(event) => {
-                  handleImageChange(event.target.files?.[0] ?? null);
+                  handleImageChange(event.target.files);
                 }}
+                multiple
                 ref={formFileInputRef}
                 type="file"
               />
-              {selectedFile ? (
+              {selectedFiles.length > 0 ? (
                 <p className="text-xs font-medium text-[#5f7f9f]">
-                  {selectedFile.name} - {formatFileSize(selectedFile.size)}
+                  {selectedFiles.length} image{selectedFiles.length === 1 ? "" : "s"} selected -{" "}
+                  {formatFileSize(
+                    selectedFiles.reduce((total, file) => total + file.size, 0),
+                  )}
                 </p>
               ) : null}
               {isUploading ? (
                 <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#356792]">
                   <Loader2 className="size-3.5 animate-spin" />
-                  Uploading image
+                  Uploading {selectedFiles.length > 1 ? "images" : "image"}
                 </p>
               ) : null}
-              {uploadedImage ? (
+              {uploadedImages.length > 0 ? (
                 <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#20774b]">
                   <Check className="size-3.5" />
-                  Image uploaded
+                  {uploadedImages.length} image{uploadedImages.length === 1 ? "" : "s"} uploaded
                 </p>
               ) : null}
               {uploadMutation.isError ? (
@@ -635,7 +683,7 @@ export function UploadImageScreen() {
                   </p>
                   <Button
                     className="h-8 rounded-full"
-                    disabled={isPublishing || !selectedFile}
+                    disabled={isPublishing || selectedFiles.length === 0}
                     onClick={retryUpload}
                     size="xs"
                     type="button"
@@ -841,7 +889,7 @@ export function UploadImageScreen() {
               className="w-full"
               disabled={
                 isBusy ||
-                !selectedFile ||
+                selectedFiles.length === 0 ||
                 !selectedLocation ||
                 (categories.length > 0 && selectedCategories.length === 0)
               }

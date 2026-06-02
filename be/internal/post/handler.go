@@ -170,6 +170,7 @@ func (h *Handler) Routes() chi.Router {
 
 type CreatePostRequest struct {
 	ImageURL     string   `json:"image_url"`
+	ImageURLs    []string `json:"image_urls"`
 	Caption      string   `json:"caption"`
 	LocationName string   `json:"location_name"`
 	Latitude     float64  `json:"latitude"`
@@ -227,6 +228,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		CategoryID:   req.CategoryID,
 		CategoryIDs:  req.CategoryIDs,
 		ImageURL:     req.ImageURL,
+		ImageURLs:    req.ImageURLs,
 		Caption:      req.Caption,
 		LocationName: req.LocationName,
 		Latitude:     req.Latitude,

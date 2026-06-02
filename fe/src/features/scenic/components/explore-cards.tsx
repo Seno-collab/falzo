@@ -5,6 +5,8 @@ import {
   CalendarDays,
   Bot,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Flag,
   Heart,
   HelpCircle,
@@ -92,6 +94,11 @@ function getImageFrameClass(index: number) {
 
 function getPostAvatarUrl(post: Post) {
   return post.user_avatar_url || post.avatar_url || "";
+}
+
+function getPostImageUrls(post: Post) {
+  const urls = (post.image_urls ?? []).map((url) => url.trim()).filter(Boolean);
+  return urls.length > 0 ? urls : [post.image_url];
 }
 
 function getPostCategoryLabel(post: Post) {
@@ -575,16 +582,44 @@ export function ExplorePostCard({
   const authorName = post.user_name || `User #${post.user_id}`;
   const categoryLabel = getPostCategoryLabel(post);
   const authorAvatarUrl = getPostAvatarUrl(post);
+  const imageUrls = getPostImageUrls(post);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const activeImageUrl = imageUrls[activeImageIndex] ?? post.image_url;
   const isInitialImage = index < 2;
   const frameIndex = index % imageFrameClasses.length;
   const isTallFrame = frameIndex === 0 || frameIndex === 4;
   const savedCount = post.saves_count ?? 0;
+  const [isCardActive, setIsCardActive] = useState(false);
+  const revealCardActions = () => setIsCardActive(true);
+  const hasMultipleImages = imageUrls.length > 1;
+  const showPreviousImage = () =>
+    setActiveImageIndex((current) =>
+      current <= 0 ? imageUrls.length - 1 : current - 1,
+    );
+  const showNextImage = () =>
+    setActiveImageIndex((current) => (current + 1) % imageUrls.length);
 
   return (
-    <article className={cardClass}>
+    <article
+      className={cardClass}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsCardActive(false);
+        }
+      }}
+      onMouseEnter={revealCardActions}
+      onMouseLeave={() => setIsCardActive(false)}
+    >
       <div
         className={getImageFrameClass(frameIndex)}
-        onClick={() => onOpen(post.id)}
+        onClick={() => {
+          if (!isCardActive) {
+            revealCardActions();
+            return;
+          }
+
+          onOpen(post.id);
+        }}
         onKeyDown={(event) => onKeyboardOpen(event, () => onOpen(post.id))}
         role="button"
         tabIndex={0}
@@ -596,14 +631,26 @@ export function ExplorePostCard({
           fetchPriority={isInitialImage ? "high" : "low"}
           loading={isInitialImage ? "eager" : "lazy"}
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          src={post.image_url}
+          src={activeImageUrl}
         />
         <div className={overlayClass} />
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-          <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-[#222] shadow-sm backdrop-blur-xl opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-            {categoryLabel}
+          <span
+            className={cn(
+              "rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-[#222] opacity-0 shadow-sm backdrop-blur-xl transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
+              isCardActive && "opacity-100",
+            )}
+          >
+            {hasMultipleImages
+              ? `${categoryLabel} / ${activeImageIndex + 1}/${imageUrls.length}`
+              : categoryLabel}
           </span>
-          <div className="flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+          <div
+            className={cn(
+              "flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100",
+              isCardActive && "opacity-100",
+            )}
+          >
             <Button
               aria-label="Open image"
               className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
@@ -639,6 +686,39 @@ export function ExplorePostCard({
             ) : null}
           </div>
         </div>
+        {hasMultipleImages ? (
+          <div
+            className={cn(
+              "-translate-y-1/2 absolute inset-x-3 top-1/2 flex items-center justify-between opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100",
+              isCardActive && "opacity-100",
+            )}
+          >
+            <button
+              aria-label="Previous image"
+              className="flex size-9 items-center justify-center rounded-full bg-black/34 text-white shadow-lg backdrop-blur-xl transition hover:bg-black/48"
+              onClick={(event) => {
+                event.stopPropagation();
+                revealCardActions();
+                showPreviousImage();
+              }}
+              type="button"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              aria-label="Next image"
+              className="flex size-9 items-center justify-center rounded-full bg-black/34 text-white shadow-lg backdrop-blur-xl transition hover:bg-black/48"
+              onClick={(event) => {
+                event.stopPropagation();
+                revealCardActions();
+                showNextImage();
+              }}
+              type="button"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        ) : null}
         <div className="absolute inset-x-4 bottom-4 text-white">
           <div className="mb-2 flex min-w-0 items-center gap-2">
             <RainbowAvatar
@@ -663,6 +743,7 @@ export function ExplorePostCard({
               isTallFrame
                 ? "line-clamp-3 text-2xl sm:text-3xl"
                 : "line-clamp-2 text-xl sm:text-2xl",
+              isCardActive ? "block" : "hidden sm:block",
             )}
           >
             {title}
@@ -670,7 +751,12 @@ export function ExplorePostCard({
         </div>
       </div>
 
-      <div className="space-y-3 p-3.5 transition-all duration-200 sm:max-h-0 sm:overflow-hidden sm:p-0 sm:opacity-0 sm:group-hover:max-h-[30rem] sm:group-hover:p-4 sm:group-hover:opacity-100 sm:group-focus-within:max-h-[30rem] sm:group-focus-within:p-4 sm:group-focus-within:opacity-100">
+      <div
+        className={cn(
+          "max-h-0 space-y-3 overflow-hidden p-0 opacity-0 transition-all duration-200 group-hover:max-h-[30rem] group-hover:p-3.5 group-hover:opacity-100 group-focus-within:max-h-[30rem] group-focus-within:p-3.5 group-focus-within:opacity-100 sm:group-hover:p-4 sm:group-focus-within:p-4",
+          isCardActive && "max-h-[30rem] p-3.5 opacity-100 sm:p-4",
+        )}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link

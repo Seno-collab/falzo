@@ -15,7 +15,6 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
-  Tags,
   UserRound,
   UsersRound,
   X,
@@ -65,7 +64,6 @@ import {
   readAuthUserText,
 } from "@/features/auth/user-display";
 import { getCategoriesApi } from "@/features/categories/api";
-import type { Category } from "@/features/categories/types";
 import {
   normalizeLocationSearchQuery,
   searchLocationsWithFallbackApi,
@@ -134,24 +132,6 @@ const maxNotifications = 30;
 const maxNearbyRadiusMeters = 1_000_000;
 const nearbyRadiusOptions = [
   5_000, 10_000, 25_000, 50_000, 100_000, 300_000, 500_000, 1_000_000,
-] as const;
-
-const firstLoadTravelSuggestions = [
-  {
-    query: "weekend trip",
-    sort: "popular" as const,
-    title: "Weekend escape",
-  },
-  {
-    query: "scenic view",
-    sort: "trending" as const,
-    title: "Scenic views",
-  },
-  {
-    query: "local culture",
-    sort: "newest" as const,
-    title: "Local culture",
-  },
 ] as const;
 
 const exploreHeroHeadlineWords =
@@ -375,8 +355,6 @@ export function ExploreScreen() {
     string | null
   >(null);
   const [searchValue, setSearchValue] = useState("");
-  const [showFirstLoadSuggestions, setShowFirstLoadSuggestions] =
-    useState(true);
   const [showSavedBoard, setShowSavedBoard] = useState(false);
   const [likedPosts, setLikedPosts] = useState<PostActionOverrides>({});
   const [savedPosts, setSavedPosts] = useState<PostActionOverrides>({});
@@ -875,10 +853,6 @@ export function ExploreScreen() {
     () => getExploreCollections(categoriesQuery.data),
     [categoriesQuery.data],
   );
-  const categories = useMemo(
-    () => categoriesQuery.data ?? [],
-    [categoriesQuery.data],
-  );
 
   const loadedPosts = useMemo(
     () => postsQuery.data?.pages.flatMap((page) => page.items) ?? [],
@@ -1283,7 +1257,6 @@ export function ExploreScreen() {
     }
 
     setActiveMode(nextMode);
-    setShowFirstLoadSuggestions(false);
 
     if (nextMode === "nearby") {
       setShowSavedBoard(false);
@@ -1351,15 +1324,6 @@ export function ExploreScreen() {
     setShowSavedBoard(false);
     setShowMapPanel(true);
     locateNearbyFeed();
-  }
-
-  function applyTravelPrompt(query: string, sort: PostSort) {
-    setShowSavedBoard(false);
-    setActiveMode(sort === "nearby" ? "nearby" : "inspire");
-    setShowFirstLoadSuggestions(false);
-    setActiveCollection(ALL_COLLECTION);
-    setSearchValue(query);
-    changeFeedSort(sort);
   }
 
   function submitComment(postId: number) {
@@ -1493,24 +1457,6 @@ export function ExploreScreen() {
         savedBoardCount={savedBoardPosts.length}
         showSavedBoard={showSavedBoard}
       />
-
-      {showFirstLoadSuggestions ? (
-        <FirstLoadTravelSuggestions
-          onDismiss={() => setShowFirstLoadSuggestions(false)}
-          onSelectSuggestion={applyTravelPrompt}
-        />
-      ) : null}
-
-      {activeCollection === ALL_COLLECTION && !showSavedBoard ? (
-        <ExploreCategoryBar
-          categories={categories}
-          onSelectCategory={(category) => {
-            setShowSavedBoard(false);
-            setActiveMode("inspire");
-            setActiveCollection(category.name);
-          }}
-        />
-      ) : null}
 
       <ExploreModeSwitcher
         activeMode={activeMode}
@@ -3117,99 +3063,6 @@ function HeroDestinationPreview({
         )}
       </div>
     </div>
-  );
-}
-
-function FirstLoadTravelSuggestions({
-  onDismiss,
-  onSelectSuggestion,
-}: Readonly<{
-  onDismiss: () => void;
-  onSelectSuggestion: (query: string, sort: PostSort) => void;
-}>) {
-  return (
-    <section className="mx-auto w-full max-w-370 px-3 pb-5 sm:px-6 lg:px-8">
-      <div className="relative rounded-2xl border border-black/6 bg-white px-3 py-3 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:px-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 items-center gap-2 pr-8 sm:shrink-0">
-            <span className="flex size-8 items-center justify-center rounded-full bg-[#f2f7fd] text-[#315f8f]">
-              <Sparkles className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#111]">Quick start</p>
-              <p className="text-xs text-[#777]">Choose one suggestion.</p>
-            </div>
-          </div>
-
-          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 scrollbar-none sm:pb-0 [&::-webkit-scrollbar]:hidden">
-            {firstLoadTravelSuggestions.map((item) => (
-              <button
-                className="shrink-0 rounded-full border border-black/8 bg-[#f8f8f6] px-3.5 py-2 text-sm font-semibold text-[#333] transition hover:border-black/16 hover:bg-white"
-                key={item.title}
-                onClick={() => onSelectSuggestion(item.query, item.sort)}
-                type="button"
-              >
-                {item.title}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          aria-label="Hide travel suggestions"
-          className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full text-[#666] transition hover:bg-black/5 hover:text-[#111]"
-          onClick={onDismiss}
-          type="button"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function ExploreCategoryBar({
-  categories,
-  onSelectCategory,
-}: Readonly<{
-  categories: Category[];
-  onSelectCategory: (category: Category) => void;
-}>) {
-  if (categories.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="mx-auto w-full max-w-370 px-3 pb-5 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-3 border-black/6 border-y bg-white/74 py-4 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 shrink-0 items-center gap-2 text-[#333] sm:min-w-42">
-          <span className="flex size-8 items-center justify-center rounded-full bg-[#111] text-white">
-            <Tags className="size-4" />
-          </span>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-              Themes
-            </p>
-            <h2 className="text-base font-semibold tracking-normal text-[#111]">
-              All
-            </h2>
-          </div>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          {categories.map((category) => (
-            <button
-              className="shrink-0 rounded-full border border-black/7 bg-[#f7f7f5] px-3.5 py-2 text-sm font-semibold text-[#444] transition hover:border-black/15 hover:bg-white"
-              key={category.id}
-              onClick={() => onSelectCategory(category)}
-              type="button"
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
   );
 }
 
