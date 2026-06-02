@@ -8,6 +8,8 @@ import {
   KeyRound,
   LogOut,
   Mail,
+  Palette,
+  Sparkles,
   ShieldCheck,
   Upload,
   UserRound,
@@ -114,12 +116,425 @@ function ProfileField({
   );
 }
 
+const generatedAvatarStyles = [
+  {
+    id: "mountain",
+    label: "Mountain",
+    description: "Peaks and cold-weather jacket",
+    palette: ["#d9f0ff", "#7fb7df", "#15365a", "#f3b05b", "#2f6fb8"],
+  },
+  {
+    id: "beach",
+    label: "Beach",
+    description: "Ocean, sunset, and sunglasses",
+    palette: ["#dff8ff", "#86d8ea", "#15566c", "#ffbd63", "#1fb9a6"],
+  },
+  {
+    id: "city",
+    label: "City",
+    description: "Skyline and camera-ready look",
+    palette: ["#eef1ff", "#aab7ef", "#25214f", "#f4c86a", "#6b61d8"],
+  },
+  {
+    id: "camping",
+    label: "Camping",
+    description: "Forest, tent, and trail gear",
+    palette: ["#e8f7ed", "#92c9a4", "#1d3d2f", "#ffce73", "#3a8b62"],
+  },
+  {
+    id: "roadtrip",
+    label: "Road trip",
+    description: "Open road and travel scarf",
+    palette: ["#fff3dd", "#d4a46c", "#3d2a16", "#ffe08a", "#d1842f"],
+  },
+] as const;
+
+type GeneratedAvatarStyleId = (typeof generatedAvatarStyles)[number]["id"];
+
+const generatedAvatarSkinTones = [
+  "#f6c6a6",
+  "#e5a879",
+  "#c9855c",
+  "#8f563a",
+  "#f2d2b6",
+] as const;
+
+const generatedAvatarHairColors = [
+  "#2b1d17",
+  "#463123",
+  "#6b3f22",
+  "#1f2933",
+  "#8a4f2d",
+] as const;
+
+function hashText(value: string) {
+  return Array.from(value).reduce(
+    (hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0,
+    2166136261,
+  );
+}
+
+function avatarInitials(displayName: string) {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return (parts[0] ?? "F").slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0]?.[0] ?? "F"}${parts.at(-1)?.[0] ?? ""}`.toUpperCase();
+}
+
+function getGeneratedAvatarStyle(styleId: GeneratedAvatarStyleId) {
+  return (
+    generatedAvatarStyles.find((style) => style.id === styleId) ??
+    generatedAvatarStyles[0]
+  );
+}
+
+function canvasToPngFile(canvas: HTMLCanvasElement, fileName: string) {
+  return new Promise<File>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Unable to create avatar image."));
+        return;
+      }
+
+      resolve(new File([blob], fileName, { type: "image/png" }));
+    }, "image/png");
+  });
+}
+
+function drawRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.lineTo(x + width - safeRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  context.lineTo(x + width, y + height - safeRadius);
+  context.quadraticCurveTo(
+    x + width,
+    y + height,
+    x + width - safeRadius,
+    y + height,
+  );
+  context.lineTo(x + safeRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  context.lineTo(x, y + safeRadius);
+  context.quadraticCurveTo(x, y, x + safeRadius, y);
+  context.closePath();
+}
+
+async function createGeneratedAvatarFile(
+  displayName: string,
+  seed: string,
+  styleId: GeneratedAvatarStyleId,
+) {
+  const size = 512;
+  const hash = hashText(seed);
+  const avatarStyle = getGeneratedAvatarStyle(styleId);
+  const palette = avatarStyle.palette;
+  const skinTone =
+    generatedAvatarSkinTones[hash % generatedAvatarSkinTones.length] ??
+    generatedAvatarSkinTones[0];
+  const hairColor =
+    generatedAvatarHairColors[(hash >> 3) % generatedAvatarHairColors.length] ??
+    generatedAvatarHairColors[0];
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to create avatar image.");
+  }
+
+  const gradient = context.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, palette[0]);
+  gradient.addColorStop(0.48, palette[1]);
+  gradient.addColorStop(1, palette[0]);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  context.fillStyle = palette[3];
+  context.beginPath();
+  context.arc(392, 100, 44, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = "rgb(255 255 255 / 0.72)";
+  drawRoundedRect(context, 82, 88, 116, 30, 18);
+  context.fill();
+  drawRoundedRect(context, 322, 160, 98, 26, 15);
+  context.fill();
+
+  if (avatarStyle.id === "beach") {
+    context.fillStyle = palette[4];
+    context.fillRect(0, 292, size, 168);
+    context.strokeStyle = "rgb(255 255 255 / 0.58)";
+    context.lineWidth = 7;
+    for (let y = 318; y < 412; y += 34) {
+      context.beginPath();
+      context.moveTo(36, y);
+      context.quadraticCurveTo(126, y - 22, 216, y);
+      context.quadraticCurveTo(318, y + 20, 476, y - 6);
+      context.stroke();
+    }
+    context.fillStyle = "#8b5a2b";
+    drawRoundedRect(context, 72, 218, 16, 112, 8);
+    context.fill();
+    context.fillStyle = "#2f8f5b";
+    for (let index = 0; index < 5; index += 1) {
+      context.beginPath();
+      context.ellipse(
+        84,
+        208,
+        64,
+        18,
+        (Math.PI / 5) * index,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+    }
+  } else if (avatarStyle.id === "city") {
+    context.fillStyle = "rgb(37 33 79 / 0.88)";
+    for (let index = 0; index < 7; index += 1) {
+      const width = 38 + ((hash >> index) % 26);
+      const height = 76 + ((hash >> (index + 4)) % 96);
+      const x = 30 + index * 66;
+      drawRoundedRect(context, x, 302 - height, width, height + 62, 8);
+      context.fill();
+      context.fillStyle = "rgb(255 255 255 / 0.55)";
+      context.fillRect(x + 10, 320 - height, 8, 8);
+      context.fillRect(x + width - 18, 348 - height, 8, 8);
+      context.fillStyle = "rgb(37 33 79 / 0.88)";
+    }
+  } else if (avatarStyle.id === "camping") {
+    context.fillStyle = "#2d6b3d";
+    for (let index = 0; index < 6; index += 1) {
+      const x = 34 + index * 82;
+      context.beginPath();
+      context.moveTo(x, 324);
+      context.lineTo(x + 38, 188);
+      context.lineTo(x + 78, 324);
+      context.closePath();
+      context.fill();
+    }
+    context.fillStyle = palette[3];
+    context.beginPath();
+    context.moveTo(76, 360);
+    context.lineTo(162, 250);
+    context.lineTo(248, 360);
+    context.closePath();
+    context.fill();
+    context.strokeStyle = "rgb(255 255 255 / 0.64)";
+    context.lineWidth = 7;
+    context.beginPath();
+    context.moveTo(162, 250);
+    context.lineTo(162, 360);
+    context.stroke();
+  } else if (avatarStyle.id === "roadtrip") {
+    context.fillStyle = palette[2];
+    context.globalAlpha = 0.86;
+    context.beginPath();
+    context.moveTo(0, 314);
+    context.lineTo(150, 186);
+    context.lineTo(288, 314);
+    context.closePath();
+    context.fill();
+    context.globalAlpha = 1;
+    context.fillStyle = "#3b3440";
+    context.beginPath();
+    context.moveTo(178, 460);
+    context.lineTo(236, 286);
+    context.lineTo(276, 286);
+    context.lineTo(336, 460);
+    context.closePath();
+    context.fill();
+    context.strokeStyle = "#fff2a8";
+    context.lineWidth = 8;
+    context.setLineDash([20, 22]);
+    context.beginPath();
+    context.moveTo(258, 302);
+    context.lineTo(258, 452);
+    context.stroke();
+    context.setLineDash([]);
+  } else {
+    context.fillStyle = palette[2];
+    context.globalAlpha = 0.92;
+    context.beginPath();
+    context.moveTo(18, 322);
+    context.lineTo(158, 154);
+    context.lineTo(296, 322);
+    context.closePath();
+    context.fill();
+
+    context.globalAlpha = 0.78;
+    context.fillStyle = palette[4];
+    context.beginPath();
+    context.moveTo(188, 326);
+    context.lineTo(338, 132);
+    context.lineTo(504, 326);
+    context.closePath();
+    context.fill();
+    context.globalAlpha = 1;
+
+    context.fillStyle = "rgb(255 255 255 / 0.82)";
+    context.beginPath();
+    context.moveTo(126, 192);
+    context.lineTo(158, 154);
+    context.lineTo(190, 193);
+    context.lineTo(160, 181);
+    context.closePath();
+    context.fill();
+    context.beginPath();
+    context.moveTo(300, 182);
+    context.lineTo(338, 132);
+    context.lineTo(380, 181);
+    context.lineTo(342, 166);
+    context.closePath();
+    context.fill();
+  }
+
+  context.fillStyle = "rgb(255 255 255 / 0.2)";
+  drawRoundedRect(context, 34, 326, 444, 150, 52);
+  context.fill();
+
+  context.fillStyle = palette[2];
+  context.globalAlpha = 0.18;
+  context.beginPath();
+  context.arc(256, 292, 172, 0, Math.PI * 2);
+  context.fill();
+  context.globalAlpha = 1;
+
+  context.fillStyle = "rgb(32 47 64 / 0.18)";
+  context.beginPath();
+  context.ellipse(256, 438, 120, 24, 0, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = palette[2];
+  drawRoundedRect(context, 172, 252, 168, 190, 48);
+  context.fill();
+
+  context.fillStyle = palette[4];
+  drawRoundedRect(context, 156, 258, 62, 148, 30);
+  context.fill();
+  drawRoundedRect(context, 294, 258, 62, 148, 30);
+  context.fill();
+
+  context.strokeStyle = "rgb(255 255 255 / 0.72)";
+  context.lineWidth = 9;
+  context.beginPath();
+  context.moveTo(206, 264);
+  context.quadraticCurveTo(238, 314, 256, 386);
+  context.quadraticCurveTo(274, 314, 306, 264);
+  context.stroke();
+
+  context.fillStyle = skinTone;
+  context.beginPath();
+  context.arc(256, 198, 70, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = hairColor;
+  context.beginPath();
+  context.arc(256, 180, 76, Math.PI, Math.PI * 2);
+  context.quadraticCurveTo(194, 164, 196, 218);
+  context.quadraticCurveTo(214, 190, 250, 190);
+  context.quadraticCurveTo(302, 190, 320, 220);
+  context.quadraticCurveTo(324, 166, 256, 180);
+  context.fill();
+
+  context.fillStyle = "rgb(31 41 51 / 0.86)";
+  context.beginPath();
+  context.arc(232, 206, 6, 0, Math.PI * 2);
+  context.arc(280, 206, 6, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = "rgb(31 41 51 / 0.52)";
+  context.lineWidth = 5;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(238, 232);
+  context.quadraticCurveTo(256, 246, 276, 232);
+  context.stroke();
+
+  if (avatarStyle.id === "beach") {
+    context.strokeStyle = "rgb(31 41 51 / 0.78)";
+    context.lineWidth = 7;
+    context.beginPath();
+    context.moveTo(212, 204);
+    context.lineTo(300, 204);
+    context.stroke();
+    context.fillStyle = "rgb(31 41 51 / 0.9)";
+    drawRoundedRect(context, 208, 193, 42, 25, 10);
+    context.fill();
+    drawRoundedRect(context, 262, 193, 42, 25, 10);
+    context.fill();
+  } else if (avatarStyle.id === "city") {
+    context.fillStyle = "rgb(255 255 255 / 0.9)";
+    drawRoundedRect(context, 286, 356, 52, 38, 10);
+    context.fill();
+    context.fillStyle = "#1f2933";
+    context.beginPath();
+    context.arc(312, 375, 11, 0, Math.PI * 2);
+    context.fill();
+  } else if (avatarStyle.id === "camping") {
+    context.fillStyle = "rgb(255 255 255 / 0.88)";
+    drawRoundedRect(context, 176, 392, 160, 22, 11);
+    context.fill();
+    context.fillStyle = palette[4];
+    context.fillRect(214, 392, 84, 22);
+  } else if (avatarStyle.id === "roadtrip") {
+    context.fillStyle = palette[3];
+    context.beginPath();
+    context.moveTo(202, 290);
+    context.lineTo(256, 334);
+    context.lineTo(310, 290);
+    context.lineTo(294, 326);
+    context.lineTo(256, 356);
+    context.lineTo(218, 326);
+    context.closePath();
+    context.fill();
+  } else {
+    context.fillStyle = "rgb(255 255 255 / 0.82)";
+    drawRoundedRect(context, 208, 132, 96, 34, 17);
+    context.fill();
+    context.fillStyle = palette[2];
+    drawRoundedRect(context, 214, 126, 84, 18, 9);
+    context.fill();
+  }
+
+  context.fillStyle = "rgb(255 255 255 / 0.9)";
+  drawRoundedRect(context, 220, 330, 72, 42, 18);
+  context.fill();
+
+  context.fillStyle = palette[2];
+  context.font = "800 26px Arial, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(avatarInitials(displayName), 256, 352);
+
+  context.fillStyle = "rgb(255 255 255 / 0.78)";
+  context.font = "700 20px Arial, sans-serif";
+  context.fillText(avatarStyle.label.toUpperCase(), size / 2, size - 46);
+
+  return canvasToPngFile(canvas, `falzo-${avatarStyle.id}-avatar-${hash}.png`);
+}
+
 export function ProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
+  const [selectedAvatarStyle, setSelectedAvatarStyle] =
+    useState<GeneratedAvatarStyleId>("mountain");
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
@@ -169,27 +584,32 @@ export function ProfileScreen() {
   const username = readAuthUserText(profile, ["user_name"]);
   const avatarUrl = readAuthUserText(profile, ["avatar_url", "avatarUrl"]);
   const subject = readAuthUserText(profile, ["subject", "id"]);
+  const isAvatarBusy = isUploadingAvatar || isGeneratingAvatar;
+
+  const applyAvatarFile = async (file: File) => {
+    const uploaded = await uploadImageApi(file);
+    const updatedProfile = await updateAvatarApi(uploaded.url);
+    setProfile((current) => ({
+      ...(current ?? {}),
+      ...updatedProfile,
+      avatar_url: updatedProfile.avatar_url ?? uploaded.url,
+      avatarUrl: updatedProfile.avatarUrl ?? uploaded.url,
+    }));
+    void queryClient.invalidateQueries({ queryKey: ["me"] });
+  };
 
   const handleAvatarFileChange = async (
     event: ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || isUploadingAvatar) {
+    if (!file || isAvatarBusy) {
       return;
     }
 
     setIsUploadingAvatar(true);
     try {
-      const uploaded = await uploadImageApi(file);
-      const updatedProfile = await updateAvatarApi(uploaded.url);
-      setProfile((current) => ({
-        ...(current ?? {}),
-        ...updatedProfile,
-        avatar_url: updatedProfile.avatar_url ?? uploaded.url,
-        avatarUrl: updatedProfile.avatarUrl ?? uploaded.url,
-      }));
-      void queryClient.invalidateQueries({ queryKey: ["me"] });
+      await applyAvatarFile(file);
       toast.success("Profile photo updated.");
     } catch (error) {
       toast.error("Unable to update profile photo", {
@@ -197,6 +617,37 @@ export function ProfileScreen() {
       });
     } finally {
       setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleGenerateAvatar = async () => {
+    if (isAvatarBusy) {
+      return;
+    }
+
+    setIsGeneratingAvatar(true);
+    try {
+      const seed = [
+        displayName,
+        username ?? "",
+        email ?? "",
+        subject ?? "",
+        selectedAvatarStyle,
+        Date.now().toString(),
+      ].join(":");
+      const file = await createGeneratedAvatarFile(
+        displayName,
+        seed,
+        selectedAvatarStyle,
+      );
+      await applyAvatarFile(file);
+      toast.success("Generated profile photo updated.");
+    } catch (error) {
+      toast.error("Unable to generate profile photo", {
+        description: getApiErrorMessage(error),
+      });
+    } finally {
+      setIsGeneratingAvatar(false);
     }
   };
 
@@ -295,7 +746,7 @@ export function ProfileScreen() {
                   <div className="flex min-w-0 items-center gap-4">
                     <label
                       className={`group relative size-20 shrink-0 rounded-full transition ${
-                        isUploadingAvatar
+                        isAvatarBusy
                           ? "cursor-not-allowed opacity-70"
                           : "cursor-pointer hover:brightness-105"
                       }`}
@@ -314,7 +765,7 @@ export function ProfileScreen() {
                       <input
                         accept="image/jpeg,image/png,image/webp"
                         className="sr-only"
-                        disabled={isUploadingAvatar}
+                        disabled={isAvatarBusy}
                         onChange={(event) => {
                           void handleAvatarFileChange(event);
                         }}
@@ -334,28 +785,72 @@ export function ProfileScreen() {
                           Uploading profile photo...
                         </p>
                       ) : null}
+                      {isGeneratingAvatar ? (
+                        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b61d8]">
+                          <Sparkles className="size-3.5 animate-pulse" />
+                          Creating profile photo...
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      onClick={() => router.push(ROUTES.explore)}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      <Compass className="size-4" />
-                      Explore
-                    </Button>
-                    <Button
-                      onClick={() => router.push(ROUTES.upload)}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      <Upload className="size-4" />
-                      Upload
-                    </Button>
+                  <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                    <div className="flex max-w-md flex-wrap gap-1.5 sm:justify-end">
+                      {generatedAvatarStyles.map((style) => {
+                        const active = selectedAvatarStyle === style.id;
+
+                        return (
+                          <button
+                            aria-pressed={active}
+                            className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${
+                              active
+                                ? "border-[#5147a8] bg-[#5147a8] text-white shadow-[0_10px_22px_-16px_rgb(81_71_168/0.85)]"
+                                : "border-[#d7e0f5] bg-white/88 text-[#5f6f91] hover:border-[#c4cdf4] hover:bg-[#f5f4ff] hover:text-[#5147a8]"
+                            }`}
+                            disabled={isAvatarBusy}
+                            key={style.id}
+                            onClick={() => setSelectedAvatarStyle(style.id)}
+                            title={style.description}
+                            type="button"
+                          >
+                            {style.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      <Button
+                        className="border-[#cdd7ff] bg-[#f5f4ff] text-[#5147a8] hover:bg-[#eceaff]"
+                        disabled={isAvatarBusy}
+                        onClick={() => {
+                          void handleGenerateAvatar();
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Palette className="size-4" />
+                        Generate travel avatar
+                      </Button>
+                      <Button
+                        onClick={() => router.push(ROUTES.explore)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Compass className="size-4" />
+                        Explore
+                      </Button>
+                      <Button
+                        onClick={() => router.push(ROUTES.upload)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Upload className="size-4" />
+                        Upload
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
