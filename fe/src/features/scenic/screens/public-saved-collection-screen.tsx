@@ -19,6 +19,7 @@ import type { MapPoint } from "@/components/map";
 import { Button } from "@/components/ui/button";
 import { getPublicSavedCollectionApi } from "@/features/posts/api";
 import { getApiErrorMessage } from "@/features/auth/api";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
 export function PublicSavedCollectionScreen({
@@ -26,10 +27,11 @@ export function PublicSavedCollectionScreen({
 }: Readonly<{
   shareSlug: string;
 }>) {
+  const { locale } = useI18n();
   const normalizedSlug = shareSlug.trim();
   const collectionQuery = useQuery({
     enabled: normalizedSlug.length > 0,
-    queryKey: ["posts", "saved-collections", "public", normalizedSlug],
+    queryKey: ["posts", "saved-collections", "public", normalizedSlug, locale],
     queryFn: ({ signal }) =>
       getPublicSavedCollectionApi(normalizedSlug, { signal }),
     retry: false,

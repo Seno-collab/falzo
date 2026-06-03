@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"falzo-be/internal/i18n"
 	"falzo-be/internal/post"
 	pkgcache "falzo-be/pkg/cache"
 
@@ -205,7 +206,7 @@ func (r *CachedPostRepository) GetPosts(ctx context.Context, filter post.PostLis
 		return r.next.GetPosts(ctx, filter)
 	}
 
-	key := feedFirstPageCacheKey(filter)
+	key := feedFirstPageCacheKey(filter, i18n.LocaleFromContext(ctx))
 	value, err := r.redis.Get(ctx, key).Result()
 	if err == nil {
 		items, decodeErr := decodePosts([]byte(value))
@@ -267,9 +268,10 @@ func isCacheablePublicFirstPage(filter post.PostListFilter) bool {
 		filter.Limit > 0
 }
 
-func feedFirstPageCacheKey(filter post.PostListFilter) string {
+func feedFirstPageCacheKey(filter post.PostListFilter, locale string) string {
 	return fmt.Sprintf(
-		"posts:feed:first:v1:limit=%d:search=%s:category=%s:sort=%s:lat=%.5f:lng=%.5f:radius=%d",
+		"posts:feed:first:v2:locale=%s:limit=%d:search=%s:category=%s:sort=%s:lat=%.5f:lng=%.5f:radius=%d",
+		locale,
 		filter.Limit,
 		strings.TrimSpace(filter.Search),
 		strings.TrimSpace(filter.CategorySlug),
@@ -281,7 +283,7 @@ func feedFirstPageCacheKey(filter post.PostListFilter) string {
 }
 
 func feedFirstPageCachePattern() string {
-	return "posts:feed:first:v1:*"
+	return "posts:feed:first:v2:*"
 }
 
 func encodePosts(items []post.Post) []cachedPost {

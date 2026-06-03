@@ -36,6 +36,7 @@ import {
 } from "@/features/posts/api";
 import type { Post, SavedCollection } from "@/features/posts/types";
 import { getApiErrorMessage, hasAuthSession } from "@/features/auth/api";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -183,6 +184,7 @@ function PostTile({
 export function SavedCollectionsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { locale } = useI18n();
   const [collectionName, setCollectionName] = useState("");
   const [activeCollectionId, setActiveCollectionId] = useState<
     number | typeof allSavedKey
@@ -197,7 +199,7 @@ export function SavedCollectionsScreen() {
 
   const savedPostsQuery = useQuery({
     enabled: hasAuthSession(),
-    queryKey: ["posts", "saved"],
+    queryKey: ["posts", "saved", locale],
     queryFn: ({ signal }) => getSavedPostsApi({ signal }),
     retry: false,
     staleTime: 45_000,
@@ -205,7 +207,7 @@ export function SavedCollectionsScreen() {
 
   const collectionsQuery = useQuery({
     enabled: hasAuthSession(),
-    queryKey: ["posts", "saved-collections"],
+    queryKey: ["posts", "saved-collections", locale],
     queryFn: ({ signal }) => getSavedCollectionsApi({ signal }),
     retry: false,
     staleTime: 45_000,

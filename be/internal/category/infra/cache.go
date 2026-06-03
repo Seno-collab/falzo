@@ -3,15 +3,17 @@ package categoryInfra
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"falzo-be/internal/category"
+	"falzo-be/internal/i18n"
 	pkgcache "falzo-be/pkg/cache"
 
 	goredis "github.com/redis/go-redis/v9"
 )
 
-const categoriesListCacheKey = "categories:list:v1"
+const categoriesListCacheKeyPrefix = "categories:list:v2"
 
 type CachedRepository struct {
 	next    category.Repository
@@ -44,13 +46,14 @@ func (r *CachedRepository) GetBySlug(ctx context.Context, slug string) (category
 }
 
 func (r *CachedRepository) List(ctx context.Context) ([]category.Category, error) {
-	value, err := r.redis.Get(ctx, categoriesListCacheKey).Result()
+	cacheKey := categoriesListCacheKey(i18n.LocaleFromContext(ctx))
+	value, err := r.redis.Get(ctx, cacheKey).Result()
 	if err == nil {
 		var items []category.Category
 		if decodeErr := json.Unmarshal([]byte(value), &items); decodeErr == nil {
 			return items, nil
 		}
-		_ = r.redis.Del(ctx, categoriesListCacheKey).Err()
+		_ = r.redis.Del(ctx, cacheKey).Err()
 	}
 
 	items, err := r.next.List(ctx)
@@ -59,7 +62,7 @@ func (r *CachedRepository) List(ctx context.Context) ([]category.Category, error
 	}
 	payload, err := json.Marshal(items)
 	if err == nil {
-		_ = r.redis.Set(ctx, categoriesListCacheKey, payload, r.listTTL).Err()
+		_ = r.redis.Set(ctx, cacheKey, payload, r.listTTL).Err()
 	}
 	return items, nil
 }
@@ -82,7 +85,15 @@ func (r *CachedRepository) Delete(ctx context.Context, id uint64) error {
 }
 
 func (r *CachedRepository) invalidateList(ctx context.Context) {
-	_ = r.redis.Del(ctx, categoriesListCacheKey).Err()
+	_ = r.redis.Del(
+		ctx,
+		categoriesListCacheKey(i18n.English),
+		categoriesListCacheKey(i18n.Vietnamese),
+	).Err()
 }
 
 var _ category.Repository = (*CachedRepository)(nil)
+
+func categoriesListCacheKey(locale string) string {
+	return fmt.Sprintf("%s:%s", categoriesListCacheKeyPrefix, locale)
+}

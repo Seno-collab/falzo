@@ -26,9 +26,11 @@ type Repository interface {
 }
 
 type Category struct {
-	ID   uint64 `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	ID     uint64 `json:"id"`
+	Name   string `json:"name"`
+	Slug   string `json:"slug"`
+	NameEN string `json:"name_en,omitempty"`
+	NameVI string `json:"name_vi,omitempty"`
 }
 
 type CategoryCreateInput struct {

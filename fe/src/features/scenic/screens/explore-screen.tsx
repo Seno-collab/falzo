@@ -108,6 +108,7 @@ import type {
 import { ExplorePostCard } from "@/features/scenic/components/explore-cards";
 import {
   ALL_COLLECTION,
+  COMMUNITY_COLLECTION,
   FOLLOWING_COLLECTION,
   getExploreCollections,
   showsCommunityFeed,
@@ -169,6 +170,35 @@ function formatDistanceLabel(distanceMeters: number | undefined) {
   return distanceMeters >= 1000
     ? `${(distanceMeters / 1000).toFixed(distanceMeters >= 10_000 ? 0 : 1)} km`
     : `${Math.max(1, Math.round(distanceMeters))} m`;
+}
+
+type ExploreCopy = ReturnType<typeof useI18n>["messages"]["explorePage"];
+
+function formatExploreCount(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function formatExploreTemplate(
+  template: string,
+  values: Record<string, string | number>,
+) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+}
+
+function getExploreCollectionLabel(collection: string, copy: ExploreCopy) {
+  switch (collection) {
+    case ALL_COLLECTION:
+      return copy.collectionAll;
+    case COMMUNITY_COLLECTION:
+      return copy.collectionCommunity;
+    case FOLLOWING_COLLECTION:
+      return copy.collectionFollowing;
+    default:
+      return collection;
+  }
 }
 
 function getDistanceMeters(origin: Coordinates | null, target: Coordinates) {
@@ -333,12 +363,13 @@ function getNotificationPostId(notification: AppNotification) {
 export function ExploreScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { messages } = useI18n();
+  const { locale, messages } = useI18n();
+  const exploreCopy = messages.explorePage;
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const commentInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeCollection, setActiveCollection] = useState("All");
+  const [activeCollection, setActiveCollection] = useState(ALL_COLLECTION);
   const [feedSort, setFeedSort] = useState<PostSort>("newest");
   const [nearbyCoords, setNearbyCoords] = useState<{
     latitude: number;
@@ -387,7 +418,7 @@ export function ExploreScreen() {
   const normalizedActiveSearch = normalizeSearchValue(activeSearch);
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", locale],
     queryFn: ({ signal }) => getCategoriesApi({ signal }),
     staleTime: 5 * 60_000,
   });
@@ -415,6 +446,7 @@ export function ExploreScreen() {
       feedSort,
       nearbyCoords,
       nearbyRadiusMeters,
+      locale,
     ],
     queryFn: ({ pageParam, signal }) =>
       getPostsPageApi({
@@ -440,7 +472,7 @@ export function ExploreScreen() {
 
   const postDetailQuery = useQuery({
     enabled: selectedPostId !== null,
-    queryKey: ["posts", "detail", selectedPostId],
+    queryKey: ["posts", "detail", selectedPostId, locale],
     queryFn: ({ signal }) => getPostDetailApi(selectedPostId ?? 0, { signal }),
     staleTime: 60_000,
   });
@@ -519,9 +551,9 @@ export function ExploreScreen() {
   );
 
   useEffect(() => {
-    document.title = messages.explorePage.documentTitle;
+    document.title = exploreCopy.documentTitle;
     setIsAuthenticated(hasAuthSession());
-  }, [messages.explorePage.documentTitle]);
+  }, [exploreCopy.documentTitle]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -901,7 +933,11 @@ export function ExploreScreen() {
 
   const hasSearch = normalizedActiveSearch.length > 0;
   const searchResultsLabel = hasSearch
-    ? `${visiblePosts.length} matching results`
+    ? formatExploreCount(
+        visiblePosts.length,
+        exploreCopy.matchingResultSingular,
+        exploreCopy.matchingResultPlural,
+      )
     : null;
   const exploreMapPoints = useMemo<MapPoint[]>(() => {
     const clusters = new Map<
@@ -1080,7 +1116,7 @@ export function ExploreScreen() {
     }
 
     setIsAuthenticated(false);
-    notifyError("Login is required for this action.");
+    notifyError(exploreCopy.loginRequired);
     router.push(ROUTES.login);
     return false;
   }
@@ -1290,7 +1326,7 @@ export function ExploreScreen() {
 
   function locateNearbyFeed() {
     if (!globalThis.navigator?.geolocation) {
-      notifyError("Location is not available in this browser.");
+      notifyError(exploreCopy.locationUnavailable);
       return;
     }
 
@@ -1300,10 +1336,10 @@ export function ExploreScreen() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
-        setNearbyPlaceName("Your location");
+        setNearbyPlaceName(exploreCopy.yourLocation);
         setFeedSort("nearby");
       },
-      () => notifyError("Location permission is required for nearby feed."),
+      () => notifyError(exploreCopy.locationPermissionRequired),
       { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
     );
   }
@@ -1502,7 +1538,7 @@ export function ExploreScreen() {
             onLocate={locateNearbyFeed}
             onMapCenterChange={(coordinates) => {
               setNearbyCoords(coordinates);
-              setNearbyPlaceName("Selected map area");
+              setNearbyPlaceName(exploreCopy.selectedMapArea);
               setFeedSort("nearby");
             }}
             onPlaceSearch={(coordinates, placeName) => {
@@ -1553,10 +1589,10 @@ export function ExploreScreen() {
           <div className="mb-4 flex flex-col items-stretch justify-between gap-3 rounded-3xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)] sm:flex-row sm:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                {showSavedBoard ? "Trip board" : "Search"}
+                {showSavedBoard ? exploreCopy.tripBoard : exploreCopy.searchLabel}
               </p>
               <h2 className="text-lg font-semibold tracking-normal text-[#111]">
-                {showSavedBoard ? "Saved destinations" : searchResultsLabel}
+                {showSavedBoard ? exploreCopy.savedDestinations : searchResultsLabel}
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1567,7 +1603,7 @@ export function ExploreScreen() {
                   type="button"
                   variant="outline"
                 >
-                  Clear search
+                  {exploreCopy.clearSearch}
                 </Button>
               ) : null}
               {showSavedBoard ? (
@@ -1577,7 +1613,7 @@ export function ExploreScreen() {
                   type="button"
                   variant="outline"
                 >
-                  Show all
+                  {exploreCopy.showAll}
                 </Button>
               ) : null}
             </div>
@@ -1641,13 +1677,13 @@ export function ExploreScreen() {
             )}
             <h2 className="mt-3 text-xl font-semibold tracking-normal text-[#111]">
               {showSavedBoard
-                ? "No saved destinations yet"
-                : "No destinations match your search"}
+                ? exploreCopy.noSavedDestinations
+                : exploreCopy.noSearchMatches}
             </h2>
             <p className="mt-2 max-w-sm text-sm leading-6 text-[#666]">
               {showSavedBoard
-                ? "Save places you want to visit and build a shortlist for your next trip."
-                : "Try a city, landmark, travel theme, or creator name."}
+                ? exploreCopy.noSavedDestinationsDescription
+                : exploreCopy.noSearchMatchesDescription}
             </p>
           </div>
         ) : null}
@@ -1757,6 +1793,8 @@ function ExploreModeSwitcher({
   planCount: number;
   totalPosts: number;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   const modes: {
     icon: ReactNode;
     label: string;
@@ -1765,26 +1803,26 @@ function ExploreModeSwitcher({
   }[] = [
     {
       icon: <Compass className="size-4" />,
-      label: "Inspire",
-      meta: `${totalPosts} places`,
+      label: copy.modeInspire,
+      meta: formatExploreCount(totalPosts, copy.placeUnit, copy.placesUnit),
       value: "inspire",
     },
     {
       icon: <MapIcon className="size-4" />,
-      label: "Nearby",
+      label: copy.modeNearby,
       meta: nearbyLabel,
       value: "nearby",
     },
     {
       icon: <Route className="size-4" />,
-      label: "Plan",
-      meta: `${planCount} saved`,
+      label: copy.modePlan,
+      meta: `${planCount} ${copy.savedUnit}`,
       value: "plan",
     },
     {
       icon: <MessageCircle className="size-4" />,
-      label: "Community",
-      meta: "Tips + Q&A",
+      label: copy.modeCommunity,
+      meta: copy.modeTipsMeta,
       value: "community",
     },
   ];
@@ -1845,6 +1883,8 @@ function TripBoardPlanner({
   onShowMap: () => void;
   posts: Post[];
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   const routeStops = posts
     .filter((post) => post.location_name)
     .slice(0, 4)
@@ -1857,18 +1897,17 @@ function TripBoardPlanner({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/54">
-                Trip board
+                {copy.tripBoard}
               </p>
               <h2 className="mt-1 text-2xl font-semibold tracking-normal sm:text-3xl">
                 {boardTitle}
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-white/68">
-                Saved places now behave like a travel plan: shortlist, route,
-                notes, and shareable board in one place.
+                {copy.tripBoardDescription}
               </p>
             </div>
             <span className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-[#111]">
-              {posts.length} stop{posts.length === 1 ? "" : "s"}
+              {formatExploreCount(posts.length, copy.stopUnit, copy.stopsUnit)}
             </span>
           </div>
 
@@ -1876,18 +1915,25 @@ function TripBoardPlanner({
             {[
               {
                 icon: <Bookmark className="size-4" />,
-                label: "Saved places",
-                value: posts.length || "None yet",
+                label: copy.savedPlaces,
+                value: posts.length || copy.noneYet,
               },
               {
                 icon: <Route className="size-4" />,
-                label: "Route",
-                value: posts.length > 1 ? `${posts.length - 1} legs` : "Draft",
+                label: copy.route,
+                value:
+                  posts.length > 1
+                    ? formatExploreCount(
+                        posts.length - 1,
+                        copy.legUnit,
+                        copy.legsUnit,
+                      )
+                    : copy.draft,
               },
               {
                 icon: <UsersRound className="size-4" />,
-                label: "Share board",
-                value: "Private draft",
+                label: copy.shareBoard,
+                value: copy.privateDraft,
               },
             ].map((item) => (
               <div
@@ -1910,7 +1956,7 @@ function TripBoardPlanner({
               type="button"
             >
               <MapIcon className="size-4" />
-              View route map
+              {copy.viewRouteMap}
             </Button>
             <Button
               className="rounded-full border-white/18 bg-white/8 text-white hover:bg-white/14"
@@ -1919,14 +1965,14 @@ function TripBoardPlanner({
               variant="outline"
             >
               <Bookmark className="size-4" />
-              Saved collections
+              {copy.savedCollections}
             </Button>
           </div>
         </div>
 
         <aside className="border-white/10 border-t bg-white/6 p-4 sm:p-5 lg:border-l lg:border-t-0">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/54">
-            Route notes
+            {copy.routeNotes}
           </p>
           {routeStops.length > 0 ? (
             <ol className="mt-3 space-y-2">
@@ -1944,8 +1990,7 @@ function TripBoardPlanner({
             </ol>
           ) : (
             <div className="mt-3 rounded-2xl border border-dashed border-white/16 px-3 py-4 text-sm leading-6 text-white/66">
-              Save destinations from the feed to start a board like Weekend in
-              Da Nang.
+              {copy.emptyRouteNotes}
             </div>
           )}
         </aside>
@@ -1963,6 +2008,8 @@ function LocalLayerPanel({
   onOpenPostTips: (postId: number) => void;
   posts: Post[];
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   const featuredPosts = posts.slice(0, 3);
   const totalSaved = posts.reduce(
     (count, post) => count + (post.saves_count ?? 0),
@@ -1978,20 +2025,19 @@ function LocalLayerPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-            Local layer
+            {copy.localLayer}
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-normal text-[#111]">
-            Tips, events, and place discussions
+            {copy.localLayerTitle}
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#666]">
-            A tighter Facebook-style community layer, scoped to destinations
-            instead of a mixed social feed.
+            {copy.localLayerDescription}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:min-w-56">
           <div className="rounded-2xl bg-[#f8f8f7] px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#777]">
-              Saved
+              {copy.savedMetric}
             </p>
             <p className="mt-1 text-lg font-semibold text-[#111]">
               {totalSaved}
@@ -1999,7 +2045,7 @@ function LocalLayerPanel({
           </div>
           <div className="rounded-2xl bg-[#f8f8f7] px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#777]">
-              Discussions
+              {copy.discussionsMetric}
             </p>
             <p className="mt-1 text-lg font-semibold text-[#111]">
               {totalComments}
@@ -2035,10 +2081,10 @@ function LocalLayerPanel({
               <div className="space-y-3 p-3">
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <span className="rounded-xl bg-white px-2.5 py-2 font-semibold text-[#315f8f]">
-                    {index === 0 ? "Local tip" : "Near this place"}
+                    {index === 0 ? copy.localTip : copy.nearThisPlace}
                   </span>
                   <span className="rounded-xl bg-white px-2.5 py-2 font-semibold text-[#73551b]">
-                    {index === 1 ? "Weekend event" : "Ask locals"}
+                    {index === 1 ? copy.weekendEvent : copy.askLocals}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -2050,7 +2096,7 @@ function LocalLayerPanel({
                     variant="outline"
                   >
                     <MessageCircle className="size-4" />
-                    Tips
+                    {copy.tips}
                   </Button>
                   <Button
                     className="flex-1 rounded-full"
@@ -2058,7 +2104,7 @@ function LocalLayerPanel({
                     size="sm"
                     type="button"
                   >
-                    Open
+                    {copy.open}
                   </Button>
                 </div>
               </div>
@@ -2066,7 +2112,7 @@ function LocalLayerPanel({
           ))
         ) : (
           <div className="rounded-2xl border border-dashed border-black/10 bg-[#f8f8f7] px-4 py-8 text-center text-sm text-[#666] lg:col-span-3">
-            Search or change a theme to find places with local discussions.
+            {copy.noLocalDiscussions}
           </div>
         )}
       </div>
@@ -2100,17 +2146,20 @@ function ExploreTopbar({
   unreadNotificationCount: number;
 }>) {
   const { messages } = useI18n();
+  const copy = messages.explorePage;
   const profileLabel =
-    isAuthenticated && profileName ? `Profile: ${profileName}` : "Profile";
-  const authLabel = isAuthenticated ? profileLabel : "Login";
-  const profileFallbackName = profileName ?? "Account";
+    isAuthenticated && profileName
+      ? `${messages.common.profile}: ${profileName}`
+      : messages.common.profile;
+  const authLabel = isAuthenticated ? profileLabel : copy.navLogin;
+  const profileFallbackName = profileName ?? copy.navAccount;
 
   return (
     <>
       <header className="sticky top-0 z-40 hidden border-b border-black/6 bg-[#f7f7f5]/86 backdrop-blur-2xl sm:block">
         <div className="mx-auto flex w-full max-w-370 items-center gap-2 px-2.5 py-2.5 sm:px-5 sm:py-3 lg:px-8">
           <Link
-            aria-label="Explore"
+            aria-label={copy.navExplore}
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#111] text-white shadow-[0_14px_30px_-20px_rgb(0_0_0/0.72)] transition hover:scale-[1.03] sm:size-10"
             href={ROUTES.explore}
           >
@@ -2122,12 +2171,12 @@ function ExploreTopbar({
               className="rounded-full bg-[#111] text-white hover:bg-[#222]"
               size="sm"
             >
-              Explore
+              {copy.navExplore}
             </Button>
             <Button asChild className="rounded-full" size="sm" variant="ghost">
               <Link href={ROUTES.locations}>
                 <MapIcon className="size-4" />
-                Destinations
+                {copy.navDestinations}
               </Link>
             </Button>
             {isAuthenticated ? (
@@ -2139,7 +2188,7 @@ function ExploreTopbar({
               >
                 <Link href={ROUTES.saved}>
                   <Bookmark className="size-4" />
-                  Saved
+                  {copy.navSaved}
                 </Link>
               </Button>
             ) : null}
@@ -2155,12 +2204,12 @@ function ExploreTopbar({
                   onClearSearch();
                 }
               }}
-              placeholder="Search destinations, cities, beaches, mountains, culture"
+              placeholder={copy.searchPlaceholder}
               type="search"
               value={searchValue}
             />
             <Button
-              aria-label={searchValue ? "Clear search" : "Search filters"}
+              aria-label={searchValue ? copy.clearSearch : copy.searchFilters}
               className="-translate-y-1/2 absolute right-1.5 top-1/2 rounded-full"
               onClick={searchValue ? onClearSearch : undefined}
               size="icon-sm"
@@ -2222,7 +2271,7 @@ function ExploreTopbar({
               {isAuthenticated && profileName ? (
                 <span className="max-w-28 truncate">{profileName}</span>
               ) : !isAuthenticated ? (
-                <span>Login</span>
+                <span>{copy.navLogin}</span>
               ) : null}
             </Button>
           </div>
@@ -2230,7 +2279,7 @@ function ExploreTopbar({
           <Sheet>
             <SheetTrigger asChild>
               <Button
-                aria-label="Menu"
+                aria-label={copy.navMenuTitle}
                 className="rounded-full sm:hidden"
                 size="icon-sm"
                 type="button"
@@ -2241,9 +2290,9 @@ function ExploreTopbar({
             </SheetTrigger>
             <SheetContent side="right">
               <SheetHeader>
-                <SheetTitle>Explore menu</SheetTitle>
+                <SheetTitle>{copy.navMenuTitle}</SheetTitle>
                 <SheetDescription>
-                  Find destinations, open saved places, and manage your account.
+                  {copy.navMenuDescription}
                 </SheetDescription>
               </SheetHeader>
               <div className="space-y-2 px-5">
@@ -2262,7 +2311,7 @@ function ExploreTopbar({
                     href={ROUTES.locations}
                   >
                     <MapIcon className="size-4" />
-                    Destinations
+                    {copy.navDestinations}
                   </Link>
                 </SheetClose>
                 {isAuthenticated ? (
@@ -2279,7 +2328,7 @@ function ExploreTopbar({
                         href={ROUTES.saved}
                       >
                         <Bookmark className="size-4" />
-                        Saved
+                        {copy.navSaved}
                       </Link>
                     </SheetClose>
                     <SheetClose asChild>
@@ -2294,12 +2343,12 @@ function ExploreTopbar({
                         href={ROUTES.upload}
                       >
                         <Plus className="size-4" />
-                        Upload
+                        {copy.navUpload}
                       </Link>
                     </SheetClose>
                     <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
                       <span className="text-sm font-medium text-[#1f1f1f]">
-                        Notifications
+                        {copy.navNotifications}
                       </span>
                       <NotificationBell
                         notifications={notifications}
@@ -2348,12 +2397,12 @@ function ExploreTopbar({
             <input
               className="h-10 w-full rounded-full border border-black/8 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.5)] outline-none placeholder:text-[#8a8a8a] focus:border-black/14"
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search destinations"
+              placeholder={copy.searchMobilePlaceholder}
               type="search"
               value={searchValue}
             />
             <button
-              aria-label={searchValue ? "Clear search" : "Search"}
+              aria-label={searchValue ? copy.clearSearch : copy.searchLabel}
               className="-translate-y-1/2 absolute right-1.5 top-1/2 flex size-8 items-center justify-center rounded-full text-[#555] transition hover:bg-black/5"
               onClick={searchValue ? onClearSearch : undefined}
               type="button"
@@ -2373,37 +2422,37 @@ function ExploreTopbar({
             )}
           >
             <Link
-              aria-label="Explore"
+              aria-label={copy.navExplore}
               className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
               href={ROUTES.explore}
             >
               <Camera className="size-4" />
-              Explore
+              {copy.navExplore}
             </Link>
             <Link
-              aria-label="Destinations"
+              aria-label={copy.navDestinations}
               className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
               href={ROUTES.locations}
             >
               <MapIcon className="size-4" />
-              Places
+              {messages.common.places}
             </Link>
             {isAuthenticated ? (
               <>
                 <Link
-                  aria-label="Upload"
+                  aria-label={copy.navUpload}
                   className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#ff385c] text-white shadow-[0_16px_34px_-22px_rgb(255_56_92/0.85)]"
                   href={ROUTES.upload}
                 >
                   <Plus className="size-5" />
                 </Link>
                 <Link
-                  aria-label="Saved"
+                  aria-label={copy.navSaved}
                   className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
                   href={ROUTES.saved}
                 >
                   <Bookmark className="size-4" />
-                  Saved
+                  {copy.navSaved}
                 </Link>
               </>
             ) : null}
@@ -2423,7 +2472,7 @@ function ExploreTopbar({
               ) : (
                 <UserRound className="size-4" />
               )}
-              {isAuthenticated ? "Account" : "Login"}
+              {isAuthenticated ? copy.navAccount : copy.navLogin}
             </button>
           </div>
         </div>
@@ -2439,6 +2488,8 @@ function MapClusterPostRail({
   onOpenPost: (postId: number) => void;
   posts: Post[];
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   if (posts.length <= 1) {
     return null;
   }
@@ -2448,10 +2499,12 @@ function MapClusterPostRail({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-            Same destination
+            {copy.sameDestination}
           </p>
           <h2 className="truncate text-lg font-semibold tracking-normal text-[#111]">
-            {posts.length} travel posts here
+            {formatExploreTemplate(copy.travelPostsHere, {
+              count: posts.length,
+            })}
           </h2>
         </div>
       </div>
@@ -2465,7 +2518,7 @@ function MapClusterPostRail({
             type="button"
           >
             <img
-              alt={post.caption || post.location_name || "Destination photo"}
+              alt={post.caption || post.location_name || copy.destinationPhoto}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
               decoding="async"
               fetchPriority="low"
@@ -2476,10 +2529,10 @@ function MapClusterPostRail({
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.02)_0%,rgb(0_0_0/0.08)_42%,rgb(0_0_0/0.68)_100%)]" />
             <div className="absolute inset-x-3 bottom-3 text-white">
               <p className="line-clamp-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/76">
-                {post.location_name || "Destination"}
+                {post.location_name || copy.destinationFallback}
               </p>
               <p className="mt-1 line-clamp-2 text-base font-semibold leading-tight">
-                {post.caption || post.user_name || "Travel story"}
+                {post.caption || post.user_name || copy.travelStoryFallback}
               </p>
             </div>
           </button>
@@ -2498,6 +2551,11 @@ function MapAccessPanel({
   onOpen: () => void;
   totalPosts: number;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
+  const destinationUnit =
+    totalPosts === 1 ? copy.destinationUnit : copy.destinationsUnit;
+
   return (
     <section className="mb-5 rounded-2xl border border-black/6 bg-white px-4 py-3 shadow-[0_14px_36px_-30px_rgb(0_0_0/0.58)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2507,18 +2565,20 @@ function MapAccessPanel({
           </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#111]">
-              Map view is optional
+              {copy.mapOptionalTitle}
             </p>
             <p className="text-xs leading-5 text-[#777]">
-              Browse the feed first, or open the map for {totalPosts} visible
-              destination{totalPosts === 1 ? "" : "s"}.
+              {formatExploreTemplate(copy.mapOptionalDescription, {
+                count: totalPosts,
+                unit: destinationUnit,
+              })}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button className="rounded-full" onClick={onOpen} type="button">
             <MapIcon className="size-4" />
-            Open map
+            {copy.openMap}
           </Button>
           <Button
             className="rounded-full"
@@ -2527,7 +2587,7 @@ function MapAccessPanel({
             variant="outline"
           >
             <LocateFixed className="size-4" />
-            Near me
+            {copy.nearMe}
           </Button>
         </div>
       </div>
@@ -2566,6 +2626,8 @@ function ExploreMapPanel({
   selectedPointId: string | null;
   totalPosts: number;
 }>) {
+  const { locale, messages } = useI18n();
+  const copy = messages.explorePage;
   const hasNearbyCenter = currentPosition !== null;
   const [placeQuery, setPlaceQuery] = useState("");
   const [isSearchingPlace, setIsSearchingPlace] = useState(false);
@@ -2592,9 +2654,9 @@ function ExploreMapPanel({
 
     setIsSearchingPlace(true);
     try {
-      const [location] = await searchLocationsWithFallbackApi(query);
+      const [location] = await searchLocationsWithFallbackApi(query, undefined, locale);
       if (!location) {
-        notifyError("No city or province found.");
+        notifyError(copy.noCityFound);
         return;
       }
 
@@ -2619,7 +2681,7 @@ function ExploreMapPanel({
           <MapClient
             className="h-full rounded-none border-0 shadow-none"
             currentPosition={currentPosition}
-            currentPositionLabel={placeName ?? "Selected area"}
+            currentPositionLabel={placeName ?? copy.selectedMapArea}
             height="large"
             onSelectCoordinates={onMapCenterChange}
             onSelectPoint={onPointSelect}
@@ -2632,14 +2694,14 @@ function ExploreMapPanel({
         <aside className="flex flex-col justify-between gap-4 border-black/6 border-t p-4 sm:gap-5 sm:p-5 xl:border-l xl:border-t-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-              Travel map
+              {copy.travelMap}
             </p>
             <div className="mt-1 flex items-start justify-between gap-3">
               <h2 className="text-xl font-semibold leading-tight tracking-normal text-[#111] sm:text-2xl">
-                Explore places worth visiting
+                {copy.mapTitle}
               </h2>
               <Button
-                aria-label="Close map"
+                aria-label={copy.closeMap}
                 className="shrink-0 rounded-full"
                 onClick={onClose}
                 size="icon-sm"
@@ -2650,8 +2712,7 @@ function ExploreMapPanel({
               </Button>
             </div>
             <p className="mt-2 text-sm leading-6 text-[#666]">
-              Browse photos, locations, and real travel inspiration to choose
-              the right place for your next itinerary.
+              {copy.mapDescription}
             </p>
           </div>
 
@@ -2664,13 +2725,13 @@ function ExploreMapPanel({
               }}
             >
               <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
-                City / province
+                {copy.cityProvince}
               </label>
               <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <input
                   className="h-10 min-w-0 rounded-full border border-black/8 bg-white px-3 text-sm font-semibold text-[#333] outline-none transition placeholder:text-[#999] focus:border-black/20"
                   onChange={(event) => setPlaceQuery(event.target.value)}
-                  placeholder="Da Nang, Ha Noi, Bangkok"
+                  placeholder={copy.cityProvincePlaceholder}
                   type="search"
                   value={placeQuery}
                 />
@@ -2682,23 +2743,29 @@ function ExploreMapPanel({
                   variant="outline"
                 >
                   <Search className="size-4" />
-                  Search
+                  {copy.searchLabel}
                 </Button>
               </div>
             </form>
 
             <div className="rounded-2xl border border-black/6 bg-[#f7f7f5] px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
-                Visible
+                {copy.visible}
               </p>
               <p className="mt-1 text-lg font-semibold text-[#111]">
-                {totalPosts} destination{totalPosts === 1 ? "" : "s"}
+                {formatExploreCount(
+                  totalPosts,
+                  copy.destinationUnit,
+                  copy.destinationsUnit,
+                )}
               </p>
             </div>
 
             {hasNearbyCenter ? (
               <div className="rounded-2xl border border-[#c8ddf1] bg-[#f2f7fd] px-4 py-3 text-sm text-[#385c80]">
-                <p className="font-semibold">{placeName ?? "Nearby center"}</p>
+                <p className="font-semibold">
+                  {placeName ?? copy.nearbyCenter}
+                </p>
                 <p className="mt-1">
                   {currentPosition.latitude.toFixed(5)},{" "}
                   {currentPosition.longitude.toFixed(5)}
@@ -2708,7 +2775,7 @@ function ExploreMapPanel({
 
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
-                Radius
+                {copy.radius}
               </p>
               <div className="flex flex-wrap gap-2">
                 {nearbyRadiusOptions.map((option) => (
@@ -2735,7 +2802,7 @@ function ExploreMapPanel({
                 }}
               >
                 <label className="min-w-0">
-                  <span className="sr-only">Custom radius in kilometers</span>
+                  <span className="sr-only">{copy.customRadiusLabel}</span>
                   <input
                     className="h-9 w-full rounded-full border border-black/8 bg-white px-3 text-sm font-semibold text-[#333] outline-none transition placeholder:text-[#999] focus:border-black/20"
                     inputMode="numeric"
@@ -2743,7 +2810,7 @@ function ExploreMapPanel({
                     min={1}
                     onBlur={(event) => applyCustomRadius(event.target.value)}
                     onChange={(event) => setCustomRadiusKm(event.target.value)}
-                    placeholder="Custom km"
+                    placeholder={copy.customRadiusPlaceholder}
                     type="number"
                     value={customRadiusKm}
                   />
@@ -2754,11 +2821,11 @@ function ExploreMapPanel({
                   type="submit"
                   variant="outline"
                 >
-                  Apply
+                  {copy.apply}
                 </Button>
               </form>
               <p className="mt-2 text-xs font-medium text-[#777]">
-                Custom radius supports up to 1000 km.
+                {copy.customRadiusHint}
               </p>
             </div>
           </div>
@@ -2766,7 +2833,7 @@ function ExploreMapPanel({
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={onLocate} type="button">
               <LocateFixed className="size-4" />
-              Near me
+              {copy.nearMe}
             </Button>
             {hasNearbyCenter ? (
               <Button
@@ -2776,7 +2843,7 @@ function ExploreMapPanel({
                 variant="outline"
               >
                 <X className="size-4" />
-                Clear
+                {copy.clear}
               </Button>
             ) : null}
           </div>
@@ -2874,22 +2941,22 @@ function ExploreHero({
           {[
             {
               icon: <Clock3 className="size-4" />,
-              label: "Newest",
+              label: heroCopy.sortNewest,
               value: "newest" as const,
             },
             {
               icon: <Flame className="size-4" />,
-              label: "Popular",
+              label: heroCopy.sortPopular,
               value: "popular" as const,
             },
             {
               icon: <Flame className="size-4" />,
-              label: "Trending",
+              label: heroCopy.sortTrending,
               value: "trending" as const,
             },
             {
               icon: <LocateFixed className="size-4" />,
-              label: "Nearby",
+              label: heroCopy.sortNearby,
               value: "nearby" as const,
             },
           ].map((item) => (
@@ -2923,7 +2990,7 @@ function ExploreHero({
             type="button"
           >
             <Bookmark className="size-4" />
-            Trip board
+            {heroCopy.tripBoard}
             {savedBoardCount > 0 ? (
               <span className="rounded-full bg-white/18 px-2 py-0.5 text-xs">
                 {savedBoardCount}
@@ -2946,7 +3013,7 @@ function ExploreHero({
             onClick={() => onCollectionChange(collection)}
             type="button"
           >
-            {collection}
+            {getExploreCollectionLabel(collection, heroCopy)}
           </button>
         ))}
       </div>

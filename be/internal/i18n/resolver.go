@@ -36,6 +36,8 @@ type Translation struct {
 	Value  string
 }
 
+type localeContextKey struct{}
+
 type Resolver struct {
 	db    *pgxpool.Pool
 	redis *goredis.Client
@@ -107,6 +109,32 @@ func LocaleFromRequest(r *http.Request) string {
 	}
 
 	return DefaultLocale
+}
+
+func WithLocale(ctx context.Context, locale string) context.Context {
+	normalizedLocale := normalizeLocale(locale)
+	if normalizedLocale == "" {
+		normalizedLocale = DefaultLocale
+	}
+	return context.WithValue(ctx, localeContextKey{}, normalizedLocale)
+}
+
+func LocaleFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return DefaultLocale
+	}
+	if locale, ok := ctx.Value(localeContextKey{}).(string); ok {
+		if normalizedLocale := normalizeLocale(locale); normalizedLocale != "" {
+			return normalizedLocale
+		}
+	}
+	return DefaultLocale
+}
+
+func LocaleMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(WithLocale(r.Context(), LocaleFromRequest(r))))
+	})
 }
 
 func (r *Resolver) Load(ctx context.Context) error {

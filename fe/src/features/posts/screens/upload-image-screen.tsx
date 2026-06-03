@@ -46,6 +46,7 @@ import {
   uploadImageApi,
 } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
 type FormState = {
@@ -124,6 +125,7 @@ function locationToMapPoint(location: Location): MapPoint {
 export function UploadImageScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { locale } = useI18n();
   const selectedFilesRef = useRef<File[]>([]);
   const heroFileInputRef = useRef<HTMLInputElement | null>(null);
   const formFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -224,7 +226,7 @@ export function UploadImageScreen() {
   });
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", locale],
     queryFn: ({ signal }) => getCategoriesApi({ signal }),
     staleTime: 5 * 60_000,
   });

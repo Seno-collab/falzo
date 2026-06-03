@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"falzo-be/internal/i18n"
 	"falzo-be/internal/post"
 	"falzo-be/internal/share"
 	"falzo-be/pkg/database"
@@ -22,16 +23,25 @@ type PostgresRepository struct {
 
 const postRepoService = "post"
 
-const postCategoriesJSONSQL = `
+func postCategoriesJSONSQL(localeParam string) string {
+	return `
 	COALESCE((
 		SELECT jsonb_agg(
-			jsonb_build_object('id', categories.id, 'name', categories.name, 'slug', categories.slug)
+			jsonb_build_object(
+				'id', categories.id,
+				'name', COALESCE(category_locale.name, categories.name),
+				'slug', categories.slug
+			)
 			ORDER BY post_categories.created_at, post_categories.category_id
 		)
 		FROM post_categories
 		INNER JOIN categories ON categories.id = post_categories.category_id
+		LEFT JOIN category_translations category_locale
+			ON category_locale.category_id = categories.id
+			AND category_locale.locale = ` + localeParam + `
 		WHERE post_categories.post_id = posts.id
 	), '[]'::jsonb)`
+}
 
 const postImageURLsJSONSQL = `COALESCE(NULLIF(posts.image_urls, '[]'::jsonb), jsonb_build_array(posts.image_url))`
 
@@ -39,12 +49,12 @@ func NewPostgresRepository(db database.Client) *PostgresRepository {
 	return &PostgresRepository{db: db}
 }
 
-func postSelectSQL(viewerParam string) string {
+func postSelectSQL(viewerParam string, localeParam string) string {
 	return `
 		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url,
 				` + postImageURLsJSONSQL + `::text, posts.caption, posts.location_name,
-				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
-				` + postCategoriesJSONSQL + `::text,
+				COALESCE(categories.id, 0), COALESCE(category_locale.name, categories.name, ''), COALESCE(categories.slug, ''),
+				` + postCategoriesJSONSQL(localeParam) + `::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -75,14 +85,17 @@ func postSelectSQL(viewerParam string) string {
 		FROM posts
 		INNER JOIN users ON users.id = posts.user_id
 		LEFT JOIN categories ON categories.id = posts.category_id
+		LEFT JOIN category_translations category_locale
+			ON category_locale.category_id = categories.id
+			AND category_locale.locale = ` + localeParam + `
 	`
 }
 
 func (r *PostgresRepository) loadPost(ctx context.Context, postID uint64, viewerUserID uint64) (post.Post, error) {
-	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2")+`
+	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2", "$3")+`
 		WHERE posts.id = $1
 		LIMIT 1
-	`, postID, viewerUserID))
+	`, postID, viewerUserID, i18n.LocaleFromContext(ctx)))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return post.Post{}, post.ErrNotFound
@@ -173,13 +186,13 @@ func (r *PostgresRepository) UpdatePost(ctx context.Context, postID uint64, user
 		return post.Post{}, err
 	}
 
-	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2")+`
+	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2", "$3")+`
 		WHERE posts.id = $1
 			AND posts.user_id = $2
 			AND posts.deleted_at IS NULL
 			AND posts.status = 'visible'
 		LIMIT 1
-	`, postID, userID))
+	`, postID, userID, i18n.LocaleFromContext(ctx)))
 	if err == nil {
 		tx, err := r.db.Pool().Begin(ctx)
 		if err != nil {
@@ -438,8 +451,8 @@ func (r *PostgresRepository) ListSavedPosts(ctx context.Context, userID uint64) 
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url,
 				`+postImageURLsJSONSQL+`::text, posts.caption, posts.location_name,
-				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
-				`+postCategoriesJSONSQL+`::text,
+				COALESCE(categories.id, 0), COALESCE(category_locale.name, categories.name, ''), COALESCE(categories.slug, ''),
+				`+postCategoriesJSONSQL("$2")+`::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -467,12 +480,15 @@ func (r *PostgresRepository) ListSavedPosts(ctx context.Context, userID uint64) 
 		INNER JOIN posts ON posts.id = post_saves.post_id
 		INNER JOIN users ON users.id = posts.user_id
 		LEFT JOIN categories ON categories.id = posts.category_id
+		LEFT JOIN category_translations category_locale
+			ON category_locale.category_id = categories.id
+			AND category_locale.locale = $2
 		WHERE post_saves.user_id = $1
 			AND posts.deleted_at IS NULL
 			AND posts.status = 'visible'
 		ORDER BY post_saves.created_at DESC, post_saves.id DESC
 		LIMIT 200
-	`, userID)
+	`, userID, i18n.LocaleFromContext(ctx))
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "saved_posts.list", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -783,9 +799,9 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 				SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, '') AS user_avatar_url, posts.image_url,
 					`+postImageURLsJSONSQL+`::text AS image_urls, posts.caption, posts.location_name,
 					COALESCE(categories.id, 0) AS category_id,
-					COALESCE(categories.name, '') AS category_name,
+					COALESCE(category_locale.name, categories.name, '') AS category_name,
 					COALESCE(categories.slug, '') AS category_slug,
-					`+postCategoriesJSONSQL+`::text AS categories,
+					`+postCategoriesJSONSQL("$16")+`::text AS categories,
 					COALESCE(posts.latitude, 0) AS latitude,
 					COALESCE(posts.longitude, 0) AS longitude,
 					EXISTS (
@@ -817,6 +833,9 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 				FROM posts
 				INNER JOIN users ON users.id = posts.user_id
 				LEFT JOIN categories ON categories.id = posts.category_id
+				LEFT JOIN category_translations category_locale
+					ON category_locale.category_id = categories.id
+					AND category_locale.locale = $16
 				LEFT JOIN LATERAL (
 					SELECT COUNT(*) AS likes_count
 					FROM post_likes
@@ -852,13 +871,16 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 					LIMIT 1
 				) viewer_trust_vote ON TRUE
 				WHERE ($4 = '%%' OR posts.caption ILIKE $4 OR posts.location_name ILIKE $4 OR users.user_name ILIKE $4
-					OR categories.name ILIKE $4 OR categories.slug ILIKE $4
+					OR categories.name ILIKE $4 OR category_locale.name ILIKE $4 OR categories.slug ILIKE $4
 					OR EXISTS (
 						SELECT 1
 						FROM post_categories search_post_categories
 						INNER JOIN categories search_categories ON search_categories.id = search_post_categories.category_id
+						LEFT JOIN category_translations search_category_locale
+							ON search_category_locale.category_id = search_categories.id
+							AND search_category_locale.locale = $16
 						WHERE search_post_categories.post_id = posts.id
-							AND (search_categories.name ILIKE $4 OR search_categories.slug ILIKE $4)
+							AND (search_categories.name ILIKE $4 OR search_category_locale.name ILIKE $4 OR search_categories.slug ILIKE $4)
 					))
 					AND ($5 = '' OR categories.slug = $5 OR EXISTS (
 						SELECT 1
@@ -944,7 +966,7 @@ func (r *PostgresRepository) GetPosts(ctx context.Context, filter post.PostListF
 				CASE WHEN $7 IN ('popular', 'trending') THEN rank_value END DESC,
 				created_at DESC, id DESC
 			LIMIT $1 OFFSET $2
-		`, filter.Limit, offset, filter.ViewerUserID, searchPattern, categorySlug, strings.TrimSpace(filter.Feed), sort, filter.Latitude, filter.Longitude, radiusDegrees, cursorCreatedAt, cursorID, cursorRank, hasCursor, rankAt)
+		`, filter.Limit, offset, filter.ViewerUserID, searchPattern, categorySlug, strings.TrimSpace(filter.Feed), sort, filter.Latitude, filter.Longitude, radiusDegrees, cursorCreatedAt, cursorID, cursorRank, hasCursor, rankAt, i18n.LocaleFromContext(ctx))
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -1038,12 +1060,12 @@ func (r *PostgresRepository) GetPostDetail(ctx context.Context, postID uint64, v
 		return nil, post.ErrDependencyUnavailable
 	}
 
-	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2")+`
+	item, err := scanPost(r.db.Pool().QueryRow(ctx, postSelectSQL("$2", "$3")+`
 		WHERE posts.id = $1
 			AND posts.deleted_at IS NULL
 			AND posts.status = 'visible'
 		LIMIT 1
-	`, postID, viewerUserID))
+	`, postID, viewerUserID, i18n.LocaleFromContext(ctx)))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, post.ErrNotFound
@@ -1060,13 +1082,13 @@ func (r *PostgresRepository) GetPostsByLocation(ctx context.Context, locationNam
 	}
 
 	pattern := "%" + strings.TrimSpace(locationName.String()) + "%"
-	rows, err := r.db.Pool().Query(ctx, postSelectSQL("0")+`
+	rows, err := r.db.Pool().Query(ctx, postSelectSQL("0", "$2")+`
 		WHERE posts.location_name ILIKE $1
 			AND posts.deleted_at IS NULL
 			AND posts.status = 'visible'
 		ORDER BY posts.created_at DESC, posts.id DESC
 		LIMIT 100
-	`, pattern)
+	`, pattern, i18n.LocaleFromContext(ctx))
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "posts.get_posts_by_location", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}
@@ -1386,8 +1408,8 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 	rows, err := r.db.Pool().Query(ctx, `
 		SELECT posts.id, posts.user_id, users.user_name, COALESCE(users.avatar_url, ''), posts.image_url,
 				`+postImageURLsJSONSQL+`::text, posts.caption, posts.location_name,
-				COALESCE(categories.id, 0), COALESCE(categories.name, ''), COALESCE(categories.slug, ''),
-				`+postCategoriesJSONSQL+`::text,
+				COALESCE(categories.id, 0), COALESCE(category_locale.name, categories.name, ''), COALESCE(categories.slug, ''),
+				`+postCategoriesJSONSQL("$4")+`::text,
 				COALESCE(posts.latitude, 0), COALESCE(posts.longitude, 0),
 				EXISTS (
 					SELECT 1
@@ -1419,13 +1441,16 @@ func (r *PostgresRepository) listSavedCollectionPosts(ctx context.Context, colle
 		INNER JOIN posts ON posts.id = saved_collection_posts.post_id
 		INNER JOIN users ON users.id = posts.user_id
 		LEFT JOIN categories ON categories.id = posts.category_id
+		LEFT JOIN category_translations category_locale
+			ON category_locale.category_id = categories.id
+			AND category_locale.locale = $4
 		WHERE saved_collection_posts.collection_id = $1
 			AND saved_collection_posts.user_id = $2
 			AND posts.deleted_at IS NULL
 			AND posts.status = 'visible'
 		ORDER BY saved_collection_posts.created_at DESC, saved_collection_posts.id DESC
 		LIMIT 200
-	`, collectionID, ownerUserID, viewerUserID)
+	`, collectionID, ownerUserID, viewerUserID, i18n.LocaleFromContext(ctx))
 	if err != nil {
 		return nil, share.MapDBError(ctx, postRepoService, "saved_collection_posts.list", err, post.ErrDependencyUnavailable, post.ErrInternal)
 	}

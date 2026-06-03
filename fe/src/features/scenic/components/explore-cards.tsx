@@ -34,6 +34,7 @@ import type {
   PostTrustSummary,
   PostTrustVoteType,
 } from "@/features/posts/types";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +102,19 @@ function getPostImageUrls(post: Post) {
   return urls.length > 0 ? urls : [post.image_url];
 }
 
-function getPostCategoryLabel(post: Post) {
+type ExploreCopy = ReturnType<typeof useI18n>["messages"]["explorePage"];
+
+function formatCardTemplate(
+  template: string,
+  values: Record<string, string | number>,
+) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+}
+
+function getPostCategoryLabel(post: Post, copy: ExploreCopy) {
   const names = (post.categories ?? [])
     .map((category) => category.name.trim())
     .filter(Boolean);
@@ -110,7 +123,7 @@ function getPostCategoryLabel(post: Post) {
     return names.slice(0, 3).join(", ");
   }
 
-  return post.category_name || "Travel";
+  return post.category_name || copy.categoryTravel;
 }
 
 function getAuthorInitial(authorName: string) {
@@ -138,43 +151,45 @@ function activeClass(type: "heart" | "save" | "comment", active: boolean) {
   return "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]";
 }
 
-const trustVoteOptions: Array<{
+function getTrustVoteOptions(copy: ExploreCopy): Array<{
   type: PostTrustVoteType;
   label: string;
   description: string;
   icon: LucideIcon;
-}> = [
-  {
-    type: "credible",
-    label: "Looks real",
-    description: "Place and image feel authentic",
-    icon: ShieldCheck,
-  },
-  {
-    type: "suspicious",
-    label: "Suspicious",
-    description: "Something looks manipulated",
-    icon: TriangleAlert,
-  },
-  {
-    type: "ai_generated",
-    label: "AI generated",
-    description: "Looks synthetic or overprocessed",
-    icon: Bot,
-  },
-  {
-    type: "wrong_context",
-    label: "Wrong context",
-    description: "Place, time, or caption seems off",
-    icon: Flag,
-  },
-  {
-    type: "unsure",
-    label: "Not sure",
-    description: "Needs more community review",
-    icon: HelpCircle,
-  },
-];
+}> {
+  return [
+    {
+      type: "credible",
+      label: copy.trustLooksReal,
+      description: copy.trustLooksRealDescription,
+      icon: ShieldCheck,
+    },
+    {
+      type: "suspicious",
+      label: copy.trustSuspicious,
+      description: copy.trustSuspiciousDescription,
+      icon: TriangleAlert,
+    },
+    {
+      type: "ai_generated",
+      label: copy.trustAiGenerated,
+      description: copy.trustAiGeneratedDescription,
+      icon: Bot,
+    },
+    {
+      type: "wrong_context",
+      label: copy.trustWrongContext,
+      description: copy.trustWrongContextDescription,
+      icon: Flag,
+    },
+    {
+      type: "unsure",
+      label: copy.trustUnsure,
+      description: copy.trustUnsureDescription,
+      icon: HelpCircle,
+    },
+  ];
+}
 
 function getTrustSummary(post: Post): PostTrustSummary {
   return (
@@ -190,31 +205,31 @@ function getTrustSummary(post: Post): PostTrustSummary {
   );
 }
 
-function getTrustBadge(summary: PostTrustSummary) {
+function getTrustBadge(summary: PostTrustSummary, copy: ExploreCopy) {
   switch (summary.status) {
     case "community_trusted":
       return {
-        label: "Community trusted",
+        label: copy.trustCommunityTrusted,
         className: "border-[#b7dfc1] bg-[#eef9f0] text-[#236238]",
       };
     case "community_suspicious":
       return {
-        label: "Community doubts",
+        label: copy.trustCommunityDoubts,
         className: "border-[#f0c2c2] bg-[#fff1f1] text-[#9f2f2f]",
       };
     case "disputed":
       return {
-        label: "Disputed",
+        label: copy.trustDisputed,
         className: "border-[#ebd59c] bg-[#fff8df] text-[#7b5a11]",
       };
     case "needs_more_context":
       return {
-        label: "Needs context",
+        label: copy.trustNeedsContext,
         className: "border-[#c8ddf1] bg-[#f2f7fd] text-[#2f6fb8]",
       };
     default:
       return {
-        label: "Not reviewed",
+        label: copy.trustNotReviewed,
         className: "border-black/10 bg-white text-[#555]",
       };
   }
@@ -231,9 +246,12 @@ function TrustSignals({
   onVote: (type: PostTrustVoteType) => void;
   post: Post;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
+  const trustVoteOptions = getTrustVoteOptions(copy);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const summary = getTrustSummary(post);
-  const badge = getTrustBadge(summary);
+  const badge = getTrustBadge(summary, copy);
   const concernCount =
     summary.suspicious_count +
     summary.ai_generated_count +
@@ -259,7 +277,10 @@ function TrustSignals({
 
     return (
       <button
-        aria-label={`Mark image as ${option.label}: ${option.description}`}
+        aria-label={formatCardTemplate(copy.trustRatingAria, {
+          description: option.description,
+          label: option.label,
+        })}
         className={cn(
           "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-1.5 text-xs font-bold text-[#444] transition hover:border-[#9abfe5] hover:bg-[#f8fbff] hover:text-[#245f9a] disabled:cursor-not-allowed disabled:opacity-55",
           active &&
@@ -307,8 +328,12 @@ function TrustSignals({
         </Badge>
         <p className="text-xs font-semibold text-[#666]">
           {summary.total_count > 0
-            ? `${summary.total_count} ratings / ${summary.credible_count} real / ${concernCount} flags`
-            : "No community ratings"}
+            ? formatCardTemplate(copy.trustSummary, {
+                credible: summary.credible_count,
+                flags: concernCount,
+                total: summary.total_count,
+              })
+            : copy.noCommunityRatings}
         </p>
       </div>
       <button
@@ -329,10 +354,10 @@ function TrustSignals({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold leading-5 text-[#333]">
-            {selectedOption?.label ?? "Choose trust rating"}
+            {selectedOption?.label ?? copy.chooseTrustRating}
           </span>
           <span className="mt-0.5 block text-xs font-semibold leading-4 text-[#777]">
-            {selectedOption?.description ?? "Hover to select how this image feels"}
+            {selectedOption?.description ?? copy.trustRatingHint}
           </span>
         </span>
         <ChevronDown
@@ -375,15 +400,19 @@ function Comments({
   editingCommentId: number | null;
   currentUserId: number | null;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   if (isLoading) {
     return (
-      <p className="text-xs font-semibold text-[#555]">Loading comments</p>
+      <p className="text-xs font-semibold text-[#555]">
+        {copy.loadingComments}
+      </p>
     );
   }
 
   if (comments.length === 0) {
     return (
-      <p className="text-xs font-semibold text-[#555]">No comments yet.</p>
+      <p className="text-xs font-semibold text-[#555]">{copy.noCommentsYet}</p>
     );
   }
 
@@ -414,7 +443,7 @@ function Comments({
               type="button"
             >
               <Pencil className="size-3" />
-              Edit
+              {copy.edit}
             </button>
           ) : null}
           <button
@@ -423,7 +452,7 @@ function Comments({
             type="button"
           >
             <Reply className="size-3" />
-            Reply
+            {copy.reply}
           </button>
         </div>
       </div>
@@ -431,7 +460,7 @@ function Comments({
         <span>{new Date(comment.created_at).toLocaleDateString()}</span>
         {isCommentEdited(comment) ? (
           <span className="rounded-full bg-[#f2f7fd] px-2 py-0.5 text-[#5f7894]">
-            edited
+            {copy.edited}
           </span>
         ) : null}
       </div>
@@ -474,13 +503,17 @@ function CommentInput({
   onInputMount: (node: HTMLInputElement | null) => void;
   onSubmit: () => void;
 }) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   const placeholder = !isAuthenticated
-    ? "Login to comment"
+    ? copy.loginToComment
     : editingComment
-      ? "Edit comment"
+      ? copy.editComment
       : replyTarget
-        ? `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`
-        : "Write a comment";
+        ? `${copy.replyingTo} ${
+            replyTarget.user_name || `User #${replyTarget.user_id}`
+          }`
+        : copy.writeComment;
 
   return (
     <div className="mt-3 space-y-2">
@@ -488,11 +521,11 @@ function CommentInput({
         <div className="flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
           <Pencil className="mt-0.5 size-3 shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">Editing comment</p>
+            <p className="font-semibold">{copy.editingComment}</p>
             <p className="mt-0.5 truncate">{editingComment.content}</p>
           </div>
           <button
-            aria-label="Cancel edit"
+            aria-label={copy.cancelEdit}
             className="rounded-full p-0.5 text-[#8c6a1f] transition hover:bg-white hover:text-[#5e430f]"
             onClick={onCancelEdit}
             type="button"
@@ -505,13 +538,13 @@ function CommentInput({
           <Reply className="mt-0.5 size-3 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-semibold">
-              Replying to{" "}
+              {copy.replyingTo}{" "}
               {replyTarget.user_name || `User #${replyTarget.user_id}`}
             </p>
             <p className="mt-0.5 truncate">{replyTarget.content}</p>
           </div>
           <button
-            aria-label="Cancel reply"
+            aria-label={copy.cancelReply}
             className="rounded-full p-0.5 text-[#5f7894] transition hover:bg-white hover:text-[#244c78]"
             onClick={onCancelReply}
             type="button"
@@ -530,7 +563,7 @@ function CommentInput({
           value={value}
         />
         <Button
-          aria-label={isAuthenticated ? "Submit comment" : "Login to comment"}
+          aria-label={isAuthenticated ? copy.submitComment : copy.loginToComment}
           className="rounded-full"
           disabled={isSubmitting}
           onClick={onSubmit}
@@ -577,10 +610,12 @@ export function ExplorePostCard({
   onSubmitComment,
   onRegisterCommentInput,
 }: Readonly<PostCardProps>) {
-  const title = post.caption || "Travel story";
-  const location = post.location_name || "Destination";
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
+  const title = post.caption || copy.travelStoryFallback;
+  const location = post.location_name || copy.destinationFallback;
   const authorName = post.user_name || `User #${post.user_id}`;
-  const categoryLabel = getPostCategoryLabel(post);
+  const categoryLabel = getPostCategoryLabel(post, copy);
   const authorAvatarUrl = getPostAvatarUrl(post);
   const imageUrls = getPostImageUrls(post);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -625,7 +660,7 @@ export function ExplorePostCard({
         tabIndex={0}
       >
         <img
-          alt={post.caption || post.location_name || "Destination photo"}
+          alt={post.caption || post.location_name || copy.destinationPhoto}
           className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.045]"
           decoding="async"
           fetchPriority={isInitialImage ? "high" : "low"}
@@ -652,7 +687,7 @@ export function ExplorePostCard({
             )}
           >
             <Button
-              aria-label="Open image"
+              aria-label={copy.openImage}
               className="rounded-full bg-white/86 text-[#222] shadow-sm backdrop-blur-xl hover:bg-white"
               onClick={(event) => {
                 event.stopPropagation();
@@ -666,7 +701,7 @@ export function ExplorePostCard({
             </Button>
             {isAuthenticated ? (
               <Button
-                aria-label={isLiked ? "Liked" : "Like"}
+                aria-label={isLiked ? copy.liked : copy.like}
                 className={cn(
                   "rounded-full shadow-sm backdrop-blur-xl",
                   isLiked
@@ -694,7 +729,7 @@ export function ExplorePostCard({
             )}
           >
             <button
-              aria-label="Previous image"
+              aria-label={copy.previousImageInPost}
               className="flex size-9 items-center justify-center rounded-full bg-black/34 text-white shadow-lg backdrop-blur-xl transition hover:bg-black/48"
               onClick={(event) => {
                 event.stopPropagation();
@@ -706,7 +741,7 @@ export function ExplorePostCard({
               <ChevronLeft className="size-4" />
             </button>
             <button
-              aria-label="Next image"
+              aria-label={copy.nextImageInPost}
               className="flex size-9 items-center justify-center rounded-full bg-black/34 text-white shadow-lg backdrop-blur-xl transition hover:bg-black/48"
               onClick={(event) => {
                 event.stopPropagation();
@@ -760,7 +795,7 @@ export function ExplorePostCard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link
-              aria-label={`Open ${authorName}'s profile`}
+              aria-label={`${messages.common.profile}: ${authorName}`}
               className="shrink-0 rounded-full"
               href={ROUTES.userProfile(post.user_id)}
             >
@@ -788,7 +823,7 @@ export function ExplorePostCard({
 
         <div className="flex flex-wrap gap-2 rounded-2xl border border-black/6 bg-[#f8f8f7] p-2">
           <Button
-            aria-label="Open image"
+            aria-label={copy.openImage}
             className="h-8 rounded-full px-3 text-xs"
             onClick={() => onOpen(post.id)}
             size="sm"
@@ -796,11 +831,11 @@ export function ExplorePostCard({
             variant="outline"
           >
             <Maximize2 className="size-3.5" />
-            Open
+            {copy.open}
           </Button>
           {isAuthenticated ? (
             <Button
-              aria-label={isLiked ? "Liked" : "Like travel post"}
+              aria-label={isLiked ? copy.liked : copy.likeTravelPost}
               className={cn(
                 "h-8 rounded-full px-3 text-xs",
                 activeClass("heart", isLiked),
@@ -811,11 +846,11 @@ export function ExplorePostCard({
               variant="outline"
             >
               <Heart className={cn("size-3.5", isLiked ? "fill-current" : "")} />
-              {isLiked ? "Liked" : "Like"}
+              {isLiked ? copy.liked : copy.like}
             </Button>
           ) : null}
           <Button
-            aria-label="View comments"
+            aria-label={copy.viewComments}
             className={cn(
               "h-8 rounded-full px-3 text-xs",
               activeClass("comment", commentsOpen),
@@ -826,7 +861,7 @@ export function ExplorePostCard({
             variant="outline"
           >
             <MessageCircle className="size-3.5" />
-            Tips
+            {copy.tips}
             {comments.length > 0 ? (
               <span className="rounded-full bg-black/6 px-1.5 text-[11px]">
                 {comments.length}
@@ -835,7 +870,7 @@ export function ExplorePostCard({
           </Button>
           {isAuthenticated ? (
             <Button
-              aria-label={isSaved ? "Saved" : "Save destination"}
+              aria-label={isSaved ? copy.navSaved : copy.saveDestination}
               className={cn(
                 "h-8 rounded-full px-3 text-xs",
                 isSaved
@@ -850,13 +885,13 @@ export function ExplorePostCard({
               <Bookmark
                 className={cn("size-3.5", isSaved ? "fill-current" : "")}
               />
-              {isSaved ? "Saved" : "Save"}
+              {isSaved ? copy.navSaved : copy.save}
             </Button>
           ) : null}
           {isAuthenticated ? (
             currentUserId === post.user_id ? (
               <Button
-                aria-label="Delete travel post"
+                aria-label={copy.deleteTravelPost}
                 className="h-8 rounded-full px-3 text-xs text-[#b4233f]"
                 onClick={() => onDelete(post.id)}
                 size="sm"
@@ -864,11 +899,11 @@ export function ExplorePostCard({
                 variant="outline"
               >
                 <Trash2 className="size-3.5" />
-                Delete
+                {copy.delete}
               </Button>
             ) : (
               <Button
-                aria-label="Report travel post"
+                aria-label={copy.reportTravelPost}
                 className="h-8 rounded-full px-3 text-xs"
                 onClick={() => onReport(post.id)}
                 size="sm"
@@ -876,7 +911,7 @@ export function ExplorePostCard({
                 variant="outline"
               >
                 <Flag className="size-3.5" />
-                Report
+                {copy.report}
               </Button>
             )
           ) : null}
@@ -889,11 +924,13 @@ export function ExplorePostCard({
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-[#f8f8f7] px-2.5 py-1">
             <CalendarDays className="size-3.5 text-[#777]" />
-            {bestTimeLabel ?? "Golden hour"}
+            {bestTimeLabel ?? copy.goldenHour}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-[#f8f8f7] px-2.5 py-1">
             <Bookmark className="size-3.5 text-[#777]" />
-            {savedCount > 0 ? `${savedCount} saved` : "No saves"}
+            {savedCount > 0
+              ? formatCardTemplate(copy.savedCount, { count: savedCount })
+              : copy.noSaves}
           </span>
         </div>
 

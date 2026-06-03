@@ -215,6 +215,7 @@ func Run() {
 		MaxAgeSeconds:    cfg.HTTP.CORSMaxAgeSeconds,
 	}))
 	r.Use(middleware.RequestID)
+	r.Use(i18n.LocaleMiddleware)
 	r.Use(httpMiddleware.Recover)
 	r.Use(logger.RequestLogger)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {

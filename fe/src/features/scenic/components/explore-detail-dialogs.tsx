@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Post, PostComment } from "@/features/posts/types";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -78,7 +79,23 @@ function getPostImageUrls(post: Post | null) {
   return urls.length > 0 ? urls : [post.image_url];
 }
 
-function getPostCategoryLabel(post: Post | null) {
+type ExploreCopy = ReturnType<typeof useI18n>["messages"]["explorePage"];
+
+function formatDetailTemplate(
+  template: string,
+  values: Record<string, string | number>,
+) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+}
+
+function formatDetailCount(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function getPostCategoryLabel(post: Post | null, copy: ExploreCopy) {
   const names = (post?.categories ?? [])
     .map((category) => category.name.trim())
     .filter(Boolean);
@@ -87,7 +104,7 @@ function getPostCategoryLabel(post: Post | null) {
     return names.slice(0, 3).join(", ");
   }
 
-  return post?.category_name || "Travel";
+  return post?.category_name || copy.categoryTravel;
 }
 
 function getAuthorInitial(authorName: string) {
@@ -159,6 +176,8 @@ function CommentBubble({
   onReplyComment: (comment: PostComment) => void;
   selectedReplyTargetId: number | null;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   const author = getCommentAuthor(comment);
   const isEditing = editingCommentId === comment.id;
   const isReplyTarget = selectedReplyTargetId === comment.id;
@@ -210,7 +229,7 @@ function CommentBubble({
             onClick={() => onReplyComment(comment)}
             type="button"
           >
-            Reply
+            {copy.reply}
           </button>
           {currentUserId === comment.user_id ? (
             <button
@@ -219,7 +238,7 @@ function CommentBubble({
               type="button"
             >
               <Pencil className="size-3" />
-              Edit
+              {copy.edit}
             </button>
           ) : null}
         </div>
@@ -247,10 +266,12 @@ function DetailComments({
   currentUserId: number | null;
   onEditComment: (comment: PostComment) => void;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   if (isLoading) {
     return (
       <div className="rounded-2xl bg-[#f4f4f4] px-4 py-5 text-sm font-bold text-[#555]">
-        Loading comments
+        {copy.loadingComments}
       </div>
     );
   }
@@ -258,7 +279,7 @@ function DetailComments({
   if (!isChatOpen) {
     return (
       <div className="rounded-2xl bg-[#f4f4f4] px-4 py-5 text-sm font-bold text-[#555]">
-        Open comments.
+        {copy.openComments}.
       </div>
     );
   }
@@ -266,7 +287,7 @@ function DetailComments({
   if (comments.length === 0) {
     return (
       <div className="rounded-2xl bg-[#f4f4f4] px-4 py-5 text-sm font-bold text-[#555]">
-        No comments yet.
+        {copy.noCommentsYet}
       </div>
     );
   }
@@ -284,7 +305,11 @@ function DetailComments({
       {replies.length > 0 ? (
         <div className="ml-12 border-l border-[#e5e5e5] pl-3">
           <p className="px-3 py-1 text-xs font-bold text-[#8a8a8a]">
-            {replies.length} repl{replies.length === 1 ? "y" : "ies"}
+            {formatDetailCount(
+              replies.length,
+              copy.replySingular,
+              copy.replyPlural,
+            )}
           </p>
           <div className="space-y-1">
             {replies.map((reply) => (
@@ -335,9 +360,11 @@ export function PostDetailDialog({
   onSubmitComment,
   carouselLabel,
 }: Readonly<PostDetailDialogProps>) {
+  const { messages } = useI18n();
+  const copy = messages.explorePage;
   const authorName = post?.user_name || (post ? `User #${post.user_id}` : "");
   const authorAvatarUrl = getPostAvatarUrl(post);
-  const categoryLabel = getPostCategoryLabel(post);
+  const categoryLabel = getPostCategoryLabel(post, copy);
   const dragStartXRef = useRef<number | null>(null);
   const didNavigateDragRef = useRef(false);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
@@ -348,12 +375,14 @@ export function PostDetailDialog({
   const hasMultipleImages = imageUrls.length > 1;
   const canNavigatePosts = Boolean(onPreviousPost || onNextPost);
   const getCommentPlaceholder = () => {
-    if (!isChatOpen) return "Open comments";
-    if (!isAuthenticated) return "Login to comment";
-    if (editingComment) return "Edit comment";
+    if (!isChatOpen) return copy.openComments;
+    if (!isAuthenticated) return copy.loginToComment;
+    if (editingComment) return copy.editComment;
     if (replyTarget)
-      return `Reply to ${replyTarget.user_name || `User #${replyTarget.user_id}`}`;
-    return "Write a comment";
+      return `${copy.replyingTo} ${
+        replyTarget.user_name || `User #${replyTarget.user_id}`
+      }`;
+    return copy.writeComment;
   };
   const commentPlaceholder = getCommentPlaceholder();
   const commentCount = comments.length;
@@ -364,11 +393,11 @@ export function PostDetailDialog({
       <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#dec078] bg-[#fff8e6] px-3 py-2 text-xs text-[#73551b]">
         <Pencil className="mt-0.5 size-3 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">Editing comment</p>
+          <p className="font-semibold">{copy.editingComment}</p>
           <p className="mt-0.5 truncate">{editingComment.content}</p>
         </div>
         <button
-          aria-label="Cancel edit"
+          aria-label={copy.cancelEdit}
           className="rounded-full p-0.5 text-[#8c6a1f] transition hover:bg-white hover:text-[#5e430f]"
           onClick={onCancelEdit}
           type="button"
@@ -383,13 +412,13 @@ export function PostDetailDialog({
         <Reply className="mt-0.5 size-3 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">
-            Replying to{" "}
+            {copy.replyingTo}{" "}
             {replyTarget.user_name || `User #${replyTarget.user_id}`}
           </p>
           <p className="mt-0.5 truncate">{replyTarget.content}</p>
         </div>
         <button
-          aria-label="Cancel reply"
+          aria-label={copy.cancelReply}
           className="rounded-full p-0.5 text-[#5f7894] transition hover:bg-white hover:text-[#244c78]"
           onClick={onCancelReply}
           type="button"
@@ -513,8 +542,8 @@ export function PostDetailDialog({
               <button
                 aria-label={
                   isImageZoomed
-                    ? "Zoom out destination photo"
-                    : "Zoom in destination photo"
+                    ? copy.zoomOutDestinationPhoto
+                    : copy.zoomInDestinationPhoto
                 }
                 className={cn(
                   "h-full w-full touch-pan-y overflow-hidden bg-black",
@@ -532,7 +561,7 @@ export function PostDetailDialog({
               >
                 <img
                   alt={
-                    post.caption || post.location_name || "Destination detail"
+                    post.caption || post.location_name || copy.destinationDetail
                   }
                   className="pointer-events-none h-full w-full select-none object-contain transition duration-500 ease-out"
                   decoding="async"
@@ -547,7 +576,7 @@ export function PostDetailDialog({
               </button>
             ) : (
               <div className="flex h-full min-h-[48vh] items-center justify-center text-sm font-semibold text-white/68">
-                Loading travel post
+                {copy.loadingTravelPost}
               </div>
             )}
 
@@ -558,12 +587,12 @@ export function PostDetailDialog({
                 </span>
                 <div className="min-w-0">
                   <p className="hidden text-xs font-bold uppercase tracking-[0.14em] text-white/68 sm:block">
-                    Travel lens
+                    {copy.travelLens}
                   </p>
                   <p className="truncate text-sm font-semibold">
                     {isImageZoomed
-                      ? "Move around to inspect the scene"
-                      : "Click the photo to zoom into details"}
+                      ? copy.zoomMoveHint
+                      : copy.zoomClickHint}
                   </p>
                 </div>
               </div>
@@ -571,7 +600,7 @@ export function PostDetailDialog({
 
             <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-full border border-white/14 bg-black/42 p-1 shadow-lg backdrop-blur-xl sm:right-5 sm:top-5">
               <button
-                aria-label={isImageZoomed ? "Zoom out" : "Zoom in"}
+                aria-label={isImageZoomed ? copy.zoomOut : copy.zoomIn}
                 className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16"
                 disabled={!post}
                 onClick={() => setIsImageZoomed((current) => !current)}
@@ -584,7 +613,7 @@ export function PostDetailDialog({
                 )}
               </button>
               <button
-                aria-label="Reset image view"
+                aria-label={copy.resetImageView}
                 className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16 disabled:opacity-40"
                 disabled={!post || !isImageZoomed}
                 onClick={resetImageZoom}
@@ -593,7 +622,7 @@ export function PostDetailDialog({
                 <RotateCcw className="size-4" />
               </button>
               <button
-                aria-label="Close image viewer"
+                aria-label={copy.closeImageViewer}
                 className="flex size-9 items-center justify-center rounded-full text-white transition hover:bg-white/16"
                 onClick={onClose}
                 type="button"
@@ -605,7 +634,7 @@ export function PostDetailDialog({
             {hasMultipleImages ? (
               <div className="-translate-x-1/2 absolute left-1/2 top-16 z-30 flex items-center gap-1 rounded-full border border-white/14 bg-black/46 p-1 text-white shadow-lg backdrop-blur-xl sm:top-5">
                 <button
-                  aria-label="Previous image in post"
+                  aria-label={copy.previousImageInPost}
                   className="flex size-8 items-center justify-center rounded-full transition hover:bg-white/16"
                   onClick={showPreviousImage}
                   type="button"
@@ -616,7 +645,7 @@ export function PostDetailDialog({
                   {activeImageIndex + 1} / {imageUrls.length}
                 </span>
                 <button
-                  aria-label="Next image in post"
+                  aria-label={copy.nextImageInPost}
                   className="flex size-8 items-center justify-center rounded-full transition hover:bg-white/16"
                   onClick={showNextImage}
                   type="button"
@@ -628,7 +657,7 @@ export function PostDetailDialog({
 
             {onPreviousPost ? (
               <button
-                aria-label="Previous post"
+                aria-label={copy.previousPost}
                 className="-translate-y-1/2 absolute left-3 top-1/2 flex size-11 items-center justify-center rounded-full bg-white/14 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/24 sm:left-5 sm:size-12"
                 onClick={onPreviousPost}
                 type="button"
@@ -639,7 +668,7 @@ export function PostDetailDialog({
 
             {onNextPost ? (
               <button
-                aria-label="Next post"
+                aria-label={copy.nextPost}
                 className="-translate-y-1/2 absolute right-3 top-1/2 flex size-11 items-center justify-center rounded-full bg-white/14 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/24 sm:right-5 sm:size-12"
                 onClick={onNextPost}
                 type="button"
@@ -683,10 +712,11 @@ export function PostDetailDialog({
                   )}
                 </div>
                 <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/90 sm:line-clamp-3 sm:leading-6">
-                  {post?.caption || "Travel story"}
+                  {post?.caption || copy.travelStoryFallback}
                 </p>
                 <p className="mt-2 text-xs font-semibold text-white/60">
-                  {post?.location_name || "Destination"} / {categoryLabel}
+                  {post?.location_name || copy.destinationFallback} /{" "}
+                  {categoryLabel}
                 </p>
               </div>
             </div>
@@ -694,7 +724,7 @@ export function PostDetailDialog({
             <div className="absolute bottom-4 right-3 flex flex-col items-center gap-2 sm:bottom-6 sm:right-4 sm:gap-3">
               {isAuthenticated ? (
                 <button
-                  aria-label={isLiked ? "Liked" : "Like travel post"}
+                  aria-label={isLiked ? copy.liked : copy.likeTravelPost}
                   className={cn(
                     "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
                     isLiked ? "text-[#ff4d6d]" : "",
@@ -712,7 +742,7 @@ export function PostDetailDialog({
                 </button>
               ) : null}
               <button
-                aria-label="Open comments"
+                aria-label={copy.openComments}
                 className={cn(
                   "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
                   isChatOpen ? "bg-white text-[#111] hover:bg-white" : "",
@@ -725,7 +755,7 @@ export function PostDetailDialog({
               </button>
               {isAuthenticated ? (
                 <button
-                  aria-label={isSaved ? "Saved" : "Save destination"}
+                  aria-label={isSaved ? copy.navSaved : copy.saveDestination}
                   className={cn(
                     "flex size-10 items-center justify-center rounded-full bg-white/12 text-white shadow-lg backdrop-blur-xl transition hover:bg-white/20 sm:size-12",
                     isSaved ? "text-[#f8c14a]" : "",
@@ -749,11 +779,16 @@ export function PostDetailDialog({
             <div className="border-b border-black/8 px-4 py-3 sm:px-5 sm:py-4">
               <DialogHeader>
                 <DialogTitle className="text-lg leading-7 text-[#111]">
-                  Comments
+                  {copy.commentsTitle}
                 </DialogTitle>
                 <DialogDescription className="text-sm text-[#777]">
-                  {commentCount} comment{commentCount === 1 ? "" : "s"} about
-                  this destination.
+                  {formatDetailTemplate(copy.commentsDescription, {
+                    count: commentCount,
+                    unit:
+                      commentCount === 1
+                        ? copy.commentUnit
+                        : copy.commentsUnit,
+                  })}
                 </DialogDescription>
               </DialogHeader>
             </div>
@@ -788,7 +823,7 @@ export function PostDetailDialog({
                 />
                 <Button
                   aria-label={
-                    isAuthenticated ? "Submit comment" : "Login to comment"
+                    isAuthenticated ? copy.submitComment : copy.loginToComment
                   }
                   className="rounded-full"
                   disabled={!isChatOpen || isCommentPending || !post}
