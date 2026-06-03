@@ -37,17 +37,25 @@ import (
 )
 
 type authAvatarEventPublisher struct {
-	posts    post.PostEventPublisher
-	profiles publicProfileCacheInvalidator
+	posts     post.PostEventPublisher
+	postFeeds publicFeedCacheInvalidator
+	profiles  publicProfileCacheInvalidator
 }
 
 type publicProfileCacheInvalidator interface {
 	InvalidatePublicProfile(ctx context.Context, userID uint64)
 }
 
+type publicFeedCacheInvalidator interface {
+	InvalidatePublicFeed(ctx context.Context)
+}
+
 func (p authAvatarEventPublisher) PublishAvatarUpdated(ctx context.Context, event auth.AvatarUpdatedEvent) error {
 	if p.profiles != nil {
 		p.profiles.InvalidatePublicProfile(ctx, event.UserID)
+	}
+	if p.postFeeds != nil {
+		p.postFeeds.InvalidatePublicFeed(ctx)
 	}
 	if p.posts == nil {
 		return nil
@@ -139,13 +147,18 @@ func Run() {
 	if invalidator, ok := socialRepository.(publicProfileCacheInvalidator); ok {
 		profileCacheInvalidator = invalidator
 	}
-	authService.SetAvatarEventPublisher(authAvatarEventPublisher{
-		posts:    postEventPublisher,
-		profiles: profileCacheInvalidator,
-	})
 	if redisClient != nil {
 		postRepository = postInfra.NewCachedPostRepository(postRepository, redisClient, cfg.Cache.FeedFirstPageTTL)
 	}
+	var postFeedCacheInvalidator publicFeedCacheInvalidator
+	if invalidator, ok := postRepository.(publicFeedCacheInvalidator); ok {
+		postFeedCacheInvalidator = invalidator
+	}
+	authService.SetAvatarEventPublisher(authAvatarEventPublisher{
+		posts:     postEventPublisher,
+		postFeeds: postFeedCacheInvalidator,
+		profiles:  profileCacheInvalidator,
+	})
 	postService := post.NewService(postRepository)
 	commentRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Spam.CommentRateLimitPerMin, time.Minute, userIDRateLimitKey)
 	reportRateLimit := httpMiddleware.NewKeyedRateLimiter(cfg.Spam.ReportRateLimitPerHour, time.Hour, userIDRateLimitKey)

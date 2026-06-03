@@ -151,6 +151,12 @@ const generatedAvatarStyles = [
 
 type GeneratedAvatarStyleId = (typeof generatedAvatarStyles)[number]["id"];
 
+type GeneratedAvatarDraft = {
+  file: File;
+  previewUrl: string;
+  styleId: GeneratedAvatarStyleId;
+};
+
 const generatedAvatarSkinTones = [
   "#f6c6a6",
   "#e5a879",
@@ -535,6 +541,8 @@ export function ProfileScreen() {
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
   const [selectedAvatarStyle, setSelectedAvatarStyle] =
     useState<GeneratedAvatarStyleId>("mountain");
+  const [generatedAvatarDraft, setGeneratedAvatarDraft] =
+    useState<GeneratedAvatarDraft | null>(null);
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
@@ -583,8 +591,20 @@ export function ProfileScreen() {
   const email = readAuthUserText(profile, ["email"]);
   const username = readAuthUserText(profile, ["user_name"]);
   const avatarUrl = readAuthUserText(profile, ["avatar_url", "avatarUrl"]);
+  const previewAvatarUrl = generatedAvatarDraft?.previewUrl ?? avatarUrl;
+  const generatedAvatarDraftStyle = generatedAvatarDraft
+    ? getGeneratedAvatarStyle(generatedAvatarDraft.styleId)
+    : null;
   const subject = readAuthUserText(profile, ["subject", "id"]);
   const isAvatarBusy = isUploadingAvatar || isGeneratingAvatar;
+
+  useEffect(() => {
+    return () => {
+      if (generatedAvatarDraft) {
+        URL.revokeObjectURL(generatedAvatarDraft.previewUrl);
+      }
+    };
+  }, [generatedAvatarDraft]);
 
   const applyAvatarFile = async (file: File) => {
     const uploaded = await uploadImageApi(file);
@@ -597,6 +617,7 @@ export function ProfileScreen() {
     };
 
     setProfile(nextProfile);
+    setGeneratedAvatarDraft(null);
     queryClient.setQueryData(["me"], nextProfile);
     queryClient.setQueriesData<AuthUser>({ queryKey: ["auth"] }, (current) => ({
       ...(current ?? {}),
@@ -653,14 +674,36 @@ export function ProfileScreen() {
         seed,
         selectedAvatarStyle,
       );
-      await applyAvatarFile(file);
-      toast.success("Generated profile photo updated.");
+      setGeneratedAvatarDraft({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        styleId: selectedAvatarStyle,
+      });
+      toast.success("Generated profile photo preview ready.");
     } catch (error) {
       toast.error("Unable to generate profile photo", {
         description: getApiErrorMessage(error),
       });
     } finally {
       setIsGeneratingAvatar(false);
+    }
+  };
+
+  const handleSaveGeneratedAvatar = async () => {
+    if (!generatedAvatarDraft || isAvatarBusy) {
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      await applyAvatarFile(generatedAvatarDraft.file);
+      toast.success("Generated profile photo updated.");
+    } catch (error) {
+      toast.error("Unable to update profile photo", {
+        description: getApiErrorMessage(error),
+      });
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -770,7 +813,7 @@ export function ProfileScreen() {
                         className="pointer-events-none"
                         fallback={getAuthUserInitials(displayName)}
                         size="lg"
-                        src={avatarUrl}
+                        src={previewAvatarUrl}
                       />
                       <div className="absolute inset-0.75 z-20 flex items-center justify-center rounded-full bg-black/38 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                         <Camera className="size-6 text-white drop-shadow-sm" />
@@ -802,6 +845,12 @@ export function ProfileScreen() {
                         <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b61d8]">
                           <Sparkles className="size-3.5 animate-pulse" />
                           Creating profile photo...
+                        </p>
+                      ) : null}
+                      {generatedAvatarDraft && !isAvatarBusy ? (
+                        <p className="mt-2 text-xs font-semibold text-[#6b61d8]">
+                          {generatedAvatarDraftStyle?.label ?? "Generated"}{" "}
+                          preview is not saved yet.
                         </p>
                       ) : null}
                     </div>
@@ -843,8 +892,34 @@ export function ProfileScreen() {
                         variant="outline"
                       >
                         <Palette className="size-4" />
-                        Generate travel avatar
+                        {generatedAvatarDraft
+                          ? "Regenerate preview"
+                          : "Generate travel avatar"}
                       </Button>
+                      {generatedAvatarDraft ? (
+                        <>
+                          <Button
+                            disabled={isAvatarBusy}
+                            onClick={() => {
+                              void handleSaveGeneratedAvatar();
+                            }}
+                            size="sm"
+                            type="button"
+                          >
+                            <Sparkles className="size-4" />
+                            Use generated avatar
+                          </Button>
+                          <Button
+                            disabled={isAvatarBusy}
+                            onClick={() => setGeneratedAvatarDraft(null)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Discard preview
+                          </Button>
+                        </>
+                      ) : null}
                       <Button
                         onClick={() => router.push(ROUTES.explore)}
                         size="sm"

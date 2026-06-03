@@ -238,6 +238,10 @@ func (r *CachedPostRepository) GetComments(ctx context.Context, postID uint64, p
 	return r.next.GetComments(ctx, postID, page, limit)
 }
 
+func (r *CachedPostRepository) InvalidatePublicFeed(ctx context.Context) {
+	r.invalidatePublicFeed(ctx)
+}
+
 func (r *CachedPostRepository) invalidatePublicFeed(ctx context.Context) {
 	var cursor uint64
 	for {
