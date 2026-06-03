@@ -11,9 +11,11 @@ import type {
   LoginRequest,
   RegisterRequest,
 } from "@/features/auth/types";
+import type { SupportedLocale } from "@/i18n/messages";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
+const LOCALE_STORAGE_KEY = "falzo.locale";
 const AUTH_EXCLUDED_RETRY =
   /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
 
@@ -87,6 +89,63 @@ function readMessage(data: unknown): string | null {
   return typeof message === "string" && message.trim() ? message : null;
 }
 
+type ApiErrorDetailPayload = {
+  code?: string;
+  field?: string;
+  message?: string;
+};
+
+function readFirstErrorDetail(data: unknown): ApiErrorDetailPayload | null {
+  const payload = asRecord(data);
+  const firstError = Array.isArray(payload?.errors) ? payload.errors[0] : null;
+  const detail = asRecord(firstError);
+  if (!detail) {
+    return null;
+  }
+
+  return {
+    code: typeof detail.code === "string" ? detail.code : undefined,
+    field: typeof detail.field === "string" ? detail.field : undefined,
+    message: typeof detail.message === "string" ? detail.message : undefined,
+  };
+}
+
+function getCurrentLocale(): SupportedLocale {
+  if (globalThis.window === undefined) {
+    return "en";
+  }
+
+  return localStorage.getItem(LOCALE_STORAGE_KEY) === "vi" ? "vi" : "en";
+}
+
+function normalizeBackendMessage(value: string) {
+  return value.trim().replaceAll(/\s+/g, " ");
+}
+
+function translateBackendMessage(
+  message: string | null | undefined,
+  locale = getCurrentLocale(),
+) {
+  if (!message?.trim()) {
+    return null;
+  }
+
+  const normalizedMessage = normalizeBackendMessage(message);
+  const localizedMessages = messages[locale].apiErrors
+    .backendMessages as Record<string, string>;
+  const englishMessages = messages.en.apiErrors.backendMessages as Record<
+    string,
+    string
+  >;
+  const localized =
+    localizedMessages[normalizedMessage];
+  if (localized) {
+    return localized;
+  }
+
+  return englishMessages[normalizedMessage] ?? normalizedMessage;
+}
+
 export function getApiFieldErrors(error: unknown) {
   if (!(error instanceof AxiosError)) {
     return [];
@@ -100,6 +159,7 @@ export function getApiFieldErrors(error: unknown) {
       const detail = asRecord(item);
       const field = detail?.field;
       const message = detail?.message;
+      const locale = getCurrentLocale();
 
       if (typeof field !== "string" || typeof message !== "string") {
         return null;
@@ -107,7 +167,7 @@ export function getApiFieldErrors(error: unknown) {
 
       return {
         field,
-        message,
+        message: translateBackendMessage(message, locale) ?? message,
       };
     })
     .filter((item): item is { field: string; message: string } =>
@@ -342,7 +402,7 @@ export function clearAuthSession() {
 }
 
 export function getApiErrorMessage(error: unknown): string {
-  const errorMessages = messages.en.apiErrors;
+  const errorMessages = messages[getCurrentLocale()].apiErrors;
 
   if (error instanceof AxiosError) {
     if (process.env.NODE_ENV !== "production") {
@@ -354,7 +414,15 @@ export function getApiErrorMessage(error: unknown): string {
       });
     }
 
-    const serverMessage = readMessage(error.response?.data);
+    const firstErrorDetail = readFirstErrorDetail(error.response?.data);
+    const translatedDetail = translateBackendMessage(firstErrorDetail?.message);
+    if (translatedDetail) {
+      return translatedDetail;
+    }
+
+    const serverMessage = translateBackendMessage(
+      readMessage(error.response?.data),
+    );
     if (serverMessage) {
       return serverMessage;
     }

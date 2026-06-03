@@ -48,6 +48,7 @@ import {
   readAuthUserText,
 } from "@/features/auth/user-display";
 import { uploadImageApi } from "@/features/posts/api";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -535,6 +536,8 @@ async function createGeneratedAvatarFile(
 export function ProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { messages } = useI18n();
+  const copy = messages.profilePage;
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -554,7 +557,7 @@ export function ProfileScreen() {
   });
 
   useEffect(() => {
-    document.title = "Profile | Falzo";
+    document.title = copy.documentTitle;
 
     if (!hasAuthSession()) {
       router.replace(ROUTES.login);
@@ -585,7 +588,7 @@ export function ProfileScreen() {
     return () => {
       disposed = true;
     };
-  }, [router]);
+  }, [copy.documentTitle, router]);
 
   const displayName = useMemo(() => getAuthUserDisplayName(profile), [profile]);
   const email = readAuthUserText(profile, ["email"]);
@@ -644,9 +647,9 @@ export function ProfileScreen() {
     setIsUploadingAvatar(true);
     try {
       await applyAvatarFile(file);
-      toast.success("Profile photo updated.");
+      toast.success(copy.profilePhotoUpdated);
     } catch (error) {
-      toast.error("Unable to update profile photo", {
+      toast.error(copy.unableToUpdatePhoto, {
         description: getApiErrorMessage(error),
       });
     } finally {
@@ -679,9 +682,9 @@ export function ProfileScreen() {
         previewUrl: URL.createObjectURL(file),
         styleId: selectedAvatarStyle,
       });
-      toast.success("Generated profile photo preview ready.");
+      toast.success(copy.newLookReady);
     } catch (error) {
-      toast.error("Unable to generate profile photo", {
+      toast.error(copy.unableToPrepareLook, {
         description: getApiErrorMessage(error),
       });
     } finally {
@@ -697,9 +700,9 @@ export function ProfileScreen() {
     setIsUploadingAvatar(true);
     try {
       await applyAvatarFile(generatedAvatarDraft.file);
-      toast.success("Generated profile photo updated.");
+      toast.success(copy.profilePhotoUpdated);
     } catch (error) {
-      toast.error("Unable to update profile photo", {
+      toast.error(copy.unableToUpdatePhoto, {
         description: getApiErrorMessage(error),
       });
     } finally {
@@ -714,7 +717,7 @@ export function ProfileScreen() {
         newPassword: values.newPassword,
       });
       passwordForm.reset();
-      toast.success("Password changed successfully. Please sign in again.");
+      toast.success(copy.passwordChanged);
 
       setIsLoggingOut(true);
       try {
@@ -727,7 +730,7 @@ export function ProfileScreen() {
         router.replace(ROUTES.login);
       }
     } catch (error) {
-      toast.error("Unable to change password", {
+      toast.error(copy.unableToChangePassword, {
         description: getApiErrorMessage(error),
       });
     }
@@ -780,18 +783,18 @@ export function ProfileScreen() {
               variant: "default",
             },
           ]}
-          brand="Profile"
+          brand={copy.brand}
           brandIcon={<UserRound className="size-3.5" />}
           meta={<UserPresenceBadge />}
-          mobileMenuTitle="Profile menu"
-          subtitle="Your Falzo account"
+          mobileMenuTitle={copy.mobileMenuTitle}
+          subtitle={copy.subtitle}
         />
       }
     >
       {isSessionChecking ? (
         <LoadingPanel
-          description="Fetching your account from the authenticated session."
-          title="Loading profile"
+          description={copy.loadingDescription}
+          title={copy.loadingTitle}
         />
       ) : (
         <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.58fr)]">
@@ -806,7 +809,7 @@ export function ProfileScreen() {
                           ? "cursor-not-allowed opacity-70"
                           : "cursor-pointer hover:brightness-105"
                       }`}
-                      title="Upload profile photo"
+                      title={copy.uploadTitle}
                     >
                       <RainbowAvatar
                         alt={displayName}
@@ -829,28 +832,28 @@ export function ProfileScreen() {
                       />
                     </label>
                     <div className="min-w-0">
-                      <Badge>Signed in</Badge>
+                      <Badge>{copy.signedIn}</Badge>
                       <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-[#143052] sm:text-3xl">
                         {displayName}
                       </h1>
                       <p className="mt-1 truncate text-sm text-[#527299]">
-                        {email ?? username ?? "Authenticated Falzo account"}
+                        {email ?? username ?? copy.fallbackAccount}
                       </p>
                       {isUploadingAvatar ? (
                         <p className="mt-2 text-xs font-semibold text-[#5178a2]">
-                          Uploading profile photo...
+                          {copy.uploadingPhoto}
                         </p>
                       ) : null}
                       {isGeneratingAvatar ? (
                         <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b61d8]">
                           <Sparkles className="size-3.5 animate-pulse" />
-                          Creating profile photo...
+                          {copy.preparingLook}
                         </p>
                       ) : null}
                       {generatedAvatarDraft && !isAvatarBusy ? (
                         <p className="mt-2 text-xs font-semibold text-[#6b61d8]">
-                          {generatedAvatarDraftStyle?.label ?? "Generated"}{" "}
-                          preview is not saved yet.
+                          {generatedAvatarDraftStyle?.label ?? "New"}{" "}
+                          {copy.lookReady}
                         </p>
                       ) : null}
                     </div>
@@ -893,8 +896,8 @@ export function ProfileScreen() {
                       >
                         <Palette className="size-4" />
                         {generatedAvatarDraft
-                          ? "Regenerate preview"
-                          : "Generate travel avatar"}
+                          ? copy.tryAnotherLook
+                          : copy.tryLook}
                       </Button>
                       <Button
                         className="w-full sm:w-auto"
@@ -904,7 +907,7 @@ export function ProfileScreen() {
                         variant="outline"
                       >
                         <Compass className="size-4" />
-                        Explore
+                        {copy.explore}
                       </Button>
                       <Button
                         className="w-full sm:w-auto"
@@ -914,7 +917,7 @@ export function ProfileScreen() {
                         variant="outline"
                       >
                         <Upload className="size-4" />
-                        Upload
+                        {copy.upload}
                       </Button>
                     </div>
                     <div className="grid w-full gap-2 sm:grid-cols-2">
@@ -930,7 +933,7 @@ export function ProfileScreen() {
                             type="button"
                           >
                             <Sparkles className="size-4" />
-                            Use generated avatar
+                            {copy.saveLook}
                           </Button>
                           <Button
                             className="w-full"
@@ -940,7 +943,7 @@ export function ProfileScreen() {
                             type="button"
                             variant="outline"
                           >
-                            Discard preview
+                            {copy.keepCurrentPhoto}
                           </Button>
                         </>
                       ) : null}
@@ -951,29 +954,29 @@ export function ProfileScreen() {
 
               <div className="space-y-5 p-5 sm:p-7">
                 <SectionHeading
-                  description="Your account identity and active session details."
-                  title="Account overview"
+                  description={copy.overviewDescription}
+                  title={copy.overviewTitle}
                 />
 
                 <div className="rounded-2xl border border-[#d7e5f4] bg-white px-4 py-1">
                   <ProfileField
                     icon={<UserRound className="size-4" />}
-                    label="Username"
-                    value={username ?? "Not provided"}
+                    label={copy.fields.username}
+                    value={username ?? copy.notProvided}
                   />
                   <ProfileField
                     icon={<Mail className="size-4" />}
-                    label="Email"
-                    value={email ?? "Not provided"}
+                    label={copy.fields.email}
+                    value={email ?? copy.notProvided}
                   />
                   <ProfileField
                     icon={<Fingerprint className="size-4" />}
-                    label="Subject"
-                    value={subject ?? "Not available"}
+                    label={copy.fields.subject}
+                    value={subject ?? copy.notAvailable}
                   />
                   <ProfileField
                     icon={<CalendarClock className="size-4" />}
-                    label="Token expires"
+                    label={copy.fields.tokenExpires}
                     value={formatExpiry(profile?.expires)}
                   />
                 </div>
@@ -984,10 +987,10 @@ export function ProfileScreen() {
           <Card className="app-panel border-[#d6e5f6] bg-white/94 py-0 lg:sticky lg:top-28 lg:self-start">
             <CardContent className="space-y-5 p-5 sm:p-7">
               <div className="space-y-2">
-                <Badge>Security</Badge>
+                <Badge>{copy.security}</Badge>
                 <SectionHeading
-                  description="Use at least eight characters with letters and numbers."
-                  title="Change password"
+                  description={copy.changePasswordDescription}
+                  title={copy.changePasswordTitle}
                 />
               </div>
 
@@ -998,7 +1001,9 @@ export function ProfileScreen() {
                 }}
               >
                 <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current password</Label>
+                  <Label htmlFor="currentPassword">
+                    {copy.currentPassword}
+                  </Label>
                   <Input
                     autoComplete="current-password"
                     id="currentPassword"
@@ -1014,7 +1019,7 @@ export function ProfileScreen() {
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="newPassword">New password</Label>
+                    <Label htmlFor="newPassword">{copy.newPassword}</Label>
                     <Input
                       autoComplete="new-password"
                       id="newPassword"
@@ -1029,7 +1034,9 @@ export function ProfileScreen() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm password</Label>
+                    <Label htmlFor="confirmPassword">
+                      {copy.confirmPassword}
+                    </Label>
                     <Input
                       autoComplete="new-password"
                       id="confirmPassword"
@@ -1051,7 +1058,7 @@ export function ProfileScreen() {
                   variant="gradient"
                 >
                   <KeyRound className="size-4" />
-                  Update
+                  {copy.update}
                 </Button>
               </form>
 
@@ -1066,7 +1073,7 @@ export function ProfileScreen() {
                   variant="soft"
                 >
                   <ShieldCheck className="size-4" />
-                  Logout
+                  {copy.logout}
                 </Button>
               </div>
             </CardContent>

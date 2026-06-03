@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { toast } from "sonner";
 import { hasAuthSession, initializeAuthHeader } from "@/features/auth/api";
+import { LocaleProvider } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
 const Toaster = dynamic(() => import("sonner").then((mod) => mod.Toaster), {
@@ -130,7 +131,7 @@ export function AppProviders({ children }: Readonly<PropsWithChildren>) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <LocaleProvider>{children}</LocaleProvider>
       {isToasterReady ? (
         <Toaster
           closeButton

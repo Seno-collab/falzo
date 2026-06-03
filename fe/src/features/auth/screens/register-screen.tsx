@@ -21,7 +21,7 @@ import {
   hasAuthSession,
   registerApi,
 } from "@/features/auth/api";
-import { messages } from "@/i18n/messages";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
 type RegisterFormValues = {
@@ -33,9 +33,10 @@ type RegisterFormValues = {
 
 export function RegisterScreen() {
   const router = useRouter();
-  const copy = messages.en.registerPage;
-  const commonCopy = messages.en.common;
-  const homeCopy = messages.en.homePage;
+  const { messages } = useI18n();
+  const copy = messages.registerPage;
+  const commonCopy = messages.common;
+  const homeCopy = messages.homePage;
 
   const registerSchema = useMemo(
     () =>

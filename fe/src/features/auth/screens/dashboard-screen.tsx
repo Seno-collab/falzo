@@ -18,7 +18,7 @@ import {
   hasAuthSession,
   logoutApi,
 } from "@/features/auth/api";
-import { messages } from "@/i18n/messages";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
 function resolveUserDisplayName(payload: unknown): string | null {
@@ -39,8 +39,9 @@ function resolveUserDisplayName(payload: unknown): string | null {
 
 export function DashboardScreen() {
   const router = useRouter();
-  const copy = messages.en.dashboardPage;
-  const featuredFrame = messages.en.homePage.scenicGallery[0];
+  const { messages } = useI18n();
+  const copy = messages.dashboardPage;
+  const featuredFrame = messages.homePage.scenicGallery[0];
 
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);

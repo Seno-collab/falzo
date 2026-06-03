@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
 import { getMeApi, hasAuthSession } from "@/features/auth/api";
 import type { AuthUser } from "@/features/auth/types";
@@ -15,6 +16,7 @@ import {
   getAuthUserInitials,
   readAuthUserText,
 } from "@/features/auth/user-display";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +32,8 @@ type TopbarAction = {
   disabled?: boolean;
 };
 
+type CommonCopy = ReturnType<typeof useI18n>["messages"]["common"];
+
 function requiresAuthAction(action: TopbarAction) {
   return (
     action.id === "logout" ||
@@ -40,6 +44,31 @@ function requiresAuthAction(action: TopbarAction) {
   );
 }
 
+function getActionLabel(action: TopbarAction, commonCopy: CommonCopy) {
+  switch (action.id) {
+    case "explore":
+      return commonCopy.explore;
+    case "locations":
+      return commonCopy.places;
+    case "upload":
+      return commonCopy.upload;
+    case "saved":
+      return commonCopy.saved;
+    case "login":
+      return commonCopy.login;
+    case "register":
+      return commonCopy.register;
+    case "logout":
+      return commonCopy.logout;
+    case "profile":
+      return commonCopy.profile;
+    case "dashboard":
+      return commonCopy.dashboard;
+    default:
+      return action.label;
+  }
+}
+
 function TopbarActionButton({
   action,
   fullWidth = false,
@@ -47,6 +76,8 @@ function TopbarActionButton({
   action: TopbarAction;
   fullWidth?: boolean;
 }>) {
+  const { messages } = useI18n();
+  const label = getActionLabel(action, messages.common);
   const classes = cn(fullWidth ? "w-full justify-start" : "");
 
   if (action.to && !action.disabled) {
@@ -59,7 +90,7 @@ function TopbarActionButton({
       >
         <Link href={action.to}>
           {action.icon}
-          {action.label}
+          {label}
         </Link>
       </Button>
     );
@@ -75,7 +106,7 @@ function TopbarActionButton({
       variant={action.variant ?? "outline"}
     >
       {action.icon}
-      {action.label}
+      {label}
     </Button>
   );
 }
@@ -122,6 +153,8 @@ export function AppTopbar({
   showMobileNav?: boolean;
 }>) {
   const pathname = usePathname();
+  const { messages } = useI18n();
+  const commonCopy = messages.common;
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const visibleActions = useMemo(
@@ -174,7 +207,7 @@ export function AppTopbar({
     };
   }, []);
 
-  const profileName = getAuthUserDisplayName(profile, "Account");
+  const profileName = getAuthUserDisplayName(profile, commonCopy.account);
   const avatarUrl = readAuthUserText(profile, ["avatar_url", "avatarUrl"]);
   const isExploreActive = isActiveRoute(pathname, ROUTES.explore);
   const isLocationsActive = isActiveRoute(pathname, ROUTES.locations);
@@ -200,6 +233,7 @@ export function AppTopbar({
         </div>
 
         <div className="hidden items-center gap-2 sm:flex">
+          <LanguageSwitcher />
           {visibleActions.map((action) => (
             <TopbarActionButton action={action} key={action.id} />
           ))}
@@ -218,7 +252,10 @@ export function AppTopbar({
                   {brand}
                 </p>
               </div>
-              {meta ? <div className="shrink-0">{meta}</div> : null}
+              <div className="flex shrink-0 items-center gap-2">
+                <LanguageSwitcher />
+                {meta ? <div className="shrink-0">{meta}</div> : null}
+              </div>
             </div>
 
             <div
@@ -229,47 +266,47 @@ export function AppTopbar({
             >
               <Link
                 aria-current={isExploreActive ? "page" : undefined}
-                aria-label="Explore"
+                aria-label={commonCopy.explore}
                 className={mobileNavItemClass(isExploreActive)}
                 href={ROUTES.explore}
               >
                 <Camera className="size-4" />
-                Explore
+                {commonCopy.explore}
               </Link>
               <Link
                 aria-current={isLocationsActive ? "page" : undefined}
-                aria-label="Destinations"
+                aria-label={commonCopy.places}
                 className={mobileNavItemClass(isLocationsActive)}
                 href={ROUTES.locations}
               >
                 <MapIcon className="size-4" />
-                Places
+                {commonCopy.places}
               </Link>
               {isAuthenticated ? (
                 <>
                   <Link
                     aria-current={isUploadActive ? "page" : undefined}
-                    aria-label="Upload"
+                    aria-label={commonCopy.upload}
                     className={mobileUploadNavItemClass(isUploadActive)}
                     href={ROUTES.upload}
                   >
                     <Plus className="size-4" />
-                    Upload
+                    {commonCopy.upload}
                   </Link>
                   <Link
                     aria-current={isSavedActive ? "page" : undefined}
-                    aria-label="Saved"
+                    aria-label={commonCopy.saved}
                     className={mobileNavItemClass(isSavedActive)}
                     href={ROUTES.saved}
                   >
                     <Bookmark className="size-4" />
-                    Saved
+                    {commonCopy.saved}
                   </Link>
                 </>
               ) : null}
               <Link
                 aria-current={isAccountActive ? "page" : undefined}
-                aria-label={isAuthenticated ? "Profile" : "Login"}
+                aria-label={isAuthenticated ? commonCopy.profile : commonCopy.login}
                 className={mobileNavItemClass(isAccountActive)}
                 href={accountRoute}
               >
@@ -283,7 +320,7 @@ export function AppTopbar({
                 ) : (
                   <LogIn className="size-4" />
                 )}
-                {isAuthenticated ? "Account" : "Login"}
+                {isAuthenticated ? commonCopy.account : commonCopy.login}
               </Link>
             </div>
           </div>

@@ -3,9 +3,19 @@ export const enMessages = {
     appName: "Falzo Travel",
     login: "Login",
     register: "Register",
+    logout: "Logout",
     dashboard: "Dashboard",
     bookNow: "Book now",
     viewDetails: "View details",
+    explore: "Explore",
+    places: "Places",
+    upload: "Upload",
+    saved: "Saved",
+    account: "Account",
+    profile: "Profile",
+    language: "Language",
+    english: "English",
+    vietnamese: "Tiếng Việt",
   },
   home: {
     heroTitle:
@@ -325,6 +335,52 @@ export const enMessages = {
     logoutCta: "Logout",
     Profile: "Profiler",
   },
+  profilePage: {
+    documentTitle: "Profile | Falzo",
+    brand: "Profile",
+    subtitle: "Your Falzo account",
+    mobileMenuTitle: "Profile menu",
+    loadingTitle: "Loading profile",
+    loadingDescription: "Fetching your account from the authenticated session.",
+    signedIn: "Signed in",
+    fallbackAccount: "Authenticated Falzo account",
+    uploadTitle: "Upload profile photo",
+    uploadingPhoto: "Uploading profile photo...",
+    preparingLook: "Preparing a new look...",
+    lookReady: "look is ready to save.",
+    tryLook: "Try a travel look",
+    tryAnotherLook: "Try another look",
+    saveLook: "Save this look",
+    keepCurrentPhoto: "Keep current photo",
+    explore: "Explore",
+    upload: "Upload",
+    profilePhotoUpdated: "Profile photo updated.",
+    newLookReady: "New profile look is ready to preview.",
+    unableToPrepareLook: "Unable to prepare profile look",
+    unableToUpdatePhoto: "Unable to update profile photo",
+    passwordChanged:
+      "Password changed successfully. Please sign in again.",
+    unableToChangePassword: "Unable to change password",
+    overviewTitle: "Account overview",
+    overviewDescription: "Your account identity and active session details.",
+    notProvided: "Not provided",
+    notAvailable: "Not available",
+    security: "Security",
+    changePasswordTitle: "Change password",
+    changePasswordDescription:
+      "Use at least eight characters with letters and numbers.",
+    currentPassword: "Current password",
+    newPassword: "New password",
+    confirmPassword: "Confirm password",
+    update: "Update",
+    logout: "Logout",
+    fields: {
+      email: "Email",
+      username: "Username",
+      subject: "Subject",
+      tokenExpires: "Token expires",
+    },
+  },
   loginPage: {
     documentTitle: "Login | Falzo",
     title: "Login",
@@ -386,6 +442,163 @@ export const enMessages = {
     server: "Server error. Please try again later.",
     unreachable: "Unable to connect to authentication API.",
     generic: "Something went wrong. Please try again.",
+    backendMessages: {
+      "Account already exists": "Account already exists",
+      "Authentication service is temporarily unavailable":
+        "Authentication service is temporarily unavailable",
+      "Authentication service unavailable":
+        "Authentication service unavailable",
+      "Category already exists": "Category already exists",
+      "Category name or slug is already in use":
+        "Category name or slug is already in use",
+      "Category service is temporarily unavailable":
+        "Category service is temporarily unavailable",
+      "Category service unavailable": "Category service unavailable",
+      "Comment not found": "Comment not found",
+      "Email or password is incorrect": "Email or password is incorrect",
+      "Forbidden": "Forbidden",
+      "Image not found": "Image not found",
+      "Image upload is temporarily unavailable":
+        "Image upload is temporarily unavailable",
+      "Image upload unavailable": "Image upload unavailable",
+      "Invalid JSON payload": "Invalid JSON payload",
+      "Invalid authorization header": "Invalid authorization header",
+      "Invalid credentials": "Invalid credentials",
+      "Location service is temporarily unavailable":
+        "Location service is temporarily unavailable",
+      "Location service unavailable": "Location service unavailable",
+      "Missing auth context": "Missing auth context",
+      "Missing bearer token": "Missing bearer token",
+      "Post not found": "Post not found",
+      "Post service is temporarily unavailable":
+        "Post service is temporarily unavailable",
+      "Post service unavailable": "Post service unavailable",
+      "Refresh token is required": "Refresh token is required",
+      "Requested category does not exist": "Requested category does not exist",
+      "Requested comment does not exist": "Requested comment does not exist",
+      "Requested image does not exist": "Requested image does not exist",
+      "Requested post does not exist": "Requested post does not exist",
+      "Requested saved collection does not exist":
+        "Requested saved collection does not exist",
+      "Requested user does not exist": "Requested user does not exist",
+      "Session has been revoked or expired":
+        "Session has been revoked or expired",
+      "Social service is temporarily unavailable":
+        "Social service is temporarily unavailable",
+      "Social service unavailable": "Social service unavailable",
+      "Token is invalid": "Token is invalid",
+      "Too many login attempts, please try again later":
+        "Too many login attempts, please try again later",
+      "Too many refresh attempts, please try again later":
+        "Too many refresh attempts, please try again later",
+      "Too many registration attempts, please try again later":
+        "Too many registration attempts, please try again later",
+      "Too many requests": "Too many requests",
+      "Unauthorized": "Unauthorized",
+      "Unexpected error": "Unexpected error",
+      "User not found": "User not found",
+      "Username or email is already in use":
+        "Username or email is already in use",
+      "Validation field": "Validation field",
+      "You can only edit your own comments":
+        "You can only edit your own comments",
+      "You can only edit your own posts": "You can only edit your own posts",
+      "You cannot block yourself": "You cannot block yourself",
+      "You cannot follow yourself": "You cannot follow yourself",
+      "You cannot moderate this content": "You cannot moderate this content",
+      "avatar_url is required": "avatar_url is required",
+      "avatar_url must be a valid URL": "avatar_url must be a valid URL",
+      "caption exceeds max length": "caption exceeds max length",
+      "category does not exist": "category does not exist",
+      "category name already exists": "category name already exists",
+      "category_ids must not contain more than 20 items":
+        "category_ids must not contain more than 20 items",
+      "collection id is required": "collection id is required",
+      "collection name already exists": "collection name already exists",
+      "collection name is required": "collection name is required",
+      "collection name must not exceed 120 characters":
+        "collection name must not exceed 120 characters",
+      "collection share slug is required": "collection share slug is required",
+      "comment content exceeds max length":
+        "comment content exceeds max length",
+      "comment content is required": "comment content is required",
+      "current_password and new_password are required":
+        "current_password and new_password are required",
+      "cursor is invalid": "cursor is invalid",
+      "email and password are required": "email and password are required",
+      "email must be a valid email": "email must be a valid email",
+      "feed must be following when provided":
+        "feed must be following when provided",
+      "file content is not a valid image": "file content is not a valid image",
+      "file is required": "file is required",
+      "file mime type is invalid": "file mime type is invalid",
+      "file size exceeds the maximum allowed limit":
+        "file size exceeds the maximum allowed limit",
+      "file size is invalid": "file size is invalid",
+      "id must be a valid integer": "id must be a valid integer",
+      "id must be a valid positive integer":
+        "id must be a valid positive integer",
+      "image URL is invalid": "image URL is invalid",
+      "image id is required": "image id is required",
+      "image_url is required": "image_url is required",
+      "image_url must be a valid URL": "image_url must be a valid URL",
+      "image_urls must not contain more than 10 items":
+        "image_urls must not contain more than 10 items",
+      "lat must be a valid float64": "lat must be a valid float64",
+      "lat must be between -90 and 90": "lat must be between -90 and 90",
+      "lat, lng and radius are required": "lat, lng and radius are required",
+      "latitude must be between -90 and 90":
+        "latitude must be between -90 and 90",
+      "limit must be an integer": "limit must be an integer",
+      "limit must be greater than 0": "limit must be greater than 0",
+      "limit must not exceed 50": "limit must not exceed 50",
+      "lng must be a valid float64": "lng must be a valid float64",
+      "lng must be between -180 and 180": "lng must be between -180 and 180",
+      "location id is required": "location id is required",
+      "location_name exceeds max length": "location_name exceeds max length",
+      "location_name is required": "location_name is required",
+      "longitude must be between -180 and 180":
+        "longitude must be between -180 and 180",
+      "name cannot exceed 255 characters":
+        "name cannot exceed 255 characters",
+      "name is required": "name is required",
+      "nearby radius must not exceed 1000 km":
+        "nearby radius must not exceed 1000 km",
+      "nearby sort requires valid lat and lng query params":
+        "nearby sort requires valid lat and lng query params",
+      "new_password must be at least 8 characters and contain letters and digits":
+        "new_password must be at least 8 characters and contain letters and digits",
+      "owner_id is required": "owner_id is required",
+      "page must be an integer": "page must be an integer",
+      "page must be greater than 0": "page must be greater than 0",
+      "post id is required": "post id is required",
+      "q is required": "q is required",
+      "radius must be a valid float64": "radius must be a valid float64",
+      "radius must be greater than 0": "radius must be greater than 0",
+      "reason is required": "reason is required",
+      "reason must not exceed 500 characters":
+        "reason must not exceed 500 characters",
+      "register fields required": "register fields required",
+      "reply comment does not exist on this post":
+        "reply comment does not exist on this post",
+      "share_slug is required": "share_slug is required",
+      "slug cannot exceed 255 characters":
+        "slug cannot exceed 255 characters",
+      "slug is required": "slug is required",
+      "sort must be newest, popular, trending, or nearby":
+        "sort must be newest, popular, trending, or nearby",
+      "target user id is required": "target user id is required",
+      "type must be credible, suspicious, ai_generated, wrong_context, or unsure":
+        "type must be credible, suspicious, ai_generated, wrong_context, or unsure",
+      "type is required": "type is required",
+      "user id is required": "user id is required",
+      "user_name must be between 3 and 50 characters":
+        "user_name must be between 3 and 50 characters",
+      "user_name, email and password are required":
+        "user_name, email and password are required",
+      "Validation field: Invalid JSON payload":
+        "Validation field: Invalid JSON payload",
+    },
   },
 } as const;
 

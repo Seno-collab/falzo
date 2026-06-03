@@ -20,7 +20,7 @@ import {
   hasAuthSession,
   loginApi,
 } from "@/features/auth/api";
-import { messages } from "@/i18n/messages";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
 type LoginFormValues = {
@@ -31,9 +31,10 @@ type LoginFormValues = {
 
 export function LoginScreen() {
   const router = useRouter();
-  const copy = messages.en.loginPage;
-  const commonCopy = messages.en.common;
-  const homeCopy = messages.en.homePage;
+  const { messages } = useI18n();
+  const copy = messages.loginPage;
+  const commonCopy = messages.common;
+  const homeCopy = messages.homePage;
 
   const loginSchema = useMemo(
     () =>
