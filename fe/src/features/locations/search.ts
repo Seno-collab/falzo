@@ -2,6 +2,8 @@ import { searchLocationsApi } from "@/features/locations/api";
 import type { Location, LocationPost } from "@/features/locations/types";
 import { getPostsApi } from "@/features/posts/api";
 import type { Post } from "@/features/posts/types";
+import { readCurrentLocale } from "@/i18n/locale";
+import type { SupportedLocale } from "@/i18n/messages";
 
 const defaultLocationSearch = "Ho Chi Minh";
 const nominatimSearchUrl = "https://nominatim.openstreetmap.org/search";
@@ -74,7 +76,19 @@ export function normalizeLocationSearchQuery(query: unknown) {
   return trimmed;
 }
 
-function getPlaceName(place: NominatimPlace) {
+function getFallbackLocationName(locale: SupportedLocale) {
+  return locale === "vi" ? "Địa điểm" : "Location";
+}
+
+function formatAssignedLocationAddress(count: number, locale: SupportedLocale) {
+  if (locale === "vi") {
+    return `Đã được gắn từ ${count} bài viết`;
+  }
+
+  return `Previously assigned from ${count} post${count === 1 ? "" : "s"}`;
+}
+
+function getPlaceName(place: NominatimPlace, locale: SupportedLocale) {
   return (
     place.address?.city ??
     place.address?.town ??
@@ -85,11 +99,14 @@ function getPlaceName(place: NominatimPlace) {
     place.address?.county ??
     place.name ??
     place.display_name?.split(",")[0]?.trim() ??
-    "Location"
+    getFallbackLocationName(locale)
   );
 }
 
-function toExternalLocation(place: NominatimPlace): Location | null {
+function toExternalLocation(
+  place: NominatimPlace,
+  locale: SupportedLocale,
+): Location | null {
   const latitude = Number(place.lat);
   const longitude = Number(place.lon);
 
@@ -101,7 +118,7 @@ function toExternalLocation(place: NominatimPlace): Location | null {
 
   return {
     id: `geocode:${id}`,
-    name: getPlaceName(place),
+    name: getPlaceName(place, locale),
     address:
       place.display_name ?? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
     latitude,
@@ -171,7 +188,7 @@ function postHasCoordinates(post: Post) {
   return Number.isFinite(post.latitude) && Number.isFinite(post.longitude);
 }
 
-function postsToAssignedLocations(posts: Post[]) {
+function postsToAssignedLocations(posts: Post[], locale: SupportedLocale) {
   const locationsByKey = new Map<
     string,
     Location & { post_ids: number[]; post_count: number }
@@ -193,14 +210,17 @@ function postsToAssignedLocations(posts: Post[]) {
     if (existing) {
       existing.post_ids.push(post.id);
       existing.post_count += 1;
-      existing.address = `Previously assigned from ${existing.post_count} posts`;
+      existing.address = formatAssignedLocationAddress(
+        existing.post_count,
+        locale,
+      );
       continue;
     }
 
     locationsByKey.set(key, {
       id: `${postBackedLocationIdPrefix}${encodeURIComponent(key)}`,
       name,
-      address: "Previously assigned from 1 post",
+      address: formatAssignedLocationAddress(1, locale),
       latitude: post.latitude,
       longitude: post.longitude,
       post_ids: [post.id],
@@ -215,6 +235,7 @@ async function searchAssignedLocationsApi(
   query: string,
   center?: Pick<Location, "latitude" | "longitude">,
   signal?: AbortSignal,
+  locale: SupportedLocale = readCurrentLocale(),
 ) {
   const requests = [
     getPostsApi({
@@ -244,16 +265,17 @@ async function searchAssignedLocationsApi(
     result.status === "fulfilled" ? result.value : [],
   );
 
-  return postsToAssignedLocations(posts);
+  return postsToAssignedLocations(posts, locale);
 }
 
 async function searchExternalLocationsApi(
   query: string,
   signal?: AbortSignal,
+  locale: SupportedLocale = readCurrentLocale(),
 ): Promise<Location[]> {
   const params = new URLSearchParams({
     addressdetails: "1",
-    "accept-language": "vi,en",
+    "accept-language": locale === "en" ? "en,vi" : "vi,en",
     format: "jsonv2",
     limit: "8",
     q: query,
@@ -273,7 +295,7 @@ async function searchExternalLocationsApi(
   const places = (await response.json()) as NominatimPlace[];
   return dedupeLocations(
     places
-      .map(toExternalLocation)
+      .map((place) => toExternalLocation(place, locale))
       .filter((location): location is Location => location !== null),
   );
 }
@@ -281,6 +303,7 @@ async function searchExternalLocationsApi(
 export async function searchLocationsWithFallbackApi(
   query: string,
   signal?: AbortSignal,
+  locale: SupportedLocale = readCurrentLocale(),
 ) {
   const normalizedQuery = normalizeLocationSearchQuery(query);
 
@@ -306,6 +329,7 @@ export async function searchLocationsWithFallbackApi(
       normalizedQuery,
       backendLocations[0],
       signal,
+      locale,
     );
     const localMatches = dedupeLocations([
       ...backendLocations,
@@ -327,11 +351,13 @@ export async function searchLocationsWithFallbackApi(
     const externalLocations = await searchExternalLocationsApi(
       normalizedQuery,
       signal,
+      locale,
     );
     const assignedLocations = await searchAssignedLocationsApi(
       normalizedQuery,
       externalLocations[0],
       signal,
+      locale,
     ).catch(() => []);
     const matches = dedupeLocations([
       ...backendLocations,

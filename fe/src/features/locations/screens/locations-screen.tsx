@@ -36,6 +36,7 @@ import {
   searchLocationsWithFallbackApi,
 } from "@/features/locations/search";
 import type { Location, NearbyLocation } from "@/features/locations/types";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,10 @@ function formatDistance(meters: number) {
   return `${Math.round(meters)} m`;
 }
 
+function formatCountLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function LocationRow({
   location,
   distanceMeters,
@@ -65,11 +70,17 @@ function LocationRow({
   selected: boolean;
   onSelect: () => void;
 }>) {
+  const { messages } = useI18n();
+  const copy = messages.locationsPage;
   const detailBadge =
     distanceMeters !== undefined
       ? formatDistance(distanceMeters)
       : location.post_count
-        ? `${location.post_count} photo${location.post_count === 1 ? "" : "s"}`
+        ? formatCountLabel(
+            location.post_count,
+            copy.photoSingular,
+            copy.photoPlural,
+          )
         : null;
 
   return (
@@ -86,7 +97,7 @@ function LocationRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777]">
-            Travel stop
+            {copy.travelStop}
           </p>
           <p className="mt-1 truncate text-sm font-semibold text-[#111]">
             {location.name}
@@ -109,6 +120,8 @@ function LocationRow({
 }
 
 export function LocationsScreen() {
+  const { locale, messages } = useI18n();
+  const copy = messages.locationsPage;
   const [searchInput, setSearchInput] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState(defaultLocationSearch);
   const [coords, setCoords] = useState<Coordinates | null>(null);
@@ -120,15 +133,15 @@ export function LocationsScreen() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    document.title = "Locations | Falzo";
+    document.title = copy.documentTitle;
     setIsAuthenticated(hasAuthSession());
-  }, []);
+  }, [copy.documentTitle]);
 
   const searchQuery = useQuery({
     enabled: submittedSearch.trim().length > 0,
-    queryKey: ["locations", "search", submittedSearch],
+    queryKey: ["locations", "search", submittedSearch, locale],
     queryFn: ({ signal }) =>
-      searchLocationsWithFallbackApi(submittedSearch, signal),
+      searchLocationsWithFallbackApi(submittedSearch, signal, locale),
   });
 
   const nearbyQuery = useQuery({
@@ -250,17 +263,19 @@ export function LocationsScreen() {
   ]);
   const selectedTravelPhotoLabel =
     selectedTravelPhotoCount > 0
-      ? `${selectedTravelPhotoCount} travel photo${
-          selectedTravelPhotoCount === 1 ? "" : "s"
-        } - `
+      ? `${formatCountLabel(
+          selectedTravelPhotoCount,
+          copy.travelPhotoSingular,
+          copy.travelPhotoPlural,
+        )} - `
       : "";
   const selectedLocationSubtitle = selectedLocation
     ? `${selectedTravelPhotoLabel}${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
-    : "Choose a marker or search result";
+    : copy.chooseMarkerOrSearchResult;
 
   function useCurrentPosition() {
     if (!navigator.geolocation) {
-      toast.error("This browser does not support location access.");
+      toast.error(copy.noLocationAccess);
       return;
     }
 
@@ -274,7 +289,7 @@ export function LocationsScreen() {
         setIsLocating(false);
       },
       (error) => {
-        toast.error(error.message || "Unable to read your current location.");
+        toast.error(error.message || copy.unableToReadLocation);
         setIsLocating(false);
       },
       {
@@ -312,29 +327,29 @@ export function LocationsScreen() {
             {
               id: "explore",
               icon: <Compass className="size-4" />,
-              label: "Explore",
+              label: messages.common.explore,
               to: ROUTES.explore,
               variant: "outline",
             },
             {
               id: "upload",
               icon: <Upload className="size-4" />,
-              label: "Upload",
+              label: messages.common.upload,
               to: ROUTES.upload,
               variant: "default",
             },
             {
               id: "back",
               icon: <ArrowLeft className="size-4" />,
-              label: "Explore",
+              label: messages.common.explore,
               to: ROUTES.explore,
               variant: "outline",
             },
           ]}
-          brand="Falzo Locations"
+          brand={copy.brand}
           brandIcon={<MapIcon className="size-3.5" />}
-          mobileMenuTitle="Locations"
-          subtitle="Search places, discover nearby locations, and review location posts."
+          mobileMenuTitle={copy.mobileMenuTitle}
+          subtitle={copy.topbarSubtitle}
         />
       }
     >
@@ -342,31 +357,34 @@ export function LocationsScreen() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-              Travel map
+              {copy.travelMap}
             </p>
             <h1 className="mt-1 max-w-3xl text-3xl font-semibold leading-tight tracking-normal text-[#111] sm:text-4xl">
-              Find places, nearby stops, and travel photos by location.
+              {copy.heroTitle}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#666] sm:text-base">
-              Search a city or province, tap a marker, then review the travel
-              posts connected to that place.
+              {copy.heroDescription}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <div className="rounded-2xl border border-black/6 bg-[#f8f8f6] px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
-                Visible
+                {copy.visible}
               </p>
               <p className="mt-1 text-lg font-semibold text-[#111]">
-                {mapPoints.length} place{mapPoints.length === 1 ? "" : "s"}
+                {formatCountLabel(
+                  mapPoints.length,
+                  copy.placeSingular,
+                  copy.placePlural,
+                )}
               </p>
             </div>
             <div className="rounded-2xl border border-black/6 bg-[#f8f8f6] px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">
-                Selected
+                {copy.selected}
               </p>
               <p className="mt-1 max-w-44 truncate text-lg font-semibold text-[#111]">
-                {selectedLocation?.name ?? "None"}
+                {selectedLocation?.name ?? copy.none}
               </p>
             </div>
           </div>
@@ -384,22 +402,22 @@ export function LocationsScreen() {
           >
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                Search
+                {copy.searchLabel}
               </p>
               <h2 className="text-2xl font-semibold tracking-normal text-[#111]">
-                Where do you want to go?
+                {copy.searchTitle}
               </h2>
               <p className="text-sm leading-6 text-[#666]">
-                Try a destination name, city, province, or landmark.
+                {copy.searchDescription}
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
               <div className="space-y-2">
-                <Label htmlFor="location-search">Destination</Label>
+                <Label htmlFor="location-search">{copy.destinationLabel}</Label>
                 <Input
                   id="location-search"
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="TP.HCM, Ho Chi Minh, Da Nang, Kyoto"
+                  placeholder={copy.destinationPlaceholder}
                   value={searchInput}
                 />
               </div>
@@ -414,7 +432,7 @@ export function LocationsScreen() {
                 ) : (
                   <Search className="size-4" />
                 )}
-                Search
+                {copy.searchButton}
               </Button>
             </div>
           </form>
@@ -423,10 +441,10 @@ export function LocationsScreen() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1 px-5 pt-5 sm:px-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                  Map discovery
+                  {copy.mapDiscovery}
                 </p>
                 <h2 className="text-xl font-semibold tracking-normal text-[#111]">
-                  Tap a marker to open a travel stop
+                  {copy.mapTitle}
                 </h2>
                 <p className="text-sm leading-6 text-[#666]">
                   {selectedLocationSubtitle}
@@ -463,18 +481,18 @@ export function LocationsScreen() {
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                  Nearby
+                  {copy.nearbyLabel}
                 </p>
                 <h2 className="text-xl font-semibold tracking-normal text-[#111]">
-                  Places around you
+                  {copy.nearbyTitle}
                 </h2>
                 <p className="text-sm leading-6 text-[#666]">
-                  Use your current location to find close travel stops.
+                  {copy.nearbyDescription}
                 </p>
               </div>
               <div className="flex items-end gap-2">
                 <div className="w-32 space-y-2">
-                  <Label htmlFor="radius">Radius</Label>
+                  <Label htmlFor="radius">{copy.radiusLabel}</Label>
                   <Input
                     id="radius"
                     min={100}
@@ -497,7 +515,7 @@ export function LocationsScreen() {
                   ) : (
                     <Crosshair className="size-4" />
                   )}
-                  Locate
+                  {copy.locateButton}
                 </Button>
               </div>
             </div>
@@ -528,7 +546,7 @@ export function LocationsScreen() {
                     <MapPin className="size-5" />
                   </span>
                   <p className="text-sm font-semibold text-[#315578]">
-                    Use current location to find nearby places.
+                    {copy.nearbyEmpty}
                   </p>
                 </div>
               )}
@@ -540,13 +558,13 @@ export function LocationsScreen() {
           <section className="space-y-4 rounded-2xl border border-black/6 bg-white p-5 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:p-6">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                Results
+                {copy.resultsLabel}
               </p>
               <h2 className="text-xl font-semibold tracking-normal text-[#111]">
-                Destination matches
+                {copy.resultsTitle}
               </h2>
               <p className="text-sm leading-6 text-[#666]">
-                Select a place to see its map position and travel posts.
+                {copy.resultsDescription}
               </p>
             </div>
 
@@ -563,7 +581,7 @@ export function LocationsScreen() {
               {searchQuery.isFetching ? (
                 <div className="flex items-center gap-2 rounded-xl border border-[#d7e5f4] bg-white/90 px-4 py-3 text-sm text-[#6682a1]">
                   <Loader2 className="size-4 animate-spin" />
-                  Searching
+                  {copy.searching}
                 </div>
               ) : null}
 
@@ -573,7 +591,7 @@ export function LocationsScreen() {
                     <Search className="size-5" />
                   </span>
                   <p className="text-sm font-semibold text-[#315578]">
-                    No locations found.
+                    {copy.noLocations}
                   </p>
                 </div>
               ) : null}
@@ -583,13 +601,13 @@ export function LocationsScreen() {
           <section className="space-y-4 rounded-2xl border border-black/6 bg-white p-5 shadow-[0_14px_38px_-32px_rgb(0_0_0/0.58)] sm:p-6">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777]">
-                Travel photos
+                {copy.travelPhotosLabel}
               </p>
               <h2 className="text-xl font-semibold tracking-normal text-[#111]">
-                {selectedLocation ? selectedLocation.name : "Select a location"}
+                {selectedLocation ? selectedLocation.name : copy.selectLocation}
               </h2>
               <p className="text-sm leading-6 text-[#666]">
-                Photos and notes shared from this destination.
+                {copy.travelPhotosDescription}
               </p>
             </div>
 
@@ -597,7 +615,7 @@ export function LocationsScreen() {
               {postsQuery.isFetching ? (
                 <div className="flex items-center gap-2 rounded-xl border border-[#d7e5f4] bg-white/90 px-4 py-3 text-sm text-[#6682a1]">
                   <Loader2 className="size-4 animate-spin" />
-                  Loading posts
+                  {copy.loadingPosts}
                 </div>
               ) : null}
 
@@ -607,7 +625,7 @@ export function LocationsScreen() {
                   key={post.id}
                 >
                   <img
-                    alt={post.caption || post.location_name || "Location post"}
+                    alt={post.caption || post.location_name || copy.locationPost}
                     className="aspect-4/3 w-full object-cover"
                     decoding="async"
                     fetchPriority="low"
@@ -617,7 +635,7 @@ export function LocationsScreen() {
                   />
                   <div className="space-y-1 px-4 py-3">
                     <p className="line-clamp-2 text-sm font-semibold text-[#111]">
-                      {post.caption || "Location post"}
+                      {post.caption || copy.locationPost}
                     </p>
                     <p className="text-xs font-medium text-[#777]">
                       {post.location_name || selectedLocation?.name}
@@ -632,13 +650,13 @@ export function LocationsScreen() {
                     <ImageIcon className="size-5" />
                   </span>
                   <p className="text-sm font-semibold text-[#315578]">
-                    No posts for this location yet.
+                    {copy.noPosts}
                   </p>
                   {isAuthenticated ? (
                     <Button asChild size="sm" variant="outline">
                       <Link href={ROUTES.upload}>
                         <Upload className="size-4" />
-                        Upload
+                        {copy.upload}
                       </Link>
                     </Button>
                   ) : null}
@@ -654,13 +672,13 @@ export function LocationsScreen() {
                     <ImageIcon className="size-5" />
                   </span>
                   <p className="text-sm font-semibold text-[#315578]">
-                    No posts for this location yet.
+                    {copy.noPosts}
                   </p>
                   {isAuthenticated ? (
                     <Button asChild size="sm" variant="outline">
                       <Link href={ROUTES.upload}>
                         <Upload className="size-4" />
-                        Upload
+                        {copy.upload}
                       </Link>
                     </Button>
                   ) : null}
