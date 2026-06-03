@@ -856,8 +856,8 @@ export function ProfileScreen() {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-                    <div className="flex max-w-md flex-wrap gap-1.5 sm:justify-end">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:max-w-md sm:items-end">
+                    <div className="flex w-full flex-wrap gap-1.5 sm:justify-end">
                       {generatedAvatarStyles.map((style) => {
                         const active = selectedAvatarStyle === style.id;
 
@@ -880,9 +880,9 @@ export function ProfileScreen() {
                         );
                       })}
                     </div>
-                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                    <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[auto_auto_auto] sm:justify-end">
                       <Button
-                        className="border-[#cdd7ff] bg-[#f5f4ff] text-[#5147a8] hover:bg-[#eceaff]"
+                        className="w-full border-[#cdd7ff] bg-[#f5f4ff] text-[#5147a8] hover:bg-[#eceaff] sm:w-auto"
                         disabled={isAvatarBusy}
                         onClick={() => {
                           void handleGenerateAvatar();
@@ -896,9 +896,32 @@ export function ProfileScreen() {
                           ? "Regenerate preview"
                           : "Generate travel avatar"}
                       </Button>
+                      <Button
+                        className="w-full sm:w-auto"
+                        onClick={() => router.push(ROUTES.explore)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Compass className="size-4" />
+                        Explore
+                      </Button>
+                      <Button
+                        className="w-full sm:w-auto"
+                        onClick={() => router.push(ROUTES.upload)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Upload className="size-4" />
+                        Upload
+                      </Button>
+                    </div>
+                    <div className="grid w-full gap-2 sm:grid-cols-2">
                       {generatedAvatarDraft ? (
                         <>
                           <Button
+                            className="w-full"
                             disabled={isAvatarBusy}
                             onClick={() => {
                               void handleSaveGeneratedAvatar();
@@ -910,6 +933,7 @@ export function ProfileScreen() {
                             Use generated avatar
                           </Button>
                           <Button
+                            className="w-full"
                             disabled={isAvatarBusy}
                             onClick={() => setGeneratedAvatarDraft(null)}
                             size="sm"
@@ -920,24 +944,6 @@ export function ProfileScreen() {
                           </Button>
                         </>
                       ) : null}
-                      <Button
-                        onClick={() => router.push(ROUTES.explore)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Compass className="size-4" />
-                        Explore
-                      </Button>
-                      <Button
-                        onClick={() => router.push(ROUTES.upload)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Upload className="size-4" />
-                        Upload
-                      </Button>
                     </div>
                   </div>
                 </div>
