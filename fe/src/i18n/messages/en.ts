@@ -324,6 +324,13 @@ export const enMessages = {
       },
     ],
   },
+  explorePage: {
+    documentTitle: "Falzo Travel | Destination Discovery",
+    heroBadge: "Curated for travelers",
+    heroTitle: "Discover beautiful destinations and places worth visiting.",
+    heroDescription:
+      "Falzo brings together photos, locations, and real travel stories so you can quickly choose the right place for a vacation, short escape, or longer journey.",
+  },
   dashboardPage: {
     documentTitle: "Dashboard | Falzo",
     label: "FALZO PLATFORM",

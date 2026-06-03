@@ -1,5 +1,6 @@
 import { AxiosError } from "axios";
 import type { AxiosRequestConfig } from "axios";
+import { readCurrentLocale } from "@/i18n/locale";
 import { messages } from "@/i18n/messages";
 import { AUTH_ENDPOINTS } from "@/lib/api-config";
 import { http } from "@/lib/http";
@@ -11,11 +12,9 @@ import type {
   LoginRequest,
   RegisterRequest,
 } from "@/features/auth/types";
-import type { SupportedLocale } from "@/i18n/messages";
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
-const LOCALE_STORAGE_KEY = "falzo.locale";
 const AUTH_EXCLUDED_RETRY =
   /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
 
@@ -110,12 +109,8 @@ function readFirstErrorDetail(data: unknown): ApiErrorDetailPayload | null {
   };
 }
 
-function getCurrentLocale(): SupportedLocale {
-  if (globalThis.window === undefined) {
-    return "en";
-  }
-
-  return localStorage.getItem(LOCALE_STORAGE_KEY) === "vi" ? "vi" : "en";
+function getCurrentLocale() {
+  return readCurrentLocale();
 }
 
 function normalizeBackendMessage(value: string) {

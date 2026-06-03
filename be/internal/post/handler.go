@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"falzo-be/internal/auth"
+	"falzo-be/internal/i18n"
 	"falzo-be/internal/notification"
 	"falzo-be/internal/share"
 	httpResponse "falzo-be/pkg/response"
@@ -1102,7 +1103,11 @@ func (h *Handler) handlePostAction(
 		return
 	}
 
-	httpResponse.Success(w, http.StatusOK, successMessage, map[string]string{"message": payloadMessage}, r)
+	payloadTranslation := i18n.ResolveRequest(r, payloadMessage)
+	httpResponse.Success(w, http.StatusOK, successMessage, map[string]string{
+		"message":     payloadTranslation.Value,
+		"message_key": payloadTranslation.Key,
+	}, r)
 }
 
 func (h *Handler) viewerUserID(r *http.Request) uint64 {

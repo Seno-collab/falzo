@@ -130,7 +130,7 @@ func Load() Config {
 			InternalHeaderValue:    GetEnv("HTTP_INTERNAL_HEADER_VALUE", ""),
 			CORSAllowedOrigins:     getCSV("HTTP_CORS_ALLOWED_ORIGINS", []string{"*"}),
 			CORSAllowedMethods:     getCSV("HTTP_CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
-			CORSAllowedHeaders:     getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"}),
+			CORSAllowedHeaders:     getCSV("HTTP_CORS_ALLOWED_HEADERS", []string{"Accept", "Accept-Language", "Authorization", "Content-Type", "Origin", "X-Locale", "X-Requested-With"}),
 			CORSAllowCredentials:   GetBool("HTTP_CORS_ALLOW_CREDENTIALS", false),
 			CORSMaxAgeSeconds:      GetInt("HTTP_CORS_MAX_AGE_SECONDS", 600),
 			ReadRateLimitPerMin:    GetInt("HTTP_READ_RATE_LIMIT_PER_MIN", 240),

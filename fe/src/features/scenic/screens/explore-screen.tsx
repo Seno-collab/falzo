@@ -41,6 +41,7 @@ import {
 import type { ReactNode } from "react";
 import MapClient from "@/components/map";
 import type { Coordinates, MapPoint } from "@/components/map";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import {
   Sheet,
   SheetClose,
@@ -112,6 +113,7 @@ import {
   showsCommunityFeed,
   toggleSetValue,
 } from "@/features/scenic/lib/explore-utils";
+import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 import { notifyError, notifySuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -133,9 +135,6 @@ const maxNearbyRadiusMeters = 1_000_000;
 const nearbyRadiusOptions = [
   5_000, 10_000, 25_000, 50_000, 100_000, 300_000, 500_000, 1_000_000,
 ] as const;
-
-const exploreHeroHeadlineWords =
-  "Discover beautiful destinations and places worth visiting.".split(" ");
 
 const exploreForestHeroImageUrl =
   "https://images.unsplash.com/photo-1762933604852-4b4409603588?auto=format&fit=crop&fm=jpg&q=80&w=2400";
@@ -334,6 +333,7 @@ function getNotificationPostId(notification: AppNotification) {
 export function ExploreScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { messages } = useI18n();
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const commentInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
@@ -519,9 +519,9 @@ export function ExploreScreen() {
   );
 
   useEffect(() => {
-    document.title = "Falzo Travel | Destination Discovery";
+    document.title = messages.explorePage.documentTitle;
     setIsAuthenticated(hasAuthSession());
-  }, []);
+  }, [messages.explorePage.documentTitle]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -2099,6 +2099,7 @@ function ExploreTopbar({
   searchValue: string;
   unreadNotificationCount: number;
 }>) {
+  const { messages } = useI18n();
   const profileLabel =
     isAuthenticated && profileName ? `Profile: ${profileName}` : "Profile";
   const authLabel = isAuthenticated ? profileLabel : "Login";
@@ -2175,6 +2176,7 @@ function ExploreTopbar({
           </div>
 
           <div className="hidden items-center gap-1 sm:flex">
+            <LanguageSwitcher className="mr-1" />
             {isAuthenticated ? (
               <>
                 <Button
@@ -2245,6 +2247,12 @@ function ExploreTopbar({
                 </SheetDescription>
               </SheetHeader>
               <div className="space-y-2 px-5">
+                <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
+                  <span className="text-sm font-medium text-[#1f1f1f]">
+                    {messages.common.language}
+                  </span>
+                  <LanguageSwitcher />
+                </div>
                 <SheetClose asChild>
                   <Link
                     className={cn(
@@ -2803,6 +2811,9 @@ function ExploreHero({
   savedBoardCount: number;
   showSavedBoard: boolean;
 }>) {
+  const { messages } = useI18n();
+  const heroCopy = messages.explorePage;
+  const headlineWords = heroCopy.heroTitle.split(" ");
   const visibleCollections = isAuthenticated
     ? collections
     : collections.filter((collection) => collection !== FOLLOWING_COLLECTION);
@@ -2828,17 +2839,15 @@ function ExploreHero({
           <div className="max-w-3xl">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/14 px-3 py-1.5 text-xs font-semibold text-white shadow-[0_12px_30px_-24px_rgb(0_0_0/0.35)] backdrop-blur-xl">
               <Sparkles className="size-3.5 text-[#ff385c]" />
-              Curated for travelers
+              {heroCopy.heroBadge}
             </div>
             <h1 className="max-w-2xl text-3xl font-semibold leading-[1.12] tracking-normal text-white drop-shadow-[0_8px_28px_rgb(0_0_0/0.34)] sm:text-5xl lg:text-6xl">
-              <span className="sr-only">
-                Discover beautiful destinations and places worth visiting.
-              </span>
+              <span className="sr-only">{heroCopy.heroTitle}</span>
               <span
                 aria-hidden="true"
                 className="inline-flex flex-wrap gap-x-2 sm:gap-x-3"
               >
-                {exploreHeroHeadlineWords.map((word, index) => (
+                {headlineWords.map((word, index) => (
                   <span
                     className="inline-block animate-[hero-word-rise_0.72s_cubic-bezier(0.22,1,0.36,1)_both]"
                     key={`${word}-${index}`}
@@ -2850,9 +2859,7 @@ function ExploreHero({
               </span>
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-white/82 drop-shadow-[0_6px_22px_rgb(0_0_0/0.36)] sm:text-lg">
-              Falzo brings together photos, locations, and real travel stories
-              so you can quickly choose the right place for a vacation, short
-              escape, or longer journey.
+              {heroCopy.heroDescription}
             </p>
           </div>
 

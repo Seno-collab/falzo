@@ -2,6 +2,7 @@ package response
 
 import (
 	"encoding/json"
+	"falzo-be/internal/i18n"
 	"net/http"
 	"time"
 
@@ -14,17 +15,19 @@ type Meta struct {
 }
 
 type ErrorDetail struct {
-	Field   string `json:"field,omitempty"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Field      string `json:"field,omitempty"`
+	Code       string `json:"code"`
+	Message    string `json:"message"`
+	MessageKey string `json:"message_key,omitempty"`
 }
 
 type Envelope struct {
-	Success bool          `json:"success"`
-	Message string        `json:"message"`
-	Data    any           `json:"data"`
-	Errors  []ErrorDetail `json:"errors,omitempty"`
-	Meta    Meta          `json:"meta"`
+	Success    bool          `json:"success"`
+	Message    string        `json:"message"`
+	MessageKey string        `json:"message_key,omitempty"`
+	Data       any           `json:"data"`
+	Errors     []ErrorDetail `json:"errors,omitempty"`
+	Meta       Meta          `json:"meta"`
 }
 
 func JSON(w http.ResponseWriter, status int, payload Envelope) {
@@ -34,21 +37,33 @@ func JSON(w http.ResponseWriter, status int, payload Envelope) {
 }
 
 func Success(w http.ResponseWriter, status int, message string, data any, r *http.Request) {
+	translation := i18n.ResolveRequest(r, message)
 	JSON(w, status, Envelope{
-		Success: true,
-		Message: message,
-		Data:    data,
-		Meta:    buildMeta(r),
+		Success:    true,
+		Message:    translation.Value,
+		MessageKey: translation.Key,
+		Data:       data,
+		Meta:       buildMeta(r),
 	})
 }
 
 func Error(w http.ResponseWriter, status int, message string, r *http.Request, errors ...ErrorDetail) {
+	translation := i18n.ResolveRequest(r, message)
+	localizedErrors := make([]ErrorDetail, 0, len(errors))
+	for _, detail := range errors {
+		detailTranslation := i18n.ResolveRequest(r, detail.Message)
+		detail.Message = detailTranslation.Value
+		detail.MessageKey = detailTranslation.Key
+		localizedErrors = append(localizedErrors, detail)
+	}
+
 	JSON(w, status, Envelope{
-		Success: false,
-		Message: message,
-		Data:    nil,
-		Errors:  errors,
-		Meta:    buildMeta(r),
+		Success:    false,
+		Message:    translation.Value,
+		MessageKey: translation.Key,
+		Data:       nil,
+		Errors:     localizedErrors,
+		Meta:       buildMeta(r),
 	})
 }
 

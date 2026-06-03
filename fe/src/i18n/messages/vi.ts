@@ -22,6 +22,14 @@ export const viMessages = {
     ...enMessages.homePage,
     brand: "FALZO TRAVEL",
   },
+  explorePage: {
+    ...enMessages.explorePage,
+    documentTitle: "Falzo Travel | Khám phá điểm đến",
+    heroBadge: "Tuyển chọn cho người mê du lịch",
+    heroTitle: "Khám phá những điểm đến đẹp và nơi đáng ghé thăm.",
+    heroDescription:
+      "Falzo kết nối hình ảnh, địa điểm và câu chuyện du lịch thực tế để bạn nhanh chóng chọn đúng nơi cho kỳ nghỉ, chuyến đi ngắn hoặc hành trình dài hơn.",
+  },
   dashboardPage: {
     ...enMessages.dashboardPage,
     documentTitle: "Bảng điều khiển | Falzo",

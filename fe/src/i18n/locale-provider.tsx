@@ -3,15 +3,14 @@
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
   useState,
   type PropsWithChildren,
 } from "react";
 import { messages, type AppMessages, type SupportedLocale } from "@/i18n/messages";
-
-const localeStorageKey = "falzo.locale";
-const defaultLocale: SupportedLocale = "en";
+import { defaultLocale, persistLocale, readCurrentLocale } from "@/i18n/locale";
 
 type LocaleContextValue = {
   locale: SupportedLocale;
@@ -21,43 +20,30 @@ type LocaleContextValue = {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
-function isSupportedLocale(value: string | null): value is SupportedLocale {
-  return value === "en" || value === "vi";
-}
-
-function readInitialLocale(): SupportedLocale {
-  if (typeof window === "undefined") {
-    return defaultLocale;
-  }
-
-  const storedLocale = window.localStorage.getItem(localeStorageKey);
-  if (isSupportedLocale(storedLocale)) {
-    return storedLocale;
-  }
-
-  const browserLocale = window.navigator.language.toLowerCase();
-  return browserLocale.startsWith("vi") ? "vi" : defaultLocale;
-}
-
 export function LocaleProvider({ children }: Readonly<PropsWithChildren>) {
   const [locale, setLocaleState] = useState<SupportedLocale>(defaultLocale);
 
   useEffect(() => {
-    setLocaleState(readInitialLocale());
+    setLocaleState(readCurrentLocale());
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale;
-    window.localStorage.setItem(localeStorageKey, locale);
+    persistLocale(locale);
   }, [locale]);
+
+  const setLocale = useCallback((nextLocale: SupportedLocale) => {
+    persistLocale(nextLocale);
+    setLocaleState(nextLocale);
+  }, []);
 
   const value = useMemo<LocaleContextValue>(
     () => ({
       locale,
       messages: messages[locale],
-      setLocale: setLocaleState,
+      setLocale,
     }),
-    [locale],
+    [locale, setLocale],
   );
 
   return (

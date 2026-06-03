@@ -6,6 +6,7 @@ import (
 	authInfra "falzo-be/internal/auth/infra"
 	"falzo-be/internal/category"
 	categoryInfra "falzo-be/internal/category/infra"
+	"falzo-be/internal/i18n"
 	"falzo-be/internal/location"
 	locationInfra "falzo-be/internal/location/infra"
 	"falzo-be/internal/notification"
@@ -92,6 +93,13 @@ func Run() {
 	} else {
 		sessions = authInfra.NewCachedSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
 	}
+	i18nResolver := i18n.NewResolver(db.Pool(), redisClient)
+	if err := i18nResolver.Load(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("i18n messages unavailable, continuing with built-in fallback")
+	}
+	i18n.SetDefaultResolver(i18nResolver)
+	i18nListenerCtx, stopI18nListener := context.WithCancel(context.Background())
+	go i18nResolver.RunPostgresListener(i18nListenerCtx)
 	passwords := authInfra.NewPasswordHasher()
 	jwtManager := authInfra.NewJWTManager(cfg.Auth)
 	authService := auth.NewService(accounts, sessions, passwords, jwtManager, jwtManager, cfg.Auth.RefreshTokenTTL)
@@ -242,6 +250,10 @@ func Run() {
 	}
 	sm.Register("auth-session-cleanup-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		stopSessionCleanup()
+		return nil
+	})
+	sm.Register("i18n-listener-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
+		stopI18nListener()
 		return nil
 	})
 	if stopEngagementWorker != nil {

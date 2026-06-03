@@ -6,8 +6,8 @@ import type { SupportedLocale } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 
 const localeOptions: Array<{ locale: SupportedLocale; label: string }> = [
-  { locale: "en", label: "EN" },
-  { locale: "vi", label: "VI" },
+  { locale: "en", label: "English" },
+  { locale: "vi", label: "Tiếng Việt" },
 ];
 
 export function LanguageSwitcher({
