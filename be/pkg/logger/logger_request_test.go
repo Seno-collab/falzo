@@ -82,7 +82,7 @@ func TestRequestLoggerLogsSanitizedJSONBodies(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"token":"raw-token","ok":true}`))
 	}))
 
@@ -90,8 +90,8 @@ func TestRequestLoggerLogsSanitizedJSONBodies(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
@@ -118,6 +118,64 @@ func TestRequestLoggerLogsSanitizedJSONBodies(t *testing.T) {
 	}
 	if responseBody["token"] != redactedLogValue {
 		t.Fatalf("expected response token to be redacted, got %#v", responseBody["token"])
+	}
+}
+
+func TestRequestLoggerSkipsSuccessfulRequests(t *testing.T) {
+	t.Setenv("LOG_HTTP_BODY_ENABLED", "false")
+
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+
+	log.Logger = zerolog.New(&output)
+	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Hello world!"))
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if got := strings.TrimSpace(output.String()); got != "" {
+		t.Fatalf("expected no log output for successful request, got %q", got)
+	}
+}
+
+func TestRequestLoggerSkipsSuccessfulStreams(t *testing.T) {
+	t.Setenv("LOG_HTTP_BODY_ENABLED", "false")
+
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+
+	log.Logger = zerolog.New(&output)
+	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(": connected\n\n"))
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/posts/events", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if got := strings.TrimSpace(output.String()); got != "" {
+		t.Fatalf("expected no log output for successful stream, got %q", got)
 	}
 }
 

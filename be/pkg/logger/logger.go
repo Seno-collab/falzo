@@ -228,6 +228,9 @@ func RequestLogger(next http.Handler) http.Handler {
 		if rec.status == 0 {
 			rec.status = http.StatusOK
 		}
+		if !shouldLogRequest(rec.status) {
+			return
+		}
 
 		durationMs := float64(time.Since(start).Microseconds()) / 1000
 		event := requestLogEvent(rec.status, r.URL.Path).
@@ -263,6 +266,10 @@ func RequestLogger(next http.Handler) http.Handler {
 
 		event.Msg("request completed")
 	})
+}
+
+func shouldLogRequest(status int) bool {
+	return status >= http.StatusBadRequest
 }
 
 func requestLogEvent(status int, path string) *zerolog.Event {
