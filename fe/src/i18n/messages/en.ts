@@ -641,6 +641,17 @@ export const enMessages = {
     uploadingPhoto: "Uploading profile photo...",
     preparingLook: "Preparing a new look...",
     lookReady: "look is ready to save.",
+    avatarChooserTitle: "Update profile photo",
+    avatarChooserDescription:
+      "Choose a local photo or generate a colorful travel avatar.",
+    choosePhoto: "Choose photo",
+    choosePhotoDescription: "Upload a JPEG, PNG, or WebP image from your device.",
+    generateAvatar: "Generate avatar",
+    generateAvatarDescription:
+      "Pick a character gender and color style, then create a preview.",
+    selectedLook: "Selected look",
+    colorStyle: "Color style",
+    backToOptions: "Back",
     tryLook: "Try a travel look",
     tryAnotherLook: "Try another look",
     saveLook: "Save this look",
@@ -670,6 +681,22 @@ export const enMessages = {
       roadtrip: {
         label: "Road trip",
         description: "Open road and travel scarf",
+      },
+      aurora: {
+        label: "Aurora",
+        description: "Northern lights and glowing travel layers",
+      },
+      festival: {
+        label: "Festival",
+        description: "Bright lights, confetti, and playful colors",
+      },
+      garden: {
+        label: "Garden",
+        description: "Fresh leaves, flowers, and soft outdoor colors",
+      },
+      neon: {
+        label: "Neon",
+        description: "Night city glow and electric color accents",
       },
     },
     explore: "Explore",

@@ -3,6 +3,7 @@
 import {
   CalendarClock,
   Camera,
+  Check,
   Compass,
   Fingerprint,
   KeyRound,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ChangeEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -29,6 +30,13 @@ import { UserPresenceBadge } from "@/components/layout/user-presence-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RainbowAvatar } from "@/components/ui/rainbow-avatar";
@@ -138,10 +146,27 @@ const generatedAvatarStyles = [
     id: "roadtrip",
     palette: ["#fff3dd", "#d4a46c", "#3d2a16", "#ffe08a", "#d1842f"],
   },
+  {
+    id: "aurora",
+    palette: ["#eefcff", "#91f2d8", "#16324a", "#ff8cc6", "#6b7cff"],
+  },
+  {
+    id: "festival",
+    palette: ["#fff2fb", "#ff9fd6", "#3c1d62", "#ffd166", "#06d6a0"],
+  },
+  {
+    id: "garden",
+    palette: ["#f2ffe8", "#b9e986", "#25451f", "#ff9f7a", "#5bbf72"],
+  },
+  {
+    id: "neon",
+    palette: ["#eff3ff", "#9aa8ff", "#10162f", "#00e5ff", "#ff4fd8"],
+  },
 ] as const;
 
 type GeneratedAvatarStyleId = (typeof generatedAvatarStyles)[number]["id"];
 type GeneratedAvatarGender = "male" | "female";
+type AvatarChooserMode = "options" | "generate";
 
 const generatedAvatarGenderOptions: GeneratedAvatarGender[] = [
   "male",
@@ -371,6 +396,84 @@ async function createGeneratedAvatarFile(
     context.lineTo(258, 452);
     context.stroke();
     context.setLineDash([]);
+  } else if (avatarStyle.id === "aurora") {
+    const aurora = context.createLinearGradient(64, 104, 448, 314);
+    aurora.addColorStop(0, palette[4]);
+    aurora.addColorStop(0.5, palette[3]);
+    aurora.addColorStop(1, palette[1]);
+    context.strokeStyle = aurora;
+    context.lineWidth = 22;
+    for (let index = 0; index < 4; index += 1) {
+      context.beginPath();
+      context.moveTo(44, 156 + index * 34);
+      context.bezierCurveTo(
+        150,
+        84 + index * 24,
+        284,
+        242 - index * 28,
+        468,
+        130 + index * 42,
+      );
+      context.stroke();
+    }
+  } else if (avatarStyle.id === "festival") {
+    [palette[3], palette[4], "#ff5a8a", "#7c5cff", "#00c2ff"].forEach(
+      (color, index) => {
+        context.fillStyle = color;
+        context.beginPath();
+        context.arc(
+          74 + index * 92,
+          126 + ((hash >> index) % 88),
+          18 + (index % 2) * 8,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      },
+    );
+    context.strokeStyle = "rgb(255 255 255 / 0.66)";
+    context.lineWidth = 5;
+    context.beginPath();
+    context.moveTo(44, 258);
+    context.quadraticCurveTo(256, 170, 468, 258);
+    context.stroke();
+  } else if (avatarStyle.id === "garden") {
+    context.fillStyle = palette[2];
+    for (let index = 0; index < 7; index += 1) {
+      context.beginPath();
+      context.ellipse(
+        36 + index * 78,
+        310 - (index % 3) * 36,
+        54,
+        18,
+        -Math.PI / 7,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+    }
+    context.fillStyle = palette[3];
+    context.beginPath();
+    context.arc(408, 170, 38, 0, Math.PI * 2);
+    context.fill();
+  } else if (avatarStyle.id === "neon") {
+    context.fillStyle = palette[2];
+    context.fillRect(0, 282, size, 178);
+    context.strokeStyle = palette[3];
+    context.lineWidth = 8;
+    context.beginPath();
+    context.moveTo(48, 260);
+    context.lineTo(168, 174);
+    context.lineTo(284, 260);
+    context.lineTo(404, 174);
+    context.lineTo(488, 260);
+    context.stroke();
+    context.strokeStyle = palette[4];
+    context.lineWidth = 5;
+    context.beginPath();
+    context.moveTo(72, 316);
+    context.lineTo(450, 316);
+    context.stroke();
   } else {
     context.fillStyle = palette[2];
     context.globalAlpha = 0.92;
@@ -411,6 +514,23 @@ async function createGeneratedAvatarFile(
   context.fillStyle = "rgb(255 255 255 / 0.2)";
   drawRoundedRect(context, 34, 326, 444, 150, 52);
   context.fill();
+
+  context.lineCap = "round";
+  context.lineWidth = 14;
+  [palette[3], palette[4], "rgb(255 255 255 / 0.78)"].forEach(
+    (color, index) => {
+      context.strokeStyle = color;
+      context.beginPath();
+      context.arc(
+        256,
+        244,
+        122 + index * 13,
+        -Math.PI * 0.82 + index * 0.18,
+        Math.PI * 0.72 + index * 0.12,
+      );
+      context.stroke();
+    },
+  );
 
   context.fillStyle = palette[2];
   context.globalAlpha = 0.18;
@@ -559,6 +679,62 @@ async function createGeneratedAvatarFile(
     context.lineTo(218, 326);
     context.closePath();
     context.fill();
+  } else if (avatarStyle.id === "aurora") {
+    context.strokeStyle = palette[3];
+    context.lineWidth = 8;
+    for (let index = 0; index < 4; index += 1) {
+      context.beginPath();
+      context.moveTo(164 + index * 28, 314);
+      context.bezierCurveTo(
+        206 + index * 16,
+        280,
+        244 + index * 10,
+        360,
+        320 + index * 9,
+        314,
+      );
+      context.stroke();
+    }
+  } else if (avatarStyle.id === "festival") {
+    [palette[3], palette[4], "#ff5a8a", "#7c5cff"].forEach((color, index) => {
+      context.fillStyle = color;
+      context.beginPath();
+      context.arc(180 + index * 42, 386 - (index % 2) * 20, 12, 0, Math.PI * 2);
+      context.fill();
+    });
+    context.strokeStyle = "rgb(255 255 255 / 0.8)";
+    context.lineWidth = 5;
+    context.beginPath();
+    context.moveTo(178, 386);
+    context.quadraticCurveTo(256, 342, 342, 376);
+    context.stroke();
+  } else if (avatarStyle.id === "garden") {
+    [0, 1, 2, 3, 4].forEach((index) => {
+      context.fillStyle = index % 2 === 0 ? palette[4] : palette[3];
+      context.beginPath();
+      context.ellipse(
+        170 + index * 34,
+        376 - (index % 2) * 18,
+        18,
+        9,
+        (Math.PI / 4) * index,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+    });
+  } else if (avatarStyle.id === "neon") {
+    context.strokeStyle = palette[3];
+    context.lineWidth = 7;
+    drawRoundedRect(context, 184, 354, 144, 54, 18);
+    context.stroke();
+    context.strokeStyle = palette[4];
+    context.beginPath();
+    context.moveTo(198, 384);
+    context.lineTo(232, 364);
+    context.lineTo(264, 390);
+    context.lineTo(306, 360);
+    context.stroke();
   } else {
     context.fillStyle = "rgb(255 255 255 / 0.82)";
     drawRoundedRect(context, 208, 132, 96, 34, 17);
@@ -590,10 +766,14 @@ export function ProfileScreen() {
   const queryClient = useQueryClient();
   const { messages } = useI18n();
   const copy = messages.profilePage;
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
+  const [isAvatarChooserOpen, setIsAvatarChooserOpen] = useState(false);
+  const [avatarChooserMode, setAvatarChooserMode] =
+    useState<AvatarChooserMode>("options");
   const [selectedAvatarStyle, setSelectedAvatarStyle] =
     useState<GeneratedAvatarStyleId>("mountain");
   const [selectedAvatarGender, setSelectedAvatarGender] =
@@ -654,6 +834,8 @@ export function ProfileScreen() {
     : null;
   const subject = readAuthUserText(profile, ["subject", "id"]);
   const isAvatarBusy = isUploadingAvatar || isGeneratingAvatar;
+  const selectedAvatarStyleCopy = copy.avatarStyles[selectedAvatarStyle];
+  const selectedAvatarGenderLabel = copy.avatarGenders[selectedAvatarGender];
 
   useEffect(() => {
     return () => {
@@ -698,6 +880,7 @@ export function ProfileScreen() {
       return;
     }
 
+    setIsAvatarChooserOpen(false);
     setIsUploadingAvatar(true);
     try {
       await applyAvatarFile(file);
@@ -740,6 +923,7 @@ export function ProfileScreen() {
         styleId: selectedAvatarStyle,
         gender: selectedAvatarGender,
       });
+      setIsAvatarChooserOpen(false);
       toast.success(copy.newLookReady);
     } catch (error) {
       toast.error(copy.unableToPrepareLook, {
@@ -861,13 +1045,19 @@ export function ProfileScreen() {
               <div className="border-[#dfe9f4] border-b bg-[linear-gradient(180deg,#fafdff_0%,#f5f9fd_100%)] p-5 sm:p-7">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-4">
-                    <label
+                    <button
                       className={`group relative size-20 shrink-0 rounded-full transition ${
                         isAvatarBusy
                           ? "cursor-not-allowed opacity-70"
                           : "cursor-pointer hover:brightness-105"
                       }`}
-                      title={copy.uploadTitle}
+                      disabled={isAvatarBusy}
+                      onClick={() => {
+                        setAvatarChooserMode("options");
+                        setIsAvatarChooserOpen(true);
+                      }}
+                      title={copy.avatarChooserTitle}
+                      type="button"
                     >
                       <RainbowAvatar
                         alt={displayName}
@@ -879,16 +1069,17 @@ export function ProfileScreen() {
                       <div className="absolute inset-0.75 z-20 flex items-center justify-center rounded-full bg-black/38 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                         <Camera className="size-6 text-white drop-shadow-sm" />
                       </div>
-                      <input
-                        accept="image/jpeg,image/png,image/webp"
-                        className="sr-only"
-                        disabled={isAvatarBusy}
-                        onChange={(event) => {
-                          void handleAvatarFileChange(event);
-                        }}
-                        type="file"
-                      />
-                    </label>
+                    </button>
+                    <input
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      disabled={isAvatarBusy}
+                      onChange={(event) => {
+                        void handleAvatarFileChange(event);
+                      }}
+                      ref={avatarFileInputRef}
+                      type="file"
+                    />
                     <div className="min-w-0">
                       <Badge>{copy.signedIn}</Badge>
                       <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-[#143052] sm:text-3xl">
@@ -921,71 +1112,49 @@ export function ProfileScreen() {
                   </div>
 
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:max-w-md sm:items-end">
-                    <div
-                      aria-label={copy.avatarGenderLabel}
-                      className="inline-flex w-full items-center rounded-full border border-[#d7e0f5] bg-white/88 p-1 sm:w-auto"
-                      role="group"
-                    >
-                      {generatedAvatarGenderOptions.map((gender) => {
-                        const active = selectedAvatarGender === gender;
-
-                        return (
-                          <button
-                            aria-pressed={active}
-                            className={`h-8 flex-1 rounded-full px-3 text-xs font-bold transition sm:flex-none ${
-                              active
-                                ? "bg-[#111] text-white shadow-[0_10px_22px_-16px_rgb(0_0_0/0.85)]"
-                                : "text-[#5f6f91] hover:bg-[#f5f4ff] hover:text-[#5147a8]"
-                            }`}
-                            disabled={isAvatarBusy}
-                            key={gender}
-                            onClick={() => setSelectedAvatarGender(gender)}
-                            type="button"
-                          >
-                            {copy.avatarGenders[gender]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="flex w-full flex-wrap gap-1.5 sm:justify-end">
-                      {generatedAvatarStyles.map((style) => {
-                        const active = selectedAvatarStyle === style.id;
-                        const styleCopy = copy.avatarStyles[style.id];
-
-                        return (
-                          <button
-                            aria-pressed={active}
-                            className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${
-                              active
-                                ? "border-[#5147a8] bg-[#5147a8] text-white shadow-[0_10px_22px_-16px_rgb(81_71_168/0.85)]"
-                                : "border-[#d7e0f5] bg-white/88 text-[#5f6f91] hover:border-[#c4cdf4] hover:bg-[#f5f4ff] hover:text-[#5147a8]"
-                            }`}
-                            disabled={isAvatarBusy}
-                            key={style.id}
-                            onClick={() => setSelectedAvatarStyle(style.id)}
-                            title={styleCopy.description}
-                            type="button"
-                          >
-                            {styleCopy.label}
-                          </button>
-                        );
-                      })}
+                    <div className="w-full rounded-2xl border border-[#d7e0f5] bg-white/88 px-3 py-2 shadow-[0_16px_34px_-30px_rgb(81_71_168/0.55)] sm:w-auto sm:min-w-72">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7892ad]">
+                        {copy.selectedLook}
+                      </p>
+                      <div className="mt-1 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-[#143052]">
+                            {selectedAvatarGenderLabel} /{" "}
+                            {selectedAvatarStyleCopy.label}
+                          </p>
+                          <p className="truncate text-xs font-medium text-[#6a7d96]">
+                            {selectedAvatarStyleCopy.description}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 -space-x-1.5">
+                          {getGeneratedAvatarStyle(selectedAvatarStyle).palette.map(
+                            (color) => (
+                              <span
+                                className="size-5 rounded-full border-2 border-white shadow-sm"
+                                key={color}
+                                style={{ backgroundColor: color }}
+                              />
+                            ),
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[auto_auto_auto] sm:justify-end">
                       <Button
                         className="w-full border-[#cdd7ff] bg-[#f5f4ff] text-[#5147a8] hover:bg-[#eceaff] sm:w-auto"
                         disabled={isAvatarBusy}
                         onClick={() => {
-                          void handleGenerateAvatar();
+                          setAvatarChooserMode("generate");
+                          setIsAvatarChooserOpen(true);
                         }}
                         size="sm"
                         type="button"
                         variant="outline"
                       >
-                        <Palette className="size-4" />
+                        <Sparkles className="size-4 motion-safe:animate-pulse" />
                         {generatedAvatarDraft
                           ? copy.tryAnotherLook
-                          : copy.tryLook}
+                          : copy.generateAvatar}
                       </Button>
                       <Button
                         className="w-full sm:w-auto"
@@ -1168,6 +1337,205 @@ export function ProfileScreen() {
           </Card>
         </div>
       )}
+      <Dialog
+        onOpenChange={(open) => {
+          setIsAvatarChooserOpen(open);
+          if (!open) {
+            setAvatarChooserMode("options");
+          }
+        }}
+        open={isAvatarChooserOpen}
+      >
+        <DialogContent className="max-h-[92svh] w-[min(94vw,42rem)] overflow-y-auto border-black/8 bg-white p-0 text-[#143052] shadow-[0_30px_90px_-42px_rgb(0_0_0/0.75)]">
+          <div className="border-[#dfe9f4] border-b bg-[linear-gradient(180deg,#fafdff_0%,#f5f4ff_100%)] p-5">
+            <DialogHeader>
+              <DialogTitle className="text-xl text-[#143052]">
+                {copy.avatarChooserTitle}
+              </DialogTitle>
+              <DialogDescription className="text-[#527299]">
+                {copy.avatarChooserDescription}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {avatarChooserMode === "options" ? (
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              <button
+                className="group rounded-2xl border border-[#d7e0f5] bg-white p-4 text-left shadow-[0_18px_42px_-34px_rgb(35_73_120/0.6)] transition hover:-translate-y-0.5 hover:border-[#c4cdf4] hover:bg-[#f8f7ff]"
+                disabled={isAvatarBusy}
+                onClick={() => setAvatarChooserMode("generate")}
+                type="button"
+              >
+                <span className="flex size-11 items-center justify-center rounded-full bg-[#f5f4ff] text-[#5147a8] transition group-hover:bg-[#5147a8] group-hover:text-white">
+                  <Sparkles className="size-5" />
+                </span>
+                <span className="mt-4 block text-base font-bold text-[#143052]">
+                  {copy.generateAvatar}
+                </span>
+                <span className="mt-1 block text-sm leading-6 text-[#617994]">
+                  {copy.generateAvatarDescription}
+                </span>
+              </button>
+
+              <button
+                className="group rounded-2xl border border-[#d7e0f5] bg-white p-4 text-left shadow-[0_18px_42px_-34px_rgb(35_73_120/0.6)] transition hover:-translate-y-0.5 hover:border-[#bed7ee] hover:bg-[#f8fcff]"
+                disabled={isAvatarBusy}
+                onClick={() => avatarFileInputRef.current?.click()}
+                type="button"
+              >
+                <span className="flex size-11 items-center justify-center rounded-full bg-[#eef7ff] text-[#2f6fb8] transition group-hover:bg-[#2f6fb8] group-hover:text-white">
+                  <Camera className="size-5" />
+                </span>
+                <span className="mt-4 block text-base font-bold text-[#143052]">
+                  {copy.choosePhoto}
+                </span>
+                <span className="mt-1 block text-sm leading-6 text-[#617994]">
+                  {copy.choosePhotoDescription}
+                </span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4 p-5">
+              <div className="rounded-2xl border border-[#d7e0f5] bg-[#fafdff] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7892ad]">
+                  {copy.selectedLook}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-bold text-[#143052]">
+                      {selectedAvatarGenderLabel} /{" "}
+                      {selectedAvatarStyleCopy.label}
+                    </p>
+                    <p className="mt-1 max-w-md text-sm leading-6 text-[#617994]">
+                      {selectedAvatarStyleCopy.description}
+                    </p>
+                  </div>
+                  <div className="flex -space-x-1.5">
+                    {getGeneratedAvatarStyle(selectedAvatarStyle).palette.map(
+                      (color) => (
+                        <span
+                          className="size-7 rounded-full border-2 border-white shadow-sm"
+                          key={color}
+                          style={{ backgroundColor: color }}
+                        />
+                      ),
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7892ad]">
+                  {copy.avatarGenderLabel}
+                </p>
+                <div className="inline-flex w-full items-center rounded-full border border-[#d7e0f5] bg-white p-1 sm:w-auto">
+                  {generatedAvatarGenderOptions.map((gender) => {
+                    const active = selectedAvatarGender === gender;
+
+                    return (
+                      <button
+                        aria-pressed={active}
+                        className={`h-9 flex-1 rounded-full px-4 text-sm font-bold transition sm:flex-none ${
+                          active
+                            ? "bg-[#111] text-white shadow-[0_10px_22px_-16px_rgb(0_0_0/0.85)]"
+                            : "text-[#5f6f91] hover:bg-[#f5f4ff] hover:text-[#5147a8]"
+                        }`}
+                        disabled={isAvatarBusy}
+                        key={gender}
+                        onClick={() => setSelectedAvatarGender(gender)}
+                        type="button"
+                      >
+                        {copy.avatarGenders[gender]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7892ad]">
+                  {copy.colorStyle}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {generatedAvatarStyles.map((style) => {
+                    const active = selectedAvatarStyle === style.id;
+                    const styleCopy = copy.avatarStyles[style.id];
+
+                    return (
+                      <button
+                        aria-pressed={active}
+                        className={`rounded-2xl border p-3 text-left transition ${
+                          active
+                            ? "border-[#5147a8] bg-[#f5f4ff] shadow-[0_16px_34px_-28px_rgb(81_71_168/0.9)]"
+                            : "border-[#d7e0f5] bg-white hover:border-[#c4cdf4] hover:bg-[#fbfbff]"
+                        }`}
+                        disabled={isAvatarBusy}
+                        key={style.id}
+                        onClick={() => setSelectedAvatarStyle(style.id)}
+                        type="button"
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-bold text-[#143052]">
+                              {styleCopy.label}
+                            </span>
+                            <span className="mt-1 line-clamp-2 block text-xs leading-5 text-[#617994]">
+                              {styleCopy.description}
+                            </span>
+                          </span>
+                          {active ? (
+                            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#111] text-white">
+                              <Check className="size-3.5" />
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-3 flex -space-x-1.5">
+                          {style.palette.map((color) => (
+                            <span
+                              className="size-5 rounded-full border-2 border-white shadow-sm"
+                              key={color}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+                <Button
+                  className="rounded-full"
+                  disabled={isAvatarBusy}
+                  onClick={() => setAvatarChooserMode("options")}
+                  type="button"
+                  variant="outline"
+                >
+                  {copy.backToOptions}
+                </Button>
+                <Button
+                  className="rounded-full"
+                  disabled={isAvatarBusy}
+                  onClick={() => {
+                    void handleGenerateAvatar();
+                  }}
+                  type="button"
+                >
+                  {isGeneratingAvatar ? (
+                    <Palette className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  {generatedAvatarDraft
+                    ? copy.tryAnotherLook
+                    : copy.generateAvatar}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

@@ -342,6 +342,17 @@ export const viMessages = {
     uploadingPhoto: "Đang tải ảnh hồ sơ...",
     preparingLook: "Đang chuẩn bị phong cách mới...",
     lookReady: "đã sẵn sàng để lưu.",
+    avatarChooserTitle: "Cập nhật ảnh hồ sơ",
+    avatarChooserDescription:
+      "Chọn ảnh từ máy hoặc tạo avatar du lịch nhiều màu sắc.",
+    choosePhoto: "Chọn ảnh",
+    choosePhotoDescription: "Tải ảnh JPEG, PNG hoặc WebP từ thiết bị của bạn.",
+    generateAvatar: "Tạo avatar",
+    generateAvatarDescription:
+      "Chọn giới tính nhân vật và phong cách màu, sau đó tạo bản xem trước.",
+    selectedLook: "Phong cách đang chọn",
+    colorStyle: "Phong cách màu",
+    backToOptions: "Quay lại",
     tryLook: "Thử phong cách du lịch",
     tryAnotherLook: "Thử phong cách khác",
     saveLook: "Lưu phong cách này",
@@ -371,6 +382,22 @@ export const viMessages = {
       roadtrip: {
         label: "Đi phượt",
         description: "Đường dài và khăn du lịch",
+      },
+      aurora: {
+        label: "Cực quang",
+        description: "Ánh cực quang và các lớp màu phát sáng",
+      },
+      festival: {
+        label: "Lễ hội",
+        description: "Ánh đèn rực rỡ, confetti và màu sắc vui nhộn",
+      },
+      garden: {
+        label: "Vườn xanh",
+        description: "Lá cây, hoa và màu ngoài trời dịu nhẹ",
+      },
+      neon: {
+        label: "Neon",
+        description: "Ánh đêm thành phố và điểm nhấn màu điện tử",
       },
     },
     explore: "Khám phá",
