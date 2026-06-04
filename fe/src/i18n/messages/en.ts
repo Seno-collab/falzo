@@ -645,6 +645,11 @@ export const enMessages = {
     tryAnotherLook: "Try another look",
     saveLook: "Save this look",
     keepCurrentPhoto: "Keep current photo",
+    avatarGenderLabel: "Avatar gender",
+    avatarGenders: {
+      male: "Male",
+      female: "Female",
+    },
     avatarStyles: {
       mountain: {
         label: "Mountain",

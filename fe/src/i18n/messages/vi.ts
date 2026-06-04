@@ -346,6 +346,11 @@ export const viMessages = {
     tryAnotherLook: "Thử phong cách khác",
     saveLook: "Lưu phong cách này",
     keepCurrentPhoto: "Giữ ảnh hiện tại",
+    avatarGenderLabel: "Giới tính avatar",
+    avatarGenders: {
+      male: "Nam",
+      female: "Nữ",
+    },
     avatarStyles: {
       mountain: {
         label: "Núi",

@@ -141,11 +141,18 @@ const generatedAvatarStyles = [
 ] as const;
 
 type GeneratedAvatarStyleId = (typeof generatedAvatarStyles)[number]["id"];
+type GeneratedAvatarGender = "male" | "female";
+
+const generatedAvatarGenderOptions: GeneratedAvatarGender[] = [
+  "male",
+  "female",
+];
 
 type GeneratedAvatarDraft = {
   file: File;
   previewUrl: string;
   styleId: GeneratedAvatarStyleId;
+  gender: GeneratedAvatarGender;
 };
 
 const generatedAvatarSkinTones = [
@@ -232,10 +239,12 @@ async function createGeneratedAvatarFile(
   seed: string,
   styleId: GeneratedAvatarStyleId,
   styleLabel: string,
+  gender: GeneratedAvatarGender,
 ) {
   const size = 512;
   const hash = hashText(seed);
   const avatarStyle = getGeneratedAvatarStyle(styleId);
+  const isFemaleAvatar = gender === "female";
   const palette = avatarStyle.palette;
   const skinTone =
     generatedAvatarSkinTones[hash % generatedAvatarSkinTones.length] ??
@@ -416,13 +425,13 @@ async function createGeneratedAvatarFile(
   context.fill();
 
   context.fillStyle = palette[2];
-  drawRoundedRect(context, 172, 252, 168, 190, 48);
+  drawRoundedRect(context, 172, 252, 168, 190, isFemaleAvatar ? 58 : 48);
   context.fill();
 
   context.fillStyle = palette[4];
-  drawRoundedRect(context, 156, 258, 62, 148, 30);
+  drawRoundedRect(context, 156, 258, 62, 148, isFemaleAvatar ? 34 : 30);
   context.fill();
-  drawRoundedRect(context, 294, 258, 62, 148, 30);
+  drawRoundedRect(context, 294, 258, 62, 148, isFemaleAvatar ? 34 : 30);
   context.fill();
 
   context.strokeStyle = "rgb(255 255 255 / 0.72)";
@@ -433,25 +442,77 @@ async function createGeneratedAvatarFile(
   context.quadraticCurveTo(274, 314, 306, 264);
   context.stroke();
 
+  if (isFemaleAvatar) {
+    context.fillStyle = hairColor;
+    drawRoundedRect(context, 188, 160, 128, 128, 56);
+    context.fill();
+    drawRoundedRect(context, 176, 192, 42, 126, 24);
+    context.fill();
+    drawRoundedRect(context, 294, 192, 42, 126, 24);
+    context.fill();
+  }
+
   context.fillStyle = skinTone;
   context.beginPath();
   context.arc(256, 198, 70, 0, Math.PI * 2);
   context.fill();
 
   context.fillStyle = hairColor;
-  context.beginPath();
-  context.arc(256, 180, 76, Math.PI, Math.PI * 2);
-  context.quadraticCurveTo(194, 164, 196, 218);
-  context.quadraticCurveTo(214, 190, 250, 190);
-  context.quadraticCurveTo(302, 190, 320, 220);
-  context.quadraticCurveTo(324, 166, 256, 180);
-  context.fill();
+  if (isFemaleAvatar) {
+    context.beginPath();
+    context.arc(256, 178, 78, Math.PI, Math.PI * 2);
+    context.quadraticCurveTo(190, 168, 196, 226);
+    context.quadraticCurveTo(218, 186, 252, 190);
+    context.quadraticCurveTo(292, 188, 322, 224);
+    context.quadraticCurveTo(324, 164, 256, 178);
+    context.fill();
+
+    context.fillStyle = "rgb(255 255 255 / 0.46)";
+    context.beginPath();
+    context.arc(230, 171, 12, 0, Math.PI * 2);
+    context.arc(244, 160, 9, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    context.beginPath();
+    context.arc(256, 180, 76, Math.PI, Math.PI * 2);
+    context.quadraticCurveTo(194, 164, 196, 218);
+    context.quadraticCurveTo(214, 190, 250, 190);
+    context.quadraticCurveTo(302, 190, 320, 220);
+    context.quadraticCurveTo(324, 166, 256, 180);
+    context.fill();
+  }
 
   context.fillStyle = "rgb(31 41 51 / 0.86)";
   context.beginPath();
   context.arc(232, 206, 6, 0, Math.PI * 2);
   context.arc(280, 206, 6, 0, Math.PI * 2);
   context.fill();
+
+  if (isFemaleAvatar) {
+    context.strokeStyle = "rgb(31 41 51 / 0.72)";
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(224, 198);
+    context.quadraticCurveTo(232, 193, 240, 198);
+    context.moveTo(272, 198);
+    context.quadraticCurveTo(280, 193, 288, 198);
+    context.stroke();
+
+    context.fillStyle = "rgb(255 132 152 / 0.34)";
+    context.beginPath();
+    context.arc(216, 224, 10, 0, Math.PI * 2);
+    context.arc(292, 224, 10, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    context.strokeStyle = "rgb(31 41 51 / 0.42)";
+    context.lineWidth = 4;
+    context.beginPath();
+    context.moveTo(222, 192);
+    context.lineTo(242, 188);
+    context.moveTo(272, 188);
+    context.lineTo(292, 192);
+    context.stroke();
+  }
 
   context.strokeStyle = "rgb(31 41 51 / 0.52)";
   context.lineWidth = 5;
@@ -535,6 +596,8 @@ export function ProfileScreen() {
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
   const [selectedAvatarStyle, setSelectedAvatarStyle] =
     useState<GeneratedAvatarStyleId>("mountain");
+  const [selectedAvatarGender, setSelectedAvatarGender] =
+    useState<GeneratedAvatarGender>("male");
   const [generatedAvatarDraft, setGeneratedAvatarDraft] =
     useState<GeneratedAvatarDraft | null>(null);
   const [profile, setProfile] = useState<AuthUser | null>(null);
@@ -661,6 +724,7 @@ export function ProfileScreen() {
         email ?? "",
         subject ?? "",
         selectedAvatarStyle,
+        selectedAvatarGender,
         Date.now().toString(),
       ].join(":");
       const file = await createGeneratedAvatarFile(
@@ -668,11 +732,13 @@ export function ProfileScreen() {
         seed,
         selectedAvatarStyle,
         copy.avatarStyles[selectedAvatarStyle].label,
+        selectedAvatarGender,
       );
       setGeneratedAvatarDraft({
         file,
         previewUrl: URL.createObjectURL(file),
         styleId: selectedAvatarStyle,
+        gender: selectedAvatarGender,
       });
       toast.success(copy.newLookReady);
     } catch (error) {
@@ -855,6 +921,32 @@ export function ProfileScreen() {
                   </div>
 
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:max-w-md sm:items-end">
+                    <div
+                      aria-label={copy.avatarGenderLabel}
+                      className="inline-flex w-full items-center rounded-full border border-[#d7e0f5] bg-white/88 p-1 sm:w-auto"
+                      role="group"
+                    >
+                      {generatedAvatarGenderOptions.map((gender) => {
+                        const active = selectedAvatarGender === gender;
+
+                        return (
+                          <button
+                            aria-pressed={active}
+                            className={`h-8 flex-1 rounded-full px-3 text-xs font-bold transition sm:flex-none ${
+                              active
+                                ? "bg-[#111] text-white shadow-[0_10px_22px_-16px_rgb(0_0_0/0.85)]"
+                                : "text-[#5f6f91] hover:bg-[#f5f4ff] hover:text-[#5147a8]"
+                            }`}
+                            disabled={isAvatarBusy}
+                            key={gender}
+                            onClick={() => setSelectedAvatarGender(gender)}
+                            type="button"
+                          >
+                            {copy.avatarGenders[gender]}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <div className="flex w-full flex-wrap gap-1.5 sm:justify-end">
                       {generatedAvatarStyles.map((style) => {
                         const active = selectedAvatarStyle === style.id;
