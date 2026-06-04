@@ -113,14 +113,14 @@ function TopbarActionButton({
 
 function mobileNavItemClass(isActive: boolean) {
   return cn(
-    "flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition hover:bg-white",
+    "flex min-w-0 flex-col items-center gap-1 overflow-hidden rounded-2xl px-2 py-2 text-center text-[11px] font-semibold transition hover:bg-white [&>span]:max-w-full [&>span]:truncate",
     isActive ? "bg-[#111] text-white hover:bg-[#222]" : "text-[#555]",
   );
 }
 
 function mobileUploadNavItemClass(isActive: boolean) {
   return cn(
-    "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-bold text-white shadow-[0_14px_32px_-22px_rgb(255_56_92/0.95)] transition",
+    "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl px-2 py-2 text-center text-[11px] font-bold text-white shadow-[0_14px_32px_-22px_rgb(255_56_92/0.95)] transition [&>span]:max-w-full [&>span]:truncate",
     isActive
       ? "bg-[#111] ring-2 ring-[#ff385c]/35 ring-offset-2 ring-offset-[#f7f7f5]"
       : "bg-[#ff385c] hover:bg-[#e63253]",
@@ -253,7 +253,7 @@ export function AppTopbar({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <LanguageSwitcher />
+                <LanguageSwitcher compact />
                 {meta ? <div className="shrink-0">{meta}</div> : null}
               </div>
             </div>
@@ -271,7 +271,7 @@ export function AppTopbar({
                 href={ROUTES.explore}
               >
                 <Camera className="size-4" />
-                {commonCopy.explore}
+                <span>{commonCopy.explore}</span>
               </Link>
               <Link
                 aria-current={isLocationsActive ? "page" : undefined}
@@ -280,7 +280,7 @@ export function AppTopbar({
                 href={ROUTES.locations}
               >
                 <MapIcon className="size-4" />
-                {commonCopy.places}
+                <span>{commonCopy.places}</span>
               </Link>
               {isAuthenticated ? (
                 <>
@@ -291,7 +291,7 @@ export function AppTopbar({
                     href={ROUTES.upload}
                   >
                     <Plus className="size-4" />
-                    {commonCopy.upload}
+                    <span>{commonCopy.upload}</span>
                   </Link>
                   <Link
                     aria-current={isSavedActive ? "page" : undefined}
@@ -300,7 +300,7 @@ export function AppTopbar({
                     href={ROUTES.saved}
                   >
                     <Bookmark className="size-4" />
-                    {commonCopy.saved}
+                    <span>{commonCopy.saved}</span>
                   </Link>
                 </>
               ) : null}
@@ -320,7 +320,9 @@ export function AppTopbar({
                 ) : (
                   <LogIn className="size-4" />
                 )}
-                {isAuthenticated ? commonCopy.account : commonCopy.login}
+                <span>
+                  {isAuthenticated ? commonCopy.account : commonCopy.login}
+                </span>
               </Link>
             </div>
           </div>

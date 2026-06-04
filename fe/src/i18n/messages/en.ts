@@ -645,6 +645,28 @@ export const enMessages = {
     tryAnotherLook: "Try another look",
     saveLook: "Save this look",
     keepCurrentPhoto: "Keep current photo",
+    avatarStyles: {
+      mountain: {
+        label: "Mountain",
+        description: "Peaks and cold-weather jacket",
+      },
+      beach: {
+        label: "Beach",
+        description: "Ocean, sunset, and sunglasses",
+      },
+      city: {
+        label: "City",
+        description: "Skyline and camera-ready look",
+      },
+      camping: {
+        label: "Camping",
+        description: "Forest, tent, and trail gear",
+      },
+      roadtrip: {
+        label: "Road trip",
+        description: "Open road and travel scarf",
+      },
+    },
     explore: "Explore",
     upload: "Upload",
     profilePhotoUpdated: "Profile photo updated.",

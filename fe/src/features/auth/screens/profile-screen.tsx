@@ -120,32 +120,22 @@ function ProfileField({
 const generatedAvatarStyles = [
   {
     id: "mountain",
-    label: "Mountain",
-    description: "Peaks and cold-weather jacket",
     palette: ["#d9f0ff", "#7fb7df", "#15365a", "#f3b05b", "#2f6fb8"],
   },
   {
     id: "beach",
-    label: "Beach",
-    description: "Ocean, sunset, and sunglasses",
     palette: ["#dff8ff", "#86d8ea", "#15566c", "#ffbd63", "#1fb9a6"],
   },
   {
     id: "city",
-    label: "City",
-    description: "Skyline and camera-ready look",
     palette: ["#eef1ff", "#aab7ef", "#25214f", "#f4c86a", "#6b61d8"],
   },
   {
     id: "camping",
-    label: "Camping",
-    description: "Forest, tent, and trail gear",
     palette: ["#e8f7ed", "#92c9a4", "#1d3d2f", "#ffce73", "#3a8b62"],
   },
   {
     id: "roadtrip",
-    label: "Road trip",
-    description: "Open road and travel scarf",
     palette: ["#fff3dd", "#d4a46c", "#3d2a16", "#ffe08a", "#d1842f"],
   },
 ] as const;
@@ -241,6 +231,7 @@ async function createGeneratedAvatarFile(
   displayName: string,
   seed: string,
   styleId: GeneratedAvatarStyleId,
+  styleLabel: string,
 ) {
   const size = 512;
   const hash = hashText(seed);
@@ -528,7 +519,7 @@ async function createGeneratedAvatarFile(
 
   context.fillStyle = "rgb(255 255 255 / 0.78)";
   context.font = "700 20px Arial, sans-serif";
-  context.fillText(avatarStyle.label.toUpperCase(), size / 2, size - 46);
+  context.fillText(styleLabel.toUpperCase(), size / 2, size - 46);
 
   return canvasToPngFile(canvas, `falzo-${avatarStyle.id}-avatar-${hash}.png`);
 }
@@ -676,6 +667,7 @@ export function ProfileScreen() {
         displayName,
         seed,
         selectedAvatarStyle,
+        copy.avatarStyles[selectedAvatarStyle].label,
       );
       setGeneratedAvatarDraft({
         file,
@@ -852,7 +844,10 @@ export function ProfileScreen() {
                       ) : null}
                       {generatedAvatarDraft && !isAvatarBusy ? (
                         <p className="mt-2 text-xs font-semibold text-[#6b61d8]">
-                          {generatedAvatarDraftStyle?.label ?? "New"}{" "}
+                          {generatedAvatarDraftStyle
+                            ? copy.avatarStyles[generatedAvatarDraftStyle.id]
+                                .label
+                            : "New"}{" "}
                           {copy.lookReady}
                         </p>
                       ) : null}
@@ -863,6 +858,7 @@ export function ProfileScreen() {
                     <div className="flex w-full flex-wrap gap-1.5 sm:justify-end">
                       {generatedAvatarStyles.map((style) => {
                         const active = selectedAvatarStyle === style.id;
+                        const styleCopy = copy.avatarStyles[style.id];
 
                         return (
                           <button
@@ -875,10 +871,10 @@ export function ProfileScreen() {
                             disabled={isAvatarBusy}
                             key={style.id}
                             onClick={() => setSelectedAvatarStyle(style.id)}
-                            title={style.description}
+                            title={styleCopy.description}
                             type="button"
                           >
-                            {style.label}
+                            {styleCopy.label}
                           </button>
                         );
                       })}

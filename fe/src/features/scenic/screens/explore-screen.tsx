@@ -7,6 +7,7 @@ import {
   Clock3,
   Compass,
   Flame,
+  Languages,
   LocateFixed,
   MapIcon,
   MessageCircle,
@@ -2146,8 +2147,11 @@ function ExploreTopbar({
   searchValue: string;
   unreadNotificationCount: number;
 }>) {
-  const { messages } = useI18n();
+  const { locale, messages, setLocale } = useI18n();
   const copy = messages.explorePage;
+  const nextLocale = locale === "en" ? "vi" : "en";
+  const nextLocaleLabel =
+    nextLocale === "en" ? messages.common.english : messages.common.vietnamese;
   const profileLabel =
     isAuthenticated && profileName
       ? `${messages.common.profile}: ${profileName}`
@@ -2297,11 +2301,11 @@ function ExploreTopbar({
                 </SheetDescription>
               </SheetHeader>
               <div className="space-y-2 px-5">
-                <div className="flex items-center justify-between rounded-full border border-black/6 px-4 py-2">
+                <div className="flex items-center justify-between gap-3 rounded-full border border-black/6 px-4 py-2">
                   <span className="text-sm font-medium text-[#1f1f1f]">
                     {messages.common.language}
                   </span>
-                  <LanguageSwitcher />
+                  <LanguageSwitcher compact />
                 </div>
                 <SheetClose asChild>
                   <Link
@@ -2393,27 +2397,43 @@ function ExploreTopbar({
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/8 bg-[#f7f7f5]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-2 shadow-[0_-18px_48px_-34px_rgb(0_0_0/0.72)] backdrop-blur-2xl sm:hidden">
         <div className="mx-auto max-w-md">
-          <div className="relative mb-2">
-            <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777]" />
-            <input
-              className="h-10 w-full rounded-full border border-black/8 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.5)] outline-none placeholder:text-[#8a8a8a] focus:border-black/14"
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={copy.searchMobilePlaceholder}
-              type="search"
-              value={searchValue}
-            />
+          <div className="mb-2 flex items-center gap-2">
             <button
-              aria-label={searchValue ? copy.clearSearch : copy.searchLabel}
-              className="-translate-y-1/2 absolute right-1.5 top-1/2 flex size-8 items-center justify-center rounded-full text-[#555] transition hover:bg-black/5"
-              onClick={searchValue ? onClearSearch : undefined}
+              aria-label={`${messages.common.language}: ${nextLocaleLabel}`}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full border border-black/8 bg-white text-[#111] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.65)] transition hover:bg-[#f6f6f4] active:scale-95"
+              onClick={() => setLocale(nextLocale)}
+              title={nextLocaleLabel}
               type="button"
             >
-              {searchValue ? (
-                <X className="size-4" />
-              ) : (
-                <SlidersHorizontal className="size-4" />
-              )}
+              <span className="relative flex size-full items-center justify-center">
+                <Languages className="size-4" />
+                <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#111] px-1.5 py-0.5 text-[9px] font-bold leading-none text-white">
+                  {nextLocale.toUpperCase()}
+                </span>
+              </span>
             </button>
+            <div className="relative min-w-0 flex-1">
+              <Search className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[#777]" />
+              <input
+                className="h-10 w-full rounded-full border border-black/8 bg-white px-9 text-sm text-[#1f1f1f] shadow-[0_10px_28px_-24px_rgb(0_0_0/0.5)] outline-none placeholder:text-[#8a8a8a] focus:border-black/14"
+                onChange={(event) => onSearchChange(event.target.value)}
+                placeholder={copy.searchMobilePlaceholder}
+                type="search"
+                value={searchValue}
+              />
+              <button
+                aria-label={searchValue ? copy.clearSearch : copy.searchLabel}
+                className="-translate-y-1/2 absolute right-1.5 top-1/2 flex size-8 items-center justify-center rounded-full text-[#555] transition hover:bg-black/5"
+                onClick={searchValue ? onClearSearch : undefined}
+                type="button"
+              >
+                {searchValue ? (
+                  <X className="size-4" />
+                ) : (
+                  <SlidersHorizontal className="size-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div
@@ -2424,19 +2444,21 @@ function ExploreTopbar({
           >
             <Link
               aria-label={copy.navExplore}
-              className="flex flex-col items-center gap-1 rounded-2xl bg-[#111] px-2 py-2 text-[11px] font-semibold text-white"
+              className="flex min-w-0 flex-col items-center gap-1 overflow-hidden rounded-2xl bg-[#111] px-2 py-2 text-center text-[11px] font-semibold text-white"
               href={ROUTES.explore}
             >
               <Camera className="size-4" />
-              {copy.navExplore}
+              <span className="max-w-full truncate">{copy.navExplore}</span>
             </Link>
             <Link
               aria-label={copy.navDestinations}
-              className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+              className="flex min-w-0 flex-col items-center gap-1 overflow-hidden rounded-2xl px-2 py-2 text-center text-[11px] font-semibold text-[#555] transition hover:bg-white"
               href={ROUTES.locations}
             >
               <MapIcon className="size-4" />
-              {messages.common.places}
+              <span className="max-w-full truncate">
+                {messages.common.places}
+              </span>
             </Link>
             {isAuthenticated ? (
               <>
@@ -2449,17 +2471,17 @@ function ExploreTopbar({
                 </Link>
                 <Link
                   aria-label={copy.navSaved}
-                  className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+                  className="flex min-w-0 flex-col items-center gap-1 overflow-hidden rounded-2xl px-2 py-2 text-center text-[11px] font-semibold text-[#555] transition hover:bg-white"
                   href={ROUTES.saved}
                 >
                   <Bookmark className="size-4" />
-                  {copy.navSaved}
+                  <span className="max-w-full truncate">{copy.navSaved}</span>
                 </Link>
               </>
             ) : null}
             <button
               aria-label={profileLabel}
-              className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold text-[#555] transition hover:bg-white"
+              className="flex min-w-0 flex-col items-center gap-1 overflow-hidden rounded-2xl px-2 py-2 text-center text-[11px] font-semibold text-[#555] transition hover:bg-white"
               onClick={onProfileClick}
               type="button"
             >
@@ -2473,11 +2495,14 @@ function ExploreTopbar({
               ) : (
                 <UserRound className="size-4" />
               )}
-              {isAuthenticated ? copy.navAccount : copy.navLogin}
+              <span className="max-w-full truncate">
+                {isAuthenticated ? copy.navAccount : copy.navLogin}
+              </span>
             </button>
           </div>
         </div>
       </nav>
+
     </>
   );
 }

@@ -480,8 +480,16 @@ export function PostDetailDialog({
     setZoomOrigin({ x: 50, y: 50 });
   }
 
+  function openCommentsFromImage() {
+    if (isImageZoomed) {
+      resetImageZoom();
+    }
+
+    onLoadComments();
+  }
+
   function handleImagePointerDown(event: PointerEvent<HTMLButtonElement>) {
-    if (!canNavigatePosts) {
+    if (!canNavigatePosts || isImageZoomed) {
       return;
     }
 
@@ -537,7 +545,12 @@ export function PostDetailDialog({
         }
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.45fr)]">
-          <div className="relative h-[42svh] min-h-0 shrink-0 overflow-hidden bg-black lg:h-auto lg:min-h-0 lg:shrink">
+          <div
+            className={cn(
+              "relative min-h-0 overflow-hidden bg-black transition-[height] duration-300 ease-out lg:h-auto lg:min-h-0 lg:shrink",
+              isImageZoomed ? "h-full flex-1" : "h-[42svh] shrink-0",
+            )}
+          >
             {post ? (
               <button
                 aria-label={
@@ -546,8 +559,9 @@ export function PostDetailDialog({
                     : copy.zoomInDestinationPhoto
                 }
                 className={cn(
-                  "h-full w-full touch-pan-y overflow-hidden bg-black",
+                  "h-full w-full overflow-hidden bg-black",
                   isImageZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
+                  isImageZoomed ? "touch-none" : "touch-pan-y",
                 )}
                 onClick={toggleImageZoom}
                 onPointerDown={handleImagePointerDown}
@@ -569,7 +583,7 @@ export function PostDetailDialog({
                   fetchPriority="high"
                   src={activeImageUrl}
                   style={{
-                    transform: isImageZoomed ? "scale(1.8)" : "scale(1)",
+                    transform: isImageZoomed ? "scale(2.15)" : "scale(1)",
                     transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
                   }}
                 />
@@ -688,7 +702,14 @@ export function PostDetailDialog({
               </div>
             ) : null}
 
-            <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pr-[4.5rem] pt-20 sm:px-5 sm:pb-5 sm:pr-24 sm:pt-24">
+            <div
+              className={cn(
+                "absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-black/86 via-black/30 to-transparent px-4 pb-4 pr-[4.5rem] pt-20 transition-opacity sm:px-5 sm:pb-5 sm:pr-24 sm:pt-24 lg:opacity-100",
+                isImageZoomed
+                  ? "pointer-events-none opacity-0 lg:pointer-events-auto"
+                  : "opacity-100",
+              )}
+            >
               <div className="max-w-2xl">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <RainbowAvatar
@@ -748,7 +769,7 @@ export function PostDetailDialog({
                   isChatOpen ? "bg-white text-[#111] hover:bg-white" : "",
                 )}
                 disabled={!post}
-                onClick={onLoadComments}
+                onClick={openCommentsFromImage}
                 type="button"
               >
                 <MessageCircle className="size-4 sm:size-5" />
@@ -775,7 +796,12 @@ export function PostDetailDialog({
             </div>
           </div>
 
-          <aside className="flex min-h-0 flex-1 flex-col bg-white text-[#1f1f1f] lg:flex-auto">
+          <aside
+            className={cn(
+              "min-h-0 flex-1 flex-col bg-white text-[#1f1f1f] lg:flex lg:flex-auto",
+              isImageZoomed ? "hidden" : "flex",
+            )}
+          >
             <div className="border-b border-black/8 px-4 py-3 sm:px-5 sm:py-4">
               <DialogHeader>
                 <DialogTitle className="text-lg leading-7 text-[#111]">

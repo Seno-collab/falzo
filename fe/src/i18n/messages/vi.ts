@@ -346,6 +346,28 @@ export const viMessages = {
     tryAnotherLook: "Thử phong cách khác",
     saveLook: "Lưu phong cách này",
     keepCurrentPhoto: "Giữ ảnh hiện tại",
+    avatarStyles: {
+      mountain: {
+        label: "Núi",
+        description: "Đỉnh núi và áo khoác trời lạnh",
+      },
+      beach: {
+        label: "Biển",
+        description: "Đại dương, hoàng hôn và kính râm",
+      },
+      city: {
+        label: "Thành phố",
+        description: "Đường chân trời và phong cách chụp ảnh",
+      },
+      camping: {
+        label: "Cắm trại",
+        description: "Rừng, lều và đồ đi đường mòn",
+      },
+      roadtrip: {
+        label: "Đi phượt",
+        description: "Đường dài và khăn du lịch",
+      },
+    },
     explore: "Khám phá",
     upload: "Đăng ảnh",
     profilePhotoUpdated: "Đã cập nhật ảnh hồ sơ.",
