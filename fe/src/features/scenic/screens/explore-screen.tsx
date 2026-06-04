@@ -3,6 +3,7 @@
 import {
   Bookmark,
   Camera,
+  ChevronDown,
   Clock3,
   Compass,
   Flame,
@@ -2881,6 +2882,28 @@ function ExploreHero({
   const { messages } = useI18n();
   const heroCopy = messages.explorePage;
   const headlineWords = heroCopy.heroTitle.split(" ");
+  const sortOptions = [
+    {
+      icon: <Clock3 className="size-4" />,
+      label: heroCopy.sortNewest,
+      value: "newest" as const,
+    },
+    {
+      icon: <Flame className="size-4" />,
+      label: heroCopy.sortPopular,
+      value: "popular" as const,
+    },
+    {
+      icon: <Flame className="size-4" />,
+      label: heroCopy.sortTrending,
+      value: "trending" as const,
+    },
+    {
+      icon: <LocateFixed className="size-4" />,
+      label: heroCopy.sortNearby,
+      value: "nearby" as const,
+    },
+  ];
   const visibleCollections = isAuthenticated
     ? collections
     : collections.filter((collection) => collection !== FOLLOWING_COLLECTION);
@@ -2936,30 +2959,26 @@ function ExploreHero({
           />
         </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between lg:mt-6">
-        <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-2">
-          {[
-            {
-              icon: <Clock3 className="size-4" />,
-              label: heroCopy.sortNewest,
-              value: "newest" as const,
-            },
-            {
-              icon: <Flame className="size-4" />,
-              label: heroCopy.sortPopular,
-              value: "popular" as const,
-            },
-            {
-              icon: <Flame className="size-4" />,
-              label: heroCopy.sortTrending,
-              value: "trending" as const,
-            },
-            {
-              icon: <LocateFixed className="size-4" />,
-              label: heroCopy.sortNearby,
-              value: "nearby" as const,
-            },
-          ].map((item) => (
+      <div className="mt-5 flex flex-wrap items-center gap-2 sm:justify-between lg:mt-6">
+        <label className="relative block w-[10.75rem] max-w-full sm:hidden">
+          <span className="sr-only">Sort posts</span>
+          <SlidersHorizontal className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#162119]" />
+          <select
+            aria-label="Sort posts"
+            className="h-10 w-full appearance-none rounded-full border border-white/18 bg-white/92 py-2 pl-10 pr-10 text-sm font-semibold text-[#162119] shadow-[0_14px_30px_-26px_rgb(0_0_0/0.7)] outline-none transition focus-visible:ring-[3px] focus-visible:ring-white/45"
+            onChange={(event) => onSortChange(event.target.value as PostSort)}
+            value={feedSort}
+          >
+            {sortOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-[#162119]" />
+        </label>
+        <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+          {sortOptions.map((item) => (
             <Button
               className={cn(
                 "rounded-full border-white/18 px-3",
@@ -2981,7 +3000,7 @@ function ExploreHero({
           <Button
             aria-pressed={showSavedBoard}
             className={cn(
-              "col-span-2 rounded-full shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)] sm:col-span-1",
+              "max-w-full rounded-full px-3 shadow-[0_18px_38px_-24px_rgb(255_56_92/0.8)] sm:px-4",
               showSavedBoard
                 ? "bg-[#111] text-white hover:bg-[#222]"
                 : "bg-[#ff385c] text-white hover:bg-[#e93152]",
