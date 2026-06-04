@@ -46,6 +46,7 @@ import {
   uploadImageApi,
 } from "@/features/posts/api";
 import type { UploadedImage } from "@/features/posts/types";
+import type { AppMessages } from "@/i18n/messages";
 import { useI18n } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
 
@@ -71,6 +72,17 @@ const acceptedImageTypes = new Set([
   "image/png",
   "image/webp",
 ]);
+type UploadPageCopy = AppMessages["uploadPage"];
+
+function formatCopy(
+  template: string,
+  values: Record<string, string | number>,
+) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+}
 
 function parseCoordinate(value: string) {
   const normalized = Number(value);
@@ -100,13 +112,19 @@ function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function getImageValidationError(file: File) {
+function getImageUnit(copy: UploadPageCopy, count: number) {
+  return count === 1 ? copy.imageUnit : copy.imagesUnit;
+}
+
+function getImageValidationError(file: File, copy: UploadPageCopy) {
   if (!acceptedImageTypes.has(file.type)) {
-    return "Only JPG, PNG, or WebP images are supported.";
+    return copy.unsupportedImageType;
   }
 
   if (file.size > maxImageSize) {
-    return `Image must be smaller than ${formatFileSize(maxImageSize)}.`;
+    return formatCopy(copy.imageTooLarge, {
+      size: formatFileSize(maxImageSize),
+    });
   }
 
   return null;
@@ -125,7 +143,8 @@ function locationToMapPoint(location: Location): MapPoint {
 export function UploadImageScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { locale } = useI18n();
+  const { locale, messages } = useI18n();
+  const copy = messages.uploadPage;
   const selectedFilesRef = useRef<File[]>([]);
   const heroFileInputRef = useRef<HTMLInputElement | null>(null);
   const formFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -153,8 +172,10 @@ export function UploadImageScreen() {
   const primaryPreviewUrl = previewUrls[0] ?? null;
 
   useEffect(() => {
-    document.title = "Upload Image | Falzo";
+    document.title = copy.documentTitle;
+  }, [copy.documentTitle]);
 
+  useEffect(() => {
     if (!hasAuthSession()) {
       router.replace(ROUTES.login);
       return;
@@ -214,15 +235,15 @@ export function UploadImageScreen() {
       }
 
       setUploadedImages(images);
-      toast.success(images.length > 1 ? "Images uploaded." : "Image uploaded.");
+      toast.success(images.length > 1 ? copy.imagesUploaded : copy.imageUploaded);
     },
   });
 
   const locationQuery = useQuery({
     enabled: submittedLocationSearch.trim().length > 0,
-    queryKey: ["locations", "upload-search", submittedLocationSearch],
+    queryKey: ["locations", "upload-search", submittedLocationSearch, locale],
     queryFn: ({ signal }) =>
-      searchLocationsWithFallbackApi(submittedLocationSearch, signal),
+      searchLocationsWithFallbackApi(submittedLocationSearch, signal, locale),
   });
 
   const categoriesQuery = useQuery({
@@ -270,14 +291,14 @@ export function UploadImageScreen() {
   const publishMutation = useMutation({
     mutationFn: async () => {
       if (selectedFiles.length === 0 && uploadedImages.length === 0) {
-        throw new Error("Choose at least one image before publishing.");
+        throw new Error(copy.chooseImageBeforePublishing);
       }
 
       const images =
         uploadedImages.length > 0 ? uploadedImages : await uploadSelectedFiles();
       const imageUrls = images.map((image) => image.url).filter(Boolean);
       if (imageUrls.length === 0) {
-        throw new Error("Choose at least one image before publishing.");
+        throw new Error(copy.chooseImageBeforePublishing);
       }
       const latitude = parseCoordinate(form.latitude);
       const longitude = parseCoordinate(form.longitude);
@@ -287,10 +308,10 @@ export function UploadImageScreen() {
         !Number.isFinite(latitude) ||
         !Number.isFinite(longitude)
       ) {
-        throw new TypeError("Choose a location before publishing.");
+        throw new TypeError(copy.chooseLocationBeforePublishing);
       }
       if (categories.length > 0 && selectedCategories.length === 0) {
-        throw new TypeError("Choose at least one category before publishing.");
+        throw new TypeError(copy.chooseCategoryBeforePublishing);
       }
 
       return createPostApi({
@@ -309,7 +330,7 @@ export function UploadImageScreen() {
       toast.error(getApiErrorMessage(error));
     },
     onSuccess: async () => {
-      toast.success("Post published.");
+      toast.success(copy.postPublished);
       setSelectedFiles([]);
       selectedFilesRef.current = [];
       setUploadedImages([]);
@@ -318,7 +339,6 @@ export function UploadImageScreen() {
       setSelectedCategoryIds([]);
       setLocationSearchInput("");
       await queryClient.invalidateQueries({ queryKey: ["posts"] });
-      toast.success("Post successfully");
     },
   });
 
@@ -346,7 +366,7 @@ export function UploadImageScreen() {
   function selectCurrentPosition(position: Coordinates) {
     const currentLocation: Location = {
       id: currentLocationId,
-      name: "Current location",
+      name: copy.currentLocation,
       address: `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(
         5,
       )}`,
@@ -361,9 +381,10 @@ export function UploadImageScreen() {
   function selectMapLocation(position: Coordinates) {
     const locationName =
       locationSearchInput.trim() ||
-      `Map location ${position.latitude.toFixed(5)}, ${position.longitude.toFixed(
-        5,
-      )}`;
+      formatCopy(copy.mapLocation, {
+        latitude: position.latitude.toFixed(5),
+        longitude: position.longitude.toFixed(5),
+      });
     const mapLocation: Location = {
       id: mapSelectionLocationId,
       name: locationName,
@@ -379,7 +400,7 @@ export function UploadImageScreen() {
 
   function handleUseCurrentLocation() {
     if (!navigator.geolocation) {
-      toast.error("This browser does not support location access.");
+      toast.error(copy.noLocationAccess);
       return;
     }
 
@@ -393,7 +414,7 @@ export function UploadImageScreen() {
         setIsLocating(false);
       },
       (error) => {
-        toast.error(error.message || "Unable to read your current location.");
+        toast.error(error.message || copy.unableToReadLocation);
         setIsLocating(false);
       },
       {
@@ -426,7 +447,7 @@ export function UploadImageScreen() {
   async function uploadSelectedFiles() {
     const files = selectedFilesRef.current;
     if (files.length === 0) {
-      throw new Error("Choose at least one image before publishing.");
+      throw new Error(copy.chooseImageBeforePublishing);
     }
 
     const images = await Promise.all(
@@ -450,7 +471,7 @@ export function UploadImageScreen() {
   function retryUpload() {
     const files = selectedFilesRef.current;
     if (files.length === 0) {
-      toast.error("Choose at least one image before uploading.");
+      toast.error(copy.chooseImageBeforeUploading);
       return;
     }
 
@@ -468,13 +489,13 @@ export function UploadImageScreen() {
     }
 
     if (nextFiles.length > maxPostImages) {
-      toast.error(`Choose up to ${maxPostImages} images per post.`);
+      toast.error(formatCopy(copy.chooseUpToImages, { count: maxPostImages }));
       resetFileInputs();
       return;
     }
 
     const validationError = nextFiles
-      .map((file) => getImageValidationError(file))
+      .map((file) => getImageValidationError(file, copy))
       .find(Boolean);
     if (validationError) {
       toast.error(validationError);
@@ -501,29 +522,29 @@ export function UploadImageScreen() {
             {
               id: "explore",
               icon: <Compass className="size-4" />,
-              label: "Explore",
+              label: copy.navExplore,
               to: ROUTES.explore,
               variant: "outline",
             },
             {
               id: "locations",
               icon: <MapIcon className="size-4" />,
-              label: "Locations",
+              label: copy.navLocations,
               to: ROUTES.locations,
               variant: "outline",
             },
             {
               id: "back",
               icon: <ArrowLeft className="size-4" />,
-              label: "Explore",
+              label: copy.navExplore,
               to: ROUTES.explore,
               variant: "outline",
             },
           ]}
-          brand="Falzo Upload"
+          brand={copy.brand}
           brandIcon={<Camera className="size-3.5" />}
-          mobileMenuTitle="Upload"
-          subtitle="Publish an uploaded image through the backend post API."
+          mobileMenuTitle={copy.mobileMenuTitle}
+          subtitle={copy.topbarSubtitle}
         />
       }
     >
@@ -538,7 +559,7 @@ export function UploadImageScreen() {
               {primaryPreviewUrl ? (
                 <>
                   <img
-                    alt="Selected upload preview"
+                    alt={copy.selectedUploadPreview}
                     className="h-full min-h-105 w-full object-cover"
                     decoding="async"
                     src={primaryPreviewUrl}
@@ -548,7 +569,9 @@ export function UploadImageScreen() {
                       <span className="block truncate">
                         {selectedFiles.length === 1
                           ? selectedFiles[0]?.name
-                          : `${selectedFiles.length} images selected`}
+                          : formatCopy(copy.imagesSelected, {
+                              count: selectedFiles.length,
+                            })}
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -572,10 +595,10 @@ export function UploadImageScreen() {
                         variant="outline"
                       >
                         <ImagePlus className="size-4" />
-                        Change
+                        {copy.change}
                       </Button>
                       <Button
-                        aria-label="Remove images"
+                        aria-label={copy.removeImages}
                         className="rounded-full bg-white/90 shadow-sm backdrop-blur-xl"
                         disabled={isBusy}
                         onClick={clearSelectedImages}
@@ -595,7 +618,9 @@ export function UploadImageScreen() {
                           key={`${selectedFiles[index]?.name ?? "image"}-${index}`}
                         >
                           <img
-                            alt={`Selected upload ${index + 1}`}
+                            alt={formatCopy(copy.selectedUploadAlt, {
+                              index: index + 1,
+                            })}
                             className="h-full w-full object-cover"
                             decoding="async"
                             src={url}
@@ -611,7 +636,9 @@ export function UploadImageScreen() {
                     <ImagePlus className="size-7" />
                   </span>
                   <span className="max-w-sm text-sm font-semibold text-[#315578]">
-                    Choose up to {maxPostImages} JPG, PNG, or WebP images to upload.
+                    {formatCopy(copy.chooseImagesPrompt, {
+                      count: maxPostImages,
+                    })}
                   </span>
                   <input
                     accept="image/jpeg,image/png,image/webp"
@@ -638,15 +665,15 @@ export function UploadImageScreen() {
           >
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#6485ab]">
-                New post
+                {copy.newPost}
               </p>
               <h1 className="text-2xl font-semibold tracking-normal text-[#15365a]">
-                Upload image and publish
+                {copy.title}
               </h1>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="image-file">Image</Label>
+              <Label htmlFor="image-file">{copy.imageLabel}</Label>
               <Input
                 accept="image/jpeg,image/png,image/webp"
                 disabled={isBusy}
@@ -660,22 +687,30 @@ export function UploadImageScreen() {
               />
               {selectedFiles.length > 0 ? (
                 <p className="text-xs font-medium text-[#5f7f9f]">
-                  {selectedFiles.length} image{selectedFiles.length === 1 ? "" : "s"} selected -{" "}
-                  {formatFileSize(
-                    selectedFiles.reduce((total, file) => total + file.size, 0),
-                  )}
+                  {formatCopy(copy.selectedImagesSummary, {
+                    count: selectedFiles.length,
+                    unit: getImageUnit(copy, selectedFiles.length),
+                    size: formatFileSize(
+                      selectedFiles.reduce((total, file) => total + file.size, 0),
+                    ),
+                  })}
                 </p>
               ) : null}
               {isUploading ? (
                 <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#356792]">
                   <Loader2 className="size-3.5 animate-spin" />
-                  Uploading {selectedFiles.length > 1 ? "images" : "image"}
+                  {formatCopy(copy.uploadingImages, {
+                    unit: getImageUnit(copy, selectedFiles.length),
+                  })}
                 </p>
               ) : null}
               {uploadedImages.length > 0 ? (
                 <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#20774b]">
                   <Check className="size-3.5" />
-                  {uploadedImages.length} image{uploadedImages.length === 1 ? "" : "s"} uploaded
+                  {formatCopy(copy.uploadedImages, {
+                    count: uploadedImages.length,
+                    unit: getImageUnit(copy, uploadedImages.length),
+                  })}
                 </p>
               ) : null}
               {uploadMutation.isError ? (
@@ -692,32 +727,32 @@ export function UploadImageScreen() {
                     variant="outline"
                   >
                     <RefreshCcw className="size-3.5" />
-                    Retry
+                    {copy.retry}
                   </Button>
                 </div>
               ) : null}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="caption">Caption</Label>
+              <Label htmlFor="caption">{copy.captionLabel}</Label>
               <textarea
                 className="min-h-32 w-full resize-none rounded-lg border border-input bg-white/90 px-3.5 py-3 text-sm text-foreground shadow-[0_1px_2px_rgb(12_31_56/0.03)] outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
                 disabled={isPublishing}
                 id="caption"
                 maxLength={2000}
                 onChange={(event) => updateForm("caption", event.target.value)}
-                placeholder="Write a short caption"
+                placeholder={copy.captionPlaceholder}
                 value={form.caption}
               />
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <Label>Categories</Label>
+                <Label>{copy.categoriesLabel}</Label>
                 {categoriesQuery.isFetching ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#356792]">
                     <Loader2 className="size-3.5 animate-spin" />
-                    Loading
+                    {copy.loading}
                   </span>
                 ) : null}
               </div>
@@ -754,15 +789,14 @@ export function UploadImageScreen() {
                 <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
                   <Tags className="size-4 shrink-0 text-[#2f6fb8]" />
                   <span className="min-w-0">
-                    No categories are available yet. The post can still be
-                    published without a category.
+                    {copy.noCategories}
                   </span>
                 </div>
               )}
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="location-search">Location</Label>
+              <Label htmlFor="location-search">{copy.locationLabel}</Label>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                 <Input
                   disabled={isPublishing}
@@ -777,7 +811,7 @@ export function UploadImageScreen() {
                       submitLocationSearch();
                     }
                   }}
-                  placeholder="Search TP.HCM, Ho Chi Minh City, Da Nang, Kyoto"
+                  placeholder={copy.locationPlaceholder}
                   value={locationSearchInput}
                 />
                 <Button
@@ -791,7 +825,7 @@ export function UploadImageScreen() {
                   ) : (
                     <Search className="size-4" />
                   )}
-                  Search
+                  {copy.search}
                 </Button>
                 <Button
                   disabled={isPublishing || isLocating}
@@ -804,7 +838,7 @@ export function UploadImageScreen() {
                   ) : (
                     <Crosshair className="size-4" />
                   )}
-                  Current
+                  {copy.current}
                 </Button>
               </div>
 
@@ -859,7 +893,7 @@ export function UploadImageScreen() {
                 {!locationQuery.isFetching &&
                 locationQuery.data?.length === 0 ? (
                   <div className="rounded-xl border border-[#d7e5f4] bg-white/90 px-3 py-3 text-sm font-semibold text-[#6682a1]">
-                    No locations found.
+                    {copy.noLocations}
                   </div>
                 ) : null}
               </div>
@@ -880,8 +914,7 @@ export function UploadImageScreen() {
                 <div className="app-panel-soft flex items-center gap-3 rounded-xl border-[#d7e5f4] bg-[#f7fbff] px-4 py-3 text-sm text-[#385c80]">
                   <MapPin className="size-4 shrink-0 text-[#2f6fb8]" />
                   <span className="min-w-0">
-                    Choose a location from search results or use your current
-                    position, or click any point on the map.
+                    {copy.chooseLocationHint}
                   </span>
                 </div>
               )}
@@ -903,13 +936,13 @@ export function UploadImageScreen() {
               ) : (
                 <Upload className="size-4" />
               )}
-              Publish
+              {copy.publish}
             </Button>
 
             {publishMutation.isSuccess ? (
               <div className="flex items-center gap-2 text-sm font-semibold text-[#20774b]">
                 <Check className="size-4" />
-                Published
+                {copy.published}
               </div>
             ) : null}
           </form>
