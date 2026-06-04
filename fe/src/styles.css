@@ -220,6 +220,52 @@
         box-shadow: var(--app-shadow-sm);
     }
 
+    .explore-page img {
+        display: block;
+        max-width: 100%;
+    }
+
+    .explore-feed-columns {
+        column-fill: balance;
+    }
+
+    .explore-card {
+        page-break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        break-inside: avoid;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+
+    .explore-media-frame {
+        contain: paint;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+
+    .explore-media-image {
+        display: block;
+        min-width: 100%;
+        min-height: 100%;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-user-drag: none;
+    }
+
+    @supports (-webkit-hyphens: none) {
+        .explore-feed-columns {
+            column-fill: auto;
+        }
+
+        .explore-card {
+            transform: none;
+        }
+
+        .explore-card:hover {
+            transform: none;
+        }
+    }
+
     .app-hover {
         transition:
             transform 0.22s ease,

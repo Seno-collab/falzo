@@ -1465,7 +1465,7 @@ export function ExploreScreen() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] pb-[8.5rem] text-[#1f1f1f] sm:pb-0">
+    <main className="explore-page min-h-screen bg-[#f7f7f5] pb-[8.5rem] text-[#1f1f1f] sm:pb-0">
       <ExploreTopbar
         isAuthenticated={isAuthenticated}
         onClearSearch={() => setSearchValue("")}
@@ -1621,7 +1621,7 @@ export function ExploreScreen() {
             </div>
           </div>
         ) : null}
-        <div className="columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3 xl:gap-5 2xl:columns-4 [column-fill:balance]">
+        <div className="explore-feed-columns columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3 xl:gap-5 2xl:columns-4 [column-fill:balance]">
           {visiblePosts.map((post, index) => (
             <ExplorePostCard
               commentValue={commentInputs[post.id] ?? ""}

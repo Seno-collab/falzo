@@ -75,18 +75,18 @@ type PostCardProps = {
 };
 
 const cardClass =
-  "group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 [contain-intrinsic-size:1px_620px] [content-visibility:auto] hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)] sm:rounded-[28px]";
+  "explore-card group mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_18px_48px_-38px_rgb(0_0_0/0.6)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_-42px_rgb(0_0_0/0.72)] sm:rounded-[28px]";
 
 const overlayClass =
   "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.03)_0%,rgb(0_0_0/0.02)_42%,rgb(0_0_0/0.62)_100%)] opacity-80 transition group-hover:opacity-100";
 
 const imageFrameClasses = [
-  "relative h-[22rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[31rem]",
-  "relative h-[17.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[24rem]",
-  "relative h-[20rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[28rem]",
-  "relative h-[16.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[22rem]",
-  "relative h-[23rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[34rem]",
-  "relative h-[18.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[25rem]",
+  "explore-media-frame relative h-[22rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[31rem]",
+  "explore-media-frame relative h-[17.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[24rem]",
+  "explore-media-frame relative h-[20rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[28rem]",
+  "explore-media-frame relative h-[16.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[22rem]",
+  "explore-media-frame relative h-[23rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[34rem]",
+  "explore-media-frame relative h-[18.5rem] cursor-zoom-in overflow-hidden bg-[#e9eef3] sm:h-[25rem]",
 ];
 
 function getImageFrameClass(index: number) {
@@ -661,7 +661,7 @@ export function ExplorePostCard({
       >
         <img
           alt={post.caption || post.location_name || copy.destinationPhoto}
-          className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.045]"
+          className="explore-media-image h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.045]"
           decoding="async"
           fetchPriority={isInitialImage ? "high" : "low"}
           loading={isInitialImage ? "eager" : "lazy"}
