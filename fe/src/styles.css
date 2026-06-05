@@ -226,7 +226,7 @@
     }
 
     .explore-feed-columns {
-        column-fill: balance;
+        column-fill: auto;
     }
 
     .explore-card {

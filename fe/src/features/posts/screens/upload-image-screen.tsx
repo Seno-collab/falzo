@@ -199,7 +199,7 @@ export function UploadImageScreen() {
       }
     };
 
-    void validateSession();
+    validateSession().catch(() => undefined);
 
     return () => {
       disposed = true;

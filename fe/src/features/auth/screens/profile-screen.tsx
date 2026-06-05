@@ -817,7 +817,7 @@ export function ProfileScreen() {
       }
     };
 
-    void loadProfile();
+    loadProfile().catch(() => undefined);
 
     return () => {
       disposed = true;
@@ -862,9 +862,11 @@ export function ProfileScreen() {
       ...(current ?? {}),
       ...nextProfile,
     }));
-    void queryClient.invalidateQueries({ queryKey: ["me"] });
-    void queryClient.invalidateQueries({ queryKey: ["auth"] });
-    window.dispatchEvent(
+    queryClient.invalidateQueries({ queryKey: ["me"] }).catch(() => undefined);
+    queryClient
+      .invalidateQueries({ queryKey: ["auth"] })
+      .catch(() => undefined);
+    globalThis.dispatchEvent(
       new CustomEvent<AuthUser>("falzo:avatar-updated", {
         detail: nextProfile,
       }),
@@ -1020,7 +1022,7 @@ export function ProfileScreen() {
               icon: <LogOut className="size-4" />,
               label: "Logout",
               onClick: () => {
-                void handleLogout();
+                handleLogout().catch(() => undefined);
               },
               variant: "default",
             },
@@ -1075,7 +1077,11 @@ export function ProfileScreen() {
                       className="sr-only"
                       disabled={isAvatarBusy}
                       onChange={(event) => {
-                        void handleAvatarFileChange(event);
+                        handleAvatarFileChange(event).catch((error) => {
+                          toast.error(copy.unableToUpdatePhoto, {
+                            description: getApiErrorMessage(error),
+                          });
+                        });
                       }}
                       ref={avatarFileInputRef}
                       type="file"
@@ -1184,7 +1190,11 @@ export function ProfileScreen() {
                             className="w-full"
                             disabled={isAvatarBusy}
                             onClick={() => {
-                              void handleSaveGeneratedAvatar();
+                              handleSaveGeneratedAvatar().catch((error) => {
+                                toast.error(copy.unableToUpdatePhoto, {
+                                  description: getApiErrorMessage(error),
+                                });
+                              });
                             }}
                             size="sm"
                             type="button"
@@ -1254,7 +1264,9 @@ export function ProfileScreen() {
               <form
                 className="space-y-4"
                 onSubmit={(event) => {
-                  void handleChangePassword(event);
+                  handleChangePassword(event).catch((error) => {
+                    toast.error(getApiErrorMessage(error));
+                  });
                 }}
               >
                 <div className="space-y-2">
@@ -1324,7 +1336,7 @@ export function ProfileScreen() {
                   className="w-full justify-center"
                   disabled={isLoggingOut}
                   onClick={() => {
-                    void handleLogout();
+                    handleLogout().catch(() => undefined);
                   }}
                   type="button"
                   variant="soft"
@@ -1518,7 +1530,11 @@ export function ProfileScreen() {
                   className="rounded-full"
                   disabled={isAvatarBusy}
                   onClick={() => {
-                    void handleGenerateAvatar();
+                    handleGenerateAvatar().catch((error) => {
+                      toast.error(copy.unableToPrepareLook, {
+                        description: getApiErrorMessage(error),
+                      });
+                    });
                   }}
                   type="button"
                 >

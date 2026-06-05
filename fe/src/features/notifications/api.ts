@@ -129,7 +129,7 @@ export function subscribeNotificationEvents({
     return () => controller.abort();
   }
 
-  void (async () => {
+  (async () => {
     const response = await fetch(buildApiUrl(`${NOTIFICATIONS_ENDPOINT}/events`), {
       headers: {
         Accept: "text/event-stream",

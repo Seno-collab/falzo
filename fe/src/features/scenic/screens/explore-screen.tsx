@@ -368,6 +368,7 @@ export function ExploreScreen() {
   const { locale, messages } = useI18n();
   const exploreCopy = messages.explorePage;
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreIntersectingRef = useRef(false);
   const commentInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -528,7 +529,7 @@ export function ExploreScreen() {
           : notification,
       ),
     );
-    void markNotificationsReadApi(cleanIds).catch(() => undefined);
+    markNotificationsReadApi(cleanIds).catch(() => undefined);
   }, []);
 
   const markNotificationsRead = useCallback(() => {
@@ -673,7 +674,9 @@ export function ExploreScreen() {
         },
       );
       queryClient.removeQueries({ queryKey: ["posts", "detail", deleted.id] });
-      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient
+        .invalidateQueries({ queryKey: ["posts"] })
+        .catch(() => undefined);
       setSelectedPostId((current) => (current === deleted.id ? null : current));
       setSelectedChatPostId((current) =>
         current === deleted.id ? null : current,
@@ -802,7 +805,9 @@ export function ExploreScreen() {
     mutationFn: deletePostApi,
     onError: (error) => notifyError(getApiErrorMessage(error)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient
+        .invalidateQueries({ queryKey: ["posts"] })
+        .catch(() => undefined);
       setSelectedPostId(null);
       notifySuccess("Travel post deleted.");
     },
@@ -1049,6 +1054,20 @@ export function ExploreScreen() {
   const fetchNextPostsPage = postsQuery.fetchNextPage;
 
   useEffect(() => {
+    loadMoreIntersectingRef.current = false;
+  }, [
+    activeCategorySlug,
+    activeCollection,
+    activeFeed,
+    activeSearch,
+    feedSort,
+    locale,
+    nearbyCoords,
+    nearbyRadiusMeters,
+    showSavedBoard,
+  ]);
+
+  useEffect(() => {
     const node = loadMoreRef.current;
     if (!node || !shouldLoadMorePosts) {
       return;
@@ -1056,11 +1075,18 @@ export function ExploreScreen() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          void fetchNextPostsPage();
+        const isIntersecting = entries.some((entry) => entry.isIntersecting);
+        if (!isIntersecting) {
+          loadMoreIntersectingRef.current = false;
+          return;
+        }
+
+        if (!loadMoreIntersectingRef.current) {
+          loadMoreIntersectingRef.current = true;
+          fetchNextPostsPage().catch(() => undefined);
         }
       },
-      { rootMargin: "360px 0px" },
+      { rootMargin: "160px 0px", threshold: 0.01 },
     );
 
     observer.observe(node);
@@ -1194,14 +1220,14 @@ export function ExploreScreen() {
     setOpenComments((current) => toggleSetValue(current, postId));
 
     if (willOpen) {
-      void loadComments(postId);
+      loadComments(postId).catch(() => undefined);
     }
   }
 
   function openPostDetail(postId: number) {
     setSelectedPostId(postId);
     setSelectedChatPostId(postId);
-    void loadComments(postId);
+    loadComments(postId).catch(() => undefined);
   }
 
   function openNotificationTarget(notification: AppNotification) {
@@ -1224,7 +1250,7 @@ export function ExploreScreen() {
     }
 
     setSelectedChatPostId(selectedPostId);
-    void loadComments(selectedPostId);
+    loadComments(selectedPostId).catch(() => undefined);
   }
 
   function handleLikePost(postId: number) {
@@ -1255,7 +1281,7 @@ export function ExploreScreen() {
     if (!requireAuth() || deletePostMutation.isPending) {
       return;
     }
-    if (!globalThis.window?.confirm("Delete this travel post?")) {
+    if (!globalThis.confirm("Delete this travel post?")) {
       return;
     }
 
@@ -1267,8 +1293,8 @@ export function ExploreScreen() {
       return;
     }
 
-    const reason = globalThis.window
-      ?.prompt("Why are you reporting this travel post?")
+    const reason = globalThis
+      .prompt("Why are you reporting this travel post?")
       ?.trim();
     if (!reason) {
       return;
@@ -1519,7 +1545,7 @@ export function ExploreScreen() {
             onOpenPost={openPostDetail}
             onOpenPostTips={(postId) => {
               setOpenComments((current) => new Set(current).add(postId));
-              void loadComments(postId);
+              loadComments(postId).catch(() => undefined);
             }}
             posts={visiblePosts}
           />
@@ -1621,7 +1647,7 @@ export function ExploreScreen() {
             </div>
           </div>
         ) : null}
-        <div className="explore-feed-columns columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3 xl:gap-5 2xl:columns-4 [column-fill:balance]">
+        <div className="explore-feed-columns columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3 xl:gap-5 2xl:columns-4">
           {visiblePosts.map((post, index) => (
             <ExplorePostCard
               commentValue={commentInputs[post.id] ?? ""}
@@ -2747,7 +2773,7 @@ function ExploreMapPanel({
               className="rounded-2xl border border-black/6 bg-[#f7f7f5] p-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                void searchPlace();
+                searchPlace().catch(() => undefined);
               }}
             >
               <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777]">

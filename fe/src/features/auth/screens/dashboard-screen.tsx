@@ -74,7 +74,7 @@ export function DashboardScreen() {
       }
     };
 
-    void validateSession();
+    validateSession().catch(() => undefined);
 
     return () => {
       disposed = true;
@@ -113,7 +113,7 @@ export function DashboardScreen() {
               icon: <LogOut className="size-4" />,
               label: copy.logoutCta,
               onClick: () => {
-                void handleLogout();
+                handleLogout().catch(() => undefined);
               },
               variant: "default",
             },
@@ -184,7 +184,7 @@ export function DashboardScreen() {
                 <Button
                   disabled={isLoggingOut}
                   onClick={() => {
-                    void handleLogout();
+                    handleLogout().catch(() => undefined);
                   }}
                   type="button"
                   variant="soft"

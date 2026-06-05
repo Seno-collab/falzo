@@ -11,7 +11,7 @@ export const http = axios.create({
 });
 
 http.interceptors.request.use((config) => {
-  if (globalThis.window === undefined) {
+  if (globalThis.localStorage === undefined) {
     config.headers["X-Locale"] = defaultLocale;
     return config;
   }

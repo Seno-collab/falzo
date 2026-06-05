@@ -188,7 +188,7 @@ export function AppTopbar({
       }
     };
 
-    void loadProfile();
+    loadProfile().catch(() => undefined);
     const handleAvatarUpdated = (event: Event) => {
       const updatedProfile = (event as CustomEvent<AuthUser>).detail;
       if (updatedProfile) {
@@ -196,14 +196,17 @@ export function AppTopbar({
         return;
       }
 
-      void loadProfile();
+      loadProfile().catch(() => undefined);
     };
 
-    window.addEventListener("falzo:avatar-updated", handleAvatarUpdated);
+    globalThis.addEventListener("falzo:avatar-updated", handleAvatarUpdated);
 
     return () => {
       disposed = true;
-      window.removeEventListener("falzo:avatar-updated", handleAvatarUpdated);
+      globalThis.removeEventListener(
+        "falzo:avatar-updated",
+        handleAvatarUpdated,
+      );
     };
   }, []);
 

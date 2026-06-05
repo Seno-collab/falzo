@@ -47,13 +47,13 @@ function getCollectionPostIds(collection: SavedCollection | null) {
 }
 
 function getShareUrl(collection: SavedCollection) {
-  if (globalThis.window === undefined) {
+  if (globalThis.location === undefined) {
     return ROUTES.savedCollection(collection.share_slug);
   }
 
   return new URL(
     ROUTES.savedCollection(collection.share_slug),
-    globalThis.window.location.origin,
+    globalThis.location.origin,
   ).toString();
 }
 
@@ -235,10 +235,14 @@ export function SavedCollectionsScreen() {
       : savedPosts.filter((post) => !activePostIds.has(post.id));
 
   const invalidateSavedData = () => {
-    void queryClient.invalidateQueries({ queryKey: ["posts", "saved"] });
-    void queryClient.invalidateQueries({
-      queryKey: ["posts", "saved-collections"],
-    });
+    queryClient
+      .invalidateQueries({ queryKey: ["posts", "saved"] })
+      .catch(() => undefined);
+    queryClient
+      .invalidateQueries({
+        queryKey: ["posts", "saved-collections"],
+      })
+      .catch(() => undefined);
   };
 
   const createCollectionMutation = useMutation({
@@ -340,8 +344,13 @@ export function SavedCollectionsScreen() {
     }
 
     const shareUrl = getShareUrl(collection);
-    void globalThis.navigator?.clipboard
-      ?.writeText(shareUrl)
+    const clipboardWrite = globalThis.navigator.clipboard?.writeText(shareUrl);
+    if (!clipboardWrite) {
+      toast.error("Unable to copy share link.");
+      return;
+    }
+
+    clipboardWrite
       .then(() => toast.success("Share link copied."))
       .catch(() => toast.error("Unable to copy share link."));
   }

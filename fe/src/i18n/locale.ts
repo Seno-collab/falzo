@@ -10,23 +10,23 @@ export function isSupportedLocale(
 }
 
 export function readCurrentLocale(): SupportedLocale {
-  if (typeof window === "undefined") {
+  if (globalThis.localStorage === undefined) {
     return defaultLocale;
   }
 
-  const storedLocale = window.localStorage.getItem(localeStorageKey);
+  const storedLocale = globalThis.localStorage.getItem(localeStorageKey);
   if (isSupportedLocale(storedLocale)) {
     return storedLocale;
   }
 
-  const browserLocale = window.navigator.language.toLowerCase();
+  const browserLocale = globalThis.navigator.language.toLowerCase();
   return browserLocale.startsWith("vi") ? "vi" : defaultLocale;
 }
 
 export function persistLocale(locale: SupportedLocale) {
-  if (typeof window === "undefined") {
+  if (globalThis.localStorage === undefined) {
     return;
   }
 
-  window.localStorage.setItem(localeStorageKey, locale);
+  globalThis.localStorage.setItem(localeStorageKey, locale);
 }

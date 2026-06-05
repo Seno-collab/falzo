@@ -12,9 +12,9 @@ async function showToast(
 }
 
 export function notifyError(message: string, options?: ToastOptions) {
-  void showToast("error", message, options);
+  showToast("error", message, options).catch(() => undefined);
 }
 
 export function notifySuccess(message: string, options?: ToastOptions) {
-  void showToast("success", message, options);
+  showToast("success", message, options).catch(() => undefined);
 }

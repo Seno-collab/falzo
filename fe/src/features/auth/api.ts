@@ -27,6 +27,13 @@ type RetryableRequestConfig = AxiosRequestConfig & {
 let authInterceptorInstalled = false;
 let refreshInFlight: Promise<AuthSession> | null = null;
 
+function canUseBrowserStorage() {
+  return (
+    globalThis.localStorage !== undefined &&
+    globalThis.sessionStorage !== undefined
+  );
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -171,44 +178,49 @@ export function getApiFieldErrors(error: unknown) {
 }
 
 function writeStorage(scope: StorageScope, key: string, value: string) {
-  if (globalThis.window === undefined) {
+  if (!canUseBrowserStorage()) {
     return;
   }
 
-  const primary = scope === "local" ? localStorage : sessionStorage;
-  const secondary = scope === "local" ? sessionStorage : localStorage;
+  const primary =
+    scope === "local" ? globalThis.localStorage : globalThis.sessionStorage;
+  const secondary =
+    scope === "local" ? globalThis.sessionStorage : globalThis.localStorage;
 
   primary.setItem(key, value);
   secondary.removeItem(key);
 }
 
 function clearStorageKey(key: string) {
-  if (globalThis.window === undefined) {
+  if (!canUseBrowserStorage()) {
     return;
   }
 
-  localStorage.removeItem(key);
-  sessionStorage.removeItem(key);
+  globalThis.localStorage.removeItem(key);
+  globalThis.sessionStorage.removeItem(key);
 }
 
 function getStoredValue(key: string): string | null {
-  if (globalThis.window === undefined) {
+  if (!canUseBrowserStorage()) {
     return null;
   }
 
-  return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+  return (
+    globalThis.localStorage.getItem(key) ??
+    globalThis.sessionStorage.getItem(key)
+  );
 }
 
 function getStorageScopeForKey(key: string): StorageScope | null {
-  if (globalThis.window === undefined) {
+  if (!canUseBrowserStorage()) {
     return null;
   }
 
-  if (localStorage.getItem(key)) {
+  if (globalThis.localStorage.getItem(key)) {
     return "local";
   }
 
-  if (sessionStorage.getItem(key)) {
+  if (globalThis.sessionStorage.getItem(key)) {
     return "session";
   }
 
@@ -365,11 +377,11 @@ function installAuthInterceptor() {
 }
 
 export function initializeAuthHeader() {
-  if (globalThis.window !== undefined) {
+  if (canUseBrowserStorage()) {
     installAuthInterceptor();
   }
 
-  if (globalThis.window === undefined) {
+  if (!canUseBrowserStorage()) {
     return;
   }
 
