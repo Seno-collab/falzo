@@ -1,7 +1,7 @@
 import type { AxiosRequestConfig } from "axios";
-import { LOCATIONS_ENDPOINT } from "@/lib/api-config";
+import { LOCATIONS_ENDPOINT, PLACES_ENDPOINT } from "@/lib/api-config";
 import { apiGet, endpointPath } from "@/lib/api-utils";
-import type { Location, LocationPost, NearbyLocation } from "./types";
+import type { Location, LocationPost, NearbyLocation, PlaceDetail } from "./types";
 
 export const searchLocationsApi = (
   query: string,
@@ -38,3 +38,9 @@ export const getLocationPostsApi = (
     endpointPath(LOCATIONS_ENDPOINT, locationId, "posts"),
     config,
   );
+
+export const getPlaceBySlugApi = (
+  slug: string,
+  config?: AxiosRequestConfig,
+): Promise<PlaceDetail> =>
+  apiGet<PlaceDetail>(endpointPath(PLACES_ENDPOINT, slug), config);

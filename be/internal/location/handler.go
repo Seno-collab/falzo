@@ -16,6 +16,7 @@ type handlerService interface {
 	Search(ctx context.Context, input SearchInput) ([]Location, error)
 	Nearby(ctx context.Context, input NearbyInput) ([]NearbyLocation, error)
 	GetPostsByLocation(ctx context.Context, input GetPostsByLocationInput) ([]LocationPost, error)
+	GetPlaceBySlug(ctx context.Context, input GetPlaceBySlugInput) (PlaceDetail, error)
 }
 
 type Handler struct {
@@ -46,6 +47,12 @@ func (h *Handler) Routes() chi.Router {
 	r.With(h.readMiddlewares...).Get("/search", h.Search)
 	r.With(h.readMiddlewares...).Get("/nearby", h.Nearby)
 	r.With(h.readMiddlewares...).Get("/{id}/posts", h.GetPostsByLocation)
+	return r
+}
+
+func (h *Handler) PlaceRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.With(h.readMiddlewares...).Get("/{slug}", h.GetPlaceBySlug)
 	return r
 }
 
@@ -112,4 +119,16 @@ func (h *Handler) GetPostsByLocation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Posts by location fetched successfully", posts, r)
+}
+
+func (h *Handler) GetPlaceBySlug(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+
+	place, err := h.service.GetPlaceBySlug(r.Context(), GetPlaceBySlugInput{Slug: slug})
+	if err != nil {
+		share.WriteError(w, r, err, "get_place_by_slug", mapLocationError)
+		return
+	}
+
+	httpResponse.Success(w, http.StatusOK, "Place fetched successfully", place, r)
 }

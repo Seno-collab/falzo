@@ -225,14 +225,11 @@
         max-width: 100%;
     }
 
-    .explore-feed-columns {
-        column-fill: auto;
+    .explore-feed-grid {
+        align-items: start;
     }
 
     .explore-card {
-        page-break-inside: avoid;
-        -webkit-column-break-inside: avoid;
-        break-inside: avoid;
         transform: translateZ(0);
         backface-visibility: hidden;
     }
@@ -253,10 +250,6 @@
     }
 
     @supports (-webkit-hyphens: none) {
-        .explore-feed-columns {
-            column-fill: auto;
-        }
-
         .explore-card {
             transform: none;
         }

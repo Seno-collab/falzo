@@ -3,7 +3,9 @@ export const ROUTES = {
   login: "/login",
   register: "/register",
   dashboard: "/dashboard",
-  explore: "/",
+  explore: "/explore",
+  itineraries: "/itineraries",
+  placeDetail: (slug: string) => `/places/${encodeURIComponent(slug)}`,
   saved: "/saved",
   savedCollection: (shareSlug: string) =>
     `/shared?collection=${encodeURIComponent(shareSlug)}`,

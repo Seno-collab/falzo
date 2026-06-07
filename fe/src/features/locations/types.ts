@@ -22,3 +22,25 @@ export type LocationPost = {
   latitude: number;
   longitude: number;
 };
+
+export type PlaceDetail = {
+  id: string;
+  name: string;
+  slug: string;
+  province: string;
+  district: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  imageUrl?: string;
+  description: string;
+  bestTimeToVisit: string;
+  estimatedCostMin: number;
+  estimatedCostMax: number;
+  travelStyles: string[];
+  suitableFor: string[];
+  warningNote: string;
+  isHiddenGem: boolean;
+  ratingReality: number | null;
+  ratingPhoto: number | null;
+};

@@ -2,11 +2,15 @@ package infra
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"falzo-be/internal/location"
 	"falzo-be/internal/share"
 	"falzo-be/pkg/database"
 	"falzo-be/pkg/database/orm"
+
+	"github.com/jackc/pgx/v5"
 )
 
 const locationRepoService = "location"
@@ -85,6 +89,53 @@ func (r *PostgresRepository) GetPostsByLocationID(ctx context.Context, locationI
 	}
 
 	return posts, nil
+}
+
+func (r *PostgresRepository) FindPlaceBySlug(ctx context.Context, slug string) (location.PlaceDetail, error) {
+	if r == nil || r.db == nil || r.db.Pool() == nil {
+		return location.PlaceDetail{}, location.ErrDependencyUnavailable
+	}
+
+	place, err := scanPlaceDetail(r.db.Pool().QueryRow(ctx, `
+		SELECT
+			l.id::text,
+			l.name,
+			pd.slug,
+			pd.province,
+			pd.district,
+			l.address,
+			l.latitude,
+			l.longitude,
+			COALESCE((
+				SELECT p.image_url
+				FROM posts p
+				WHERE p.location_id = l.id
+				ORDER BY p.created_at DESC
+				LIMIT 1
+			), '') AS image_url,
+			pd.description,
+			pd.best_time_to_visit,
+			pd.estimated_cost_min,
+			pd.estimated_cost_max,
+			pd.travel_styles,
+			pd.suitable_for,
+			pd.warning_note,
+			pd.is_hidden_gem,
+			pd.rating_reality,
+			pd.rating_photo
+		FROM place_details pd
+		JOIN locations l ON l.id = pd.location_id
+		WHERE pd.slug = $1
+		LIMIT 1
+	`, slug))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return location.PlaceDetail{}, location.ErrPlaceNotFound
+		}
+		return location.PlaceDetail{}, mapDBError(ctx, locationRepoService, "locations.find_place_by_slug", err)
+	}
+
+	return place, nil
 }
 
 func mapDBError(ctx context.Context, service, operation string, err error) error {
@@ -188,6 +239,48 @@ func scanLocationPost(scanner orm.Scanner) (location.LocationPost, error) {
 		&item.Latitude,
 		&item.Longitude,
 	)
+	return item, err
+}
+
+func scanPlaceDetail(scanner orm.Scanner) (location.PlaceDetail, error) {
+	var item location.PlaceDetail
+	var ratingReality sql.NullInt16
+	var ratingPhoto sql.NullInt16
+	err := scanner.Scan(
+		&item.ID,
+		&item.Name,
+		&item.Slug,
+		&item.Province,
+		&item.District,
+		&item.Address,
+		&item.Latitude,
+		&item.Longitude,
+		&item.ImageURL,
+		&item.Description,
+		&item.BestTimeToVisit,
+		&item.EstimatedCostMin,
+		&item.EstimatedCostMax,
+		&item.TravelStyles,
+		&item.SuitableFor,
+		&item.WarningNote,
+		&item.IsHiddenGem,
+		&ratingReality,
+		&ratingPhoto,
+	)
+	if item.TravelStyles == nil {
+		item.TravelStyles = []string{}
+	}
+	if item.SuitableFor == nil {
+		item.SuitableFor = []string{}
+	}
+	if ratingReality.Valid {
+		value := ratingReality.Int16
+		item.RatingReality = &value
+	}
+	if ratingPhoto.Valid {
+		value := ratingPhoto.Int16
+		item.RatingPhoto = &value
+	}
 	return item, err
 }
 

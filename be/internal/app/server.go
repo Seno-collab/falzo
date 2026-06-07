@@ -229,6 +229,7 @@ func Run() {
 		}))
 		api.Mount("/auth", authHandler.Routes())
 		api.Mount("/locations", locationHandler.Routes())
+		api.Mount("/places", locationHandler.PlaceRoutes())
 		api.Mount("/posts", postHandler.Routes())
 		api.Mount("/notifications", notificationHandler.Routes())
 		api.Mount("/categories", categoryHandler.Routes())

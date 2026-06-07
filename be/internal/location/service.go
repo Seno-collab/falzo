@@ -27,6 +27,10 @@ type GetPostsByLocationInput struct {
 	LocationID string
 }
 
+type GetPlaceBySlugInput struct {
+	Slug string
+}
+
 func (s *Service) Search(ctx context.Context, input SearchInput) ([]Location, error) {
 	if s.locations == nil {
 		return nil, ErrDependencyUnavailable
@@ -69,4 +73,17 @@ func (s *Service) GetPostsByLocation(ctx context.Context, input GetPostsByLocati
 	}
 
 	return s.locations.GetPostsByLocationID(ctx, locationID)
+}
+
+func (s *Service) GetPlaceBySlug(ctx context.Context, input GetPlaceBySlugInput) (PlaceDetail, error) {
+	if s.locations == nil {
+		return PlaceDetail{}, ErrDependencyUnavailable
+	}
+
+	slug := strings.TrimSpace(input.Slug)
+	if slug == "" {
+		return PlaceDetail{}, ErrPlaceSlugRequired
+	}
+
+	return s.locations.FindPlaceBySlug(ctx, slug)
 }

@@ -1,5 +1,5 @@
-import { ExploreScreen } from "@/features/scenic/screens/explore-screen";
+import { HomeScreen } from "@/features/itineraries/screens/home-screen";
 
 export default function RootPage() {
-  return <ExploreScreen />;
+  return <HomeScreen />;
 }

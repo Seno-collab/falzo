@@ -1647,7 +1647,7 @@ export function ExploreScreen() {
             </div>
           </div>
         ) : null}
-        <div className="explore-feed-columns columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3 xl:gap-5 2xl:columns-4">
+        <div className="explore-feed-grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:gap-5 2xl:grid-cols-4">
           {visiblePosts.map((post, index) => (
             <ExplorePostCard
               commentValue={commentInputs[post.id] ?? ""}

@@ -97,6 +97,12 @@ export const LOCATIONS_ENDPOINT = envEndpoint(
   "/locations",
 );
 
+export const PLACES_ENDPOINT = envEndpoint(
+  process.env.NEXT_PUBLIC_PLACES_ENDPOINT,
+  process.env.VITE_PLACES_ENDPOINT,
+  "/places",
+);
+
 export const NOTIFICATIONS_ENDPOINT = envEndpoint(
   process.env.NEXT_PUBLIC_NOTIFICATIONS_ENDPOINT,
   process.env.VITE_NOTIFICATIONS_ENDPOINT,

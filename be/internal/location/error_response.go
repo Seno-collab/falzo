@@ -33,6 +33,10 @@ func mapLocationError(err error) share.ApiError {
 		return share.BadRequest("radius", "radius must be greater than 0")
 	case errors.Is(err, ErrLocationIDRequired):
 		return share.Required("id", "location id is required")
+	case errors.Is(err, ErrPlaceSlugRequired):
+		return share.Required("slug", "place slug is required")
+	case errors.Is(err, ErrPlaceNotFound):
+		return share.NotFound("Place not found", "Requested place does not exist")
 	case errors.Is(err, ErrDependencyUnavailable):
 		return share.ServiceUnavailable("Location service unavailable", "Location service is temporarily unavailable")
 	default:
