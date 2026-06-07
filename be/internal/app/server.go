@@ -7,6 +7,8 @@ import (
 	"falzo-be/internal/category"
 	categoryInfra "falzo-be/internal/category/infra"
 	"falzo-be/internal/i18n"
+	"falzo-be/internal/itinerary"
+	itineraryInfra "falzo-be/internal/itinerary/infra"
 	"falzo-be/internal/location"
 	locationInfra "falzo-be/internal/location/infra"
 	"falzo-be/internal/notification"
@@ -112,6 +114,9 @@ func Run() {
 	locationRepository := locationInfra.NewPostgresRepository(db)
 	locationService := location.NewService(locationRepository)
 	locationHandler := location.NewHandler(locationService, location.WithReadMiddlewares(readRateLimit))
+	itineraryRepository := itineraryInfra.NewPostgresRepository(db)
+	itineraryService := itinerary.NewService(itineraryRepository)
+	itineraryHandler := itinerary.NewHandler(itineraryService, itinerary.WithReadMiddlewares(readRateLimit))
 	notificationRepository := notificationInfra.NewPostgresRepository(db)
 	notificationHub := notification.NewHub(notificationRepository)
 	notificationHandler := notification.NewHandler(notificationHub, authService)
@@ -230,6 +235,7 @@ func Run() {
 		api.Mount("/auth", authHandler.Routes())
 		api.Mount("/locations", locationHandler.Routes())
 		api.Mount("/places", locationHandler.PlaceRoutes())
+		api.Mount("/itineraries", itineraryHandler.Routes())
 		api.Mount("/posts", postHandler.Routes())
 		api.Mount("/notifications", notificationHandler.Routes())
 		api.Mount("/categories", categoryHandler.Routes())
