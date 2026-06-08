@@ -5,6 +5,7 @@ export const ROUTES = {
   dashboard: "/dashboard",
   explore: "/explore",
   itineraries: "/itineraries",
+  itineraryDetail: (slug: string) => `/itineraries/${encodeURIComponent(slug)}`,
   placeDetail: (slug: string) => `/places/${encodeURIComponent(slug)}`,
   saved: "/saved",
   savedCollection: (shareSlug: string) =>

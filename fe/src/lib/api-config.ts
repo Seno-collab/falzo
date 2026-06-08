@@ -103,6 +103,12 @@ export const PLACES_ENDPOINT = envEndpoint(
   "/places",
 );
 
+export const ITINERARIES_ENDPOINT = envEndpoint(
+  process.env.NEXT_PUBLIC_ITINERARIES_ENDPOINT,
+  process.env.VITE_ITINERARIES_ENDPOINT,
+  "/itineraries",
+);
+
 export const NOTIFICATIONS_ENDPOINT = envEndpoint(
   process.env.NEXT_PUBLIC_NOTIFICATIONS_ENDPOINT,
   process.env.VITE_NOTIFICATIONS_ENDPOINT,

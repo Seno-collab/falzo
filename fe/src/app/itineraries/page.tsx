@@ -1,5 +1,10 @@
-import { ItinerariesListScreen } from "@/features/itineraries/screens/itineraries-list-screen";
+import { Suspense } from "react";
+import { ItineraryListScreen } from "@/features/itineraries/screens/itinerary-list-screen";
 
 export default function ItinerariesPage() {
-  return <ItinerariesListScreen />;
+  return (
+    <Suspense fallback={null}>
+      <ItineraryListScreen />
+    </Suspense>
+  );
 }
