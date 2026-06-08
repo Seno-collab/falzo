@@ -1,7 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Compass, Loader2, MapPinned, Route, TriangleAlert } from "lucide-react";
+import {
+  CalendarDays,
+  Compass,
+  Heart,
+  Loader2,
+  MapPinned,
+  MessageCircle,
+  Play,
+  Route,
+  Share2,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -125,29 +136,87 @@ export function ItineraryListScreen() {
         />
       }
     >
-      <section className="rounded-lg border border-[#d8e5e0] bg-white p-5 shadow-[0_18px_48px_-38px_rgb(22_44_40/0.72)] sm:p-7">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#397168]">
-              Falzo itinerary
-            </p>
-            <h1 className="text-3xl font-semibold leading-tight text-[#152d28] sm:text-4xl">
-              {locale === "vi"
-                ? "Khám phá lịch trình du lịch Việt Nam"
-                : "Explore Vietnam travel itineraries"}
-            </h1>
-            <p className="text-sm leading-6 text-[#5f716f] sm:text-base">
-              {locale === "vi"
-                ? "Lọc theo tỉnh, số ngày, ngân sách và style để tìm lịch trình có thể copy ngay."
-                : "Filter by province, duration, budget, and style to find copy-ready plans."}
-            </p>
+      <section className="overflow-hidden rounded-lg border border-[#d8e5e0] bg-white shadow-[0_18px_48px_-38px_rgb(22_44_40/0.72)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+          <div className="flex flex-col justify-between gap-8 p-5 sm:p-7">
+            <div className="max-w-3xl space-y-3">
+              <p className="inline-flex w-fit items-center gap-2 rounded-full bg-[#e8f6ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#397168]">
+                <Play className="size-3.5 fill-current" />
+                Falzo itinerary
+              </p>
+              <h1 className="text-3xl font-semibold leading-tight text-[#152d28] sm:text-4xl">
+                {locale === "vi"
+                  ? "Khám phá lịch trình du lịch Việt Nam"
+                  : "Explore Vietnam travel itineraries"}
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-[#5f716f] sm:text-base">
+                {locale === "vi"
+                  ? "Lướt nhanh các route đẹp, xem chi phí và copy lịch trình phù hợp cho chuyến đi tiếp theo."
+                  : "Browse visual routes, compare cost, and copy a plan for your next trip."}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button asChild variant="default">
+                <Link href={ROUTES.locations}>
+                  <Compass className="size-4" />
+                  {locale === "vi" ? "Khám phá địa điểm" : "Explore places"}
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`${ROUTES.itineraries}?durationDays=2`}>
+                  <CalendarDays className="size-4" />
+                  {locale === "vi" ? "Route 2 ngày" : "2-day routes"}
+                </Link>
+              </Button>
+            </div>
           </div>
-          <Button asChild variant="default">
-            <Link href={ROUTES.locations}>
-              <Compass className="size-4" />
-              {locale === "vi" ? "Khám phá địa điểm" : "Explore places"}
-            </Link>
-          </Button>
+
+          <div className="border-t border-[#e6efeb] bg-[#0f1f1b] p-4 text-white lg:border-l lg:border-t-0">
+            <div className="mx-auto max-w-sm overflow-hidden rounded-lg border border-white/14 bg-white/8 shadow-[0_22px_48px_-30px_rgb(0_0_0/0.8)]">
+              <div className="relative aspect-[4/5] bg-[linear-gradient(145deg,#294e44,#f0aa52)]">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.32),transparent_28%),linear-gradient(180deg,transparent_35%,rgba(0,0,0,0.68))]" />
+                <div className="absolute right-3 top-3 flex flex-col gap-2">
+                  {[Heart, MessageCircle, Share2].map((Icon) => (
+                    <span
+                      className="flex size-10 items-center justify-center rounded-full bg-black/34 backdrop-blur"
+                      key={Icon.displayName ?? Icon.name}
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                  ))}
+                </div>
+                <div className="absolute bottom-4 left-4 right-14 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/76">
+                    {locale === "vi" ? "Đang nổi bật" : "Trending route"}
+                  </p>
+                  <h2 className="text-2xl font-semibold leading-tight">
+                    {locale === "vi"
+                      ? "Biển xanh, phố cổ, cafe sáng"
+                      : "Blue coast, old town, morning coffee"}
+                  </h2>
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                    <span className="rounded-full bg-white/16 px-2.5 py-1 backdrop-blur">
+                      2 ngày
+                    </span>
+                    <span className="rounded-full bg-white/16 px-2.5 py-1 backdrop-blur">
+                      6 điểm dừng
+                    </span>
+                    <span className="rounded-full bg-white/16 px-2.5 py-1 backdrop-blur">
+                      #chill
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span className="font-semibold text-white/88">
+                  {locale === "vi" ? "Copy lịch trình mẫu" : "Copy sample plan"}
+                </span>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#17332e]">
+                  Falzo
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, Search } from "lucide-react";
+import { Banknote, CalendarDays, MapPinned, Palette, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,10 +28,42 @@ export function ItineraryFilter({
   };
 
   return (
-    <section className="rounded-lg border border-[#d8e5e0] bg-white p-4 shadow-[0_16px_42px_-36px_rgb(22_44_40/0.62)]">
+    <section className="rounded-lg border border-[#d8e5e0] bg-white/94 p-4 shadow-[0_16px_42px_-36px_rgb(22_44_40/0.62)] backdrop-blur">
+      <div className="mb-4 flex flex-col gap-3 border-b border-[#e8f0ed] pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#397168]">
+            Tìm lịch trình hợp gu
+          </p>
+          <p className="mt-1 text-sm text-[#667b76]">
+            Chọn nhanh như feed social hoặc nhập bộ lọc chi tiết bên dưới.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {styleOptions.slice(0, 4).map((style) => {
+            const isActive = values.travelStyle === style;
+
+            return (
+              <button
+                className={
+                  isActive
+                    ? "rounded-full bg-[#17332e] px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                    : "rounded-full border border-[#d8e5e0] bg-[#f7fbf9] px-3 py-1.5 text-xs font-semibold text-[#315d55] transition hover:border-[#9fc7ba]"
+                }
+                key={style}
+                onClick={() => update("travelStyle", isActive ? "" : style)}
+                type="button"
+              >
+                #{style}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_0.8fr_0.8fr_0.9fr_auto]">
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+            <MapPinned className="size-3.5" />
             Tỉnh/thành
           </span>
           <Input
@@ -48,7 +80,8 @@ export function ItineraryFilter({
         </label>
 
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+            <CalendarDays className="size-3.5" />
             Số ngày
           </span>
           <select
@@ -66,7 +99,8 @@ export function ItineraryFilter({
         </label>
 
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+            <Banknote className="size-3.5" />
             Ngân sách tối đa
           </span>
           <Input
@@ -78,7 +112,8 @@ export function ItineraryFilter({
         </label>
 
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6d7c78]">
+            <Palette className="size-3.5" />
             Style
           </span>
           <Input
