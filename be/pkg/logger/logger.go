@@ -176,6 +176,7 @@ type statusRecorder struct {
 	bodyCaptureSize int
 	bodyTruncated   bool
 	bodySample      bytes.Buffer
+	errorLogged     bool
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
@@ -208,6 +209,10 @@ func (r *statusRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }
 
+func (r *statusRecorder) MarkErrorLogged() {
+	r.errorLogged = true
+}
+
 func RequestLogger(next http.Handler) http.Handler {
 	bodyCfg := loadBodyLogConfig()
 
@@ -227,6 +232,9 @@ func RequestLogger(next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 		if rec.status == 0 {
 			rec.status = http.StatusOK
+		}
+		if rec.errorLogged {
+			return
 		}
 		if !shouldLogRequest(rec.status) {
 			return

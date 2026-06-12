@@ -3,6 +3,8 @@ package logger
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"falzo-be/internal/share"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -229,5 +231,43 @@ func TestRequestLoggerUsesErrorLevelForServerErrors(t *testing.T) {
 	}
 	if got := int(entry["status"].(float64)); got != http.StatusServiceUnavailable {
 		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, got)
+	}
+}
+
+func TestRequestLoggerSkipsErrorsAlreadyLoggedByWriteError(t *testing.T) {
+	t.Setenv("LOG_HTTP_BODY_ENABLED", "false")
+
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+
+	log.Logger = zerolog.New(&output)
+	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		share.WriteError(w, r, errors.New("database unavailable"), "load_profile", func(error) share.ApiError {
+			return share.Internal()
+		})
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/users/42", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected exactly one error log, got %d logs: %q", len(lines), output.String())
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &entry); err != nil {
+		t.Fatalf("failed to parse log entry json: %v", err)
+	}
+	if entry["message"] != "request failed" {
+		t.Fatalf("expected request failed log, got %#v", entry["message"])
 	}
 }

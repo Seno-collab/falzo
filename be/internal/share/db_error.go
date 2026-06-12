@@ -16,6 +16,21 @@ func MapDBError(
 	dependencyErr error,
 	internalErr error,
 ) error {
+	kind, pgCode := dberr.Classify(err)
+	metadata := map[string]string{
+		"service":       service,
+		"db_error_kind": string(kind),
+	}
+	if operation != "" {
+		metadata["db_operation"] = operation
+	}
+	if pgCode != "" {
+		metadata["pg_code"] = pgCode
+	}
+	if requestID := chimiddleware.GetReqID(ctx); requestID != "" {
+		metadata["request_id"] = requestID
+	}
+
 	return dberr.Handle(err, service, operation, chimiddleware.GetReqID(ctx), func(kind dberr.Kind, cause error) error {
 		publicErr := internalErr
 		code := "DB_INTERNAL_ERROR"
@@ -27,9 +42,6 @@ func MapDBError(
 			return cause
 		}
 
-		return NewAppError(code, publicErr.Error(), publicErr, cause, operation, map[string]string{
-			"service":       service,
-			"db_error_kind": string(kind),
-		})
+		return NewAppError(code, publicErr.Error(), publicErr, cause, operation, metadata)
 	})
 }

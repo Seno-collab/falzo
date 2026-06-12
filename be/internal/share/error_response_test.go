@@ -127,6 +127,15 @@ func TestMapDBErrorReturnsAppErrorWithPublicErrAndCause(t *testing.T) {
 	if appErr.Code != "DB_DEPENDENCY_UNAVAILABLE" {
 		t.Fatalf("expected dependency code, got %q", appErr.Code)
 	}
+	if appErr.Metadata["service"] != "auth" {
+		t.Fatalf("expected auth service metadata, got %#v", appErr.Metadata)
+	}
+	if appErr.Metadata["db_operation"] != "accounts.find" {
+		t.Fatalf("expected db operation metadata, got %#v", appErr.Metadata)
+	}
+	if appErr.Metadata["db_error_kind"] != "dependency" {
+		t.Fatalf("expected dependency metadata, got %#v", appErr.Metadata)
+	}
 }
 
 func TestModuleFromFunction(t *testing.T) {

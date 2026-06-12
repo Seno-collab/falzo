@@ -1,13 +1,17 @@
 package dberr
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type timeoutErr struct{}
@@ -65,6 +69,21 @@ func TestHandleUsesMapper(t *testing.T) {
 
 	if !errors.Is(got, expected) {
 		t.Fatalf("expected mapped error, got %v", got)
+	}
+}
+
+func TestHandleDoesNotEmitLog(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Logger
+	t.Cleanup(func() {
+		log.Logger = previous
+	})
+	log.Logger = zerolog.New(&output)
+
+	_ = Handle(errors.New("boom"), "auth", "accounts.find", "req-1", nil)
+
+	if got := strings.TrimSpace(output.String()); got != "" {
+		t.Fatalf("expected database handler not to emit logs, got %q", got)
 	}
 }
 

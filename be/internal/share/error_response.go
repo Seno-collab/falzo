@@ -22,6 +22,10 @@ type ApiError struct {
 	LogErr  bool
 }
 
+type errorLogMarker interface {
+	MarkErrorLogged()
+}
+
 func WriteError(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -49,6 +53,16 @@ func WriteError(
 			Str("api_code", mapped.Code).
 			Str("api_detail", mapped.Detail)
 
+		if r.RemoteAddr != "" {
+			entry = entry.Str("remote_ip", r.RemoteAddr)
+		}
+		if userAgent := r.UserAgent(); userAgent != "" {
+			entry = entry.Str("user_agent", userAgent)
+		}
+		if r.ContentLength >= 0 {
+			entry = entry.Int64("content_length", r.ContentLength)
+		}
+
 		var appErr *AppError
 		if errors.As(err, &appErr) {
 			if appErr.Code != "" {
@@ -72,6 +86,10 @@ func WriteError(
 		}
 
 		entry.Msg("request failed")
+
+		if marker, ok := w.(errorLogMarker); ok {
+			marker.MarkErrorLogged()
+		}
 	}
 
 	httpResponse.Error(w, mapped.Status, mapped.Message, r, httpResponse.ErrorDetail{

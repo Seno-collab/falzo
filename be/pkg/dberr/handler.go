@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/rs/zerolog/log"
 )
 
 type Kind string
@@ -23,25 +22,12 @@ const (
 
 type Mapper func(kind Kind, err error) error
 
-func Handle(err error, module string, operation string, requestID string, mapFn Mapper) error {
+func Handle(err error, _ string, _ string, _ string, mapFn Mapper) error {
 	if err == nil {
 		return nil
 	}
 
-	kind, pgCode := Classify(err)
-
-	entry := log.Error().
-		Err(err).
-		Str("module", module).
-		Str("db_operation", operation).
-		Str("db_error_kind", string(kind))
-	if requestID != "" {
-		entry = entry.Str("request_id", requestID)
-	}
-	if pgCode != "" {
-		entry = entry.Str("pg_code", pgCode)
-	}
-	entry.Msg("database operation failed")
+	kind, _ := Classify(err)
 
 	if mapFn == nil {
 		return err
