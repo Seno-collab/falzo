@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { toast } from "sonner";
+import { CharacterCursor } from "@/components/layout/character-cursor";
 import { hasAuthSession, initializeAuthHeader } from "@/features/auth/api";
 import { LocaleProvider } from "@/i18n/locale-provider";
 import { ROUTES } from "@/lib/routes";
@@ -131,7 +132,10 @@ export function AppProviders({ children }: Readonly<PropsWithChildren>) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LocaleProvider>{children}</LocaleProvider>
+      <LocaleProvider>
+        {children}
+        <CharacterCursor />
+      </LocaleProvider>
       {isToasterReady ? (
         <Toaster
           closeButton

@@ -278,6 +278,145 @@
         color: rgb(89 124 166);
     }
 
+    @media (pointer: fine) {
+        .falzo-character-cursor-enabled,
+        .falzo-character-cursor-enabled body,
+        .falzo-character-cursor-enabled a,
+        .falzo-character-cursor-enabled button,
+        .falzo-character-cursor-enabled [role="button"] {
+            cursor: none;
+        }
+
+        .falzo-character-cursor-enabled input,
+        .falzo-character-cursor-enabled textarea,
+        .falzo-character-cursor-enabled select,
+        .falzo-character-cursor-enabled [contenteditable="true"],
+        .falzo-character-cursor-enabled [role="textbox"] {
+            cursor: text;
+        }
+    }
+
+    .falzo-character-cursor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 2147483647;
+        width: 4.25rem;
+        height: 3.4rem;
+        pointer-events: none;
+        transform-origin: 0.25rem 0.25rem;
+        transition: filter 0.16s ease;
+        will-change: transform;
+    }
+
+    .falzo-character-cursor--pressed {
+        filter: saturate(1.18) brightness(0.96);
+    }
+
+    .falzo-character-cursor__pointer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        border-top: 0.55rem solid #f7c948;
+        border-right: 0.42rem solid transparent;
+        filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.28));
+    }
+
+    .falzo-character-cursor__avatar {
+        position: absolute;
+        top: 0.42rem;
+        left: 0.62rem;
+        width: 2.25rem;
+        height: 2.55rem;
+        transform: rotate(-6deg);
+    }
+
+    .falzo-character-cursor--pressed .falzo-character-cursor__avatar {
+        transform: translateY(1px) rotate(-6deg) scale(0.94);
+    }
+
+    .falzo-character-cursor--photo .falzo-character-cursor__avatar {
+        top: 0.34rem;
+        left: 0.58rem;
+        width: 2.22rem;
+        height: 2.22rem;
+        border: 2px solid rgb(255 255 255 / 0.92);
+        border-radius: 999px;
+        background: linear-gradient(145deg, #20b87a, #0e6d5c);
+        box-shadow:
+            0 10px 22px rgb(0 0 0 / 0.24),
+            0 0 0 4px rgb(247 201 72 / 0.26);
+        overflow: hidden;
+    }
+
+    .falzo-character-cursor__photo {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .falzo-character-cursor__head {
+        position: absolute;
+        top: 0;
+        left: 0.52rem;
+        width: 1.12rem;
+        height: 1.12rem;
+        border: 2px solid rgb(255 255 255 / 0.92);
+        border-radius: 999px;
+        background: linear-gradient(145deg, #ffe2b9, #c9864f);
+        box-shadow: 0 7px 16px rgb(0 0 0 / 0.22);
+    }
+
+    .falzo-character-cursor__body {
+        position: absolute;
+        top: 1rem;
+        left: 0.32rem;
+        width: 1.55rem;
+        height: 1.28rem;
+        border: 2px solid rgb(255 255 255 / 0.9);
+        border-radius: 0.62rem 0.62rem 0.48rem 0.48rem;
+        box-shadow: 0 9px 18px rgb(0 0 0 / 0.2);
+    }
+
+    .falzo-character-cursor__pack {
+        position: absolute;
+        top: 1.12rem;
+        right: 0.08rem;
+        width: 0.62rem;
+        height: 0.96rem;
+        border: 1px solid rgb(255 255 255 / 0.84);
+        border-radius: 0.28rem;
+        background: #f7c948;
+    }
+
+    .falzo-character-cursor__label {
+        position: absolute;
+        top: 1.82rem;
+        left: 2.28rem;
+        border: 1px solid rgb(255 255 255 / 0.62);
+        border-radius: 999px;
+        padding: 0.16rem 0.46rem;
+        color: white;
+        font-size: 0.64rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: 0 12px 24px rgb(0 0 0 / 0.18);
+        backdrop-filter: blur(10px);
+    }
+
+    .falzo-character-cursor--traveler .falzo-character-cursor__body,
+    .falzo-character-cursor--traveler .falzo-character-cursor__label {
+        background: linear-gradient(145deg, #20b87a, #0e6d5c);
+    }
+
+    .falzo-character-cursor--guest .falzo-character-cursor__body,
+    .falzo-character-cursor--guest .falzo-character-cursor__label {
+        background: linear-gradient(145deg, #8aa3b8, #465f75);
+    }
+
     .app-title {
         @apply text-balance text-2xl leading-tight font-semibold tracking-normal text-[#163357] sm:text-4xl;
     }

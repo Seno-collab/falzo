@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"falzo-be/internal/auth"
 	authInfra "falzo-be/internal/auth/infra"
 	"falzo-be/internal/category"
@@ -312,7 +313,7 @@ func Run() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
-		if err := grpcServer.Serve(grpcListener); err != nil {
+		if err := grpcServer.Serve(grpcListener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			log.Error().Err(err).Str("addr", cfg.GRPC.Addr).Msg("grpc server failed")
 			os.Exit(1)
 		}

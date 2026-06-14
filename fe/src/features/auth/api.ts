@@ -15,6 +15,7 @@ import type {
 
 const ACCESS_TOKEN_KEY = "falzo.access_token";
 const REFRESH_TOKEN_KEY = "falzo.refresh_token";
+const authSessionChangedEvent = "falzo:auth-session-changed";
 const AUTH_EXCLUDED_RETRY =
   /\/auth\/(login|register|refresh(?:-token)?|logout)\b/i;
 
@@ -408,6 +409,23 @@ export function clearAuthSession() {
   delete http.defaults.headers.common.Authorization;
 }
 
+function notifyAuthSessionChanged() {
+  if (!canUseBrowserStorage()) {
+    return;
+  }
+
+  globalThis.dispatchEvent(new Event(authSessionChangedEvent));
+}
+
+export function subscribeAuthSessionChanged(listener: () => void) {
+  if (!canUseBrowserStorage()) {
+    return () => undefined;
+  }
+
+  globalThis.addEventListener(authSessionChangedEvent, listener);
+  return () => globalThis.removeEventListener(authSessionChangedEvent, listener);
+}
+
 export function getApiErrorMessage(error: unknown): string {
   const errorMessages = messages[getCurrentLocale()].apiErrors;
 
@@ -470,6 +488,7 @@ export async function loginApi(payload: LoginRequest): Promise<AuthSession> {
   }
 
   persistSession(session, resolveStorageScope(payload.remember));
+  notifyAuthSessionChanged();
   return session;
 }
 
@@ -485,6 +504,7 @@ export async function registerApi(payload: RegisterRequest) {
   const session = parseSession(response.data);
   if (session) {
     persistSession(session, "local");
+    notifyAuthSessionChanged();
   }
 
   return response.data;
@@ -513,6 +533,7 @@ export async function logoutApi(): Promise<void> {
     );
   } finally {
     clearAuthSession();
+    notifyAuthSessionChanged();
   }
 }
 
