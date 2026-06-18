@@ -95,6 +95,17 @@ services:
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: falzo-dozzle
+    restart: unless-stopped
+    networks:
+      - falzo
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dozzle_data:/data
+    ports:
+      - "127.0.0.1:8080:8080"
 networks:
   falzo:
     driver: bridge
@@ -104,3 +115,4 @@ volumes:
   redis:
   mongo_data:
   seaweedfs_data:
+  dozzle_data:
