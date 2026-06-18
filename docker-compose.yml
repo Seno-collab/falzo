@@ -101,9 +101,13 @@ services:
     restart: unless-stopped
     networks:
       - falzo
+    environment:
+      DOZZLE_BASE: /logs
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - dozzle_data:/data
+    expose:
+      - "8080"
     ports:
       - "127.0.0.1:8080:8080"
 networks:
