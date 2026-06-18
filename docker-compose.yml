@@ -89,6 +89,7 @@ services:
     depends_on:
       - api
       - seaweedfs
+      - dozzle
   certbot:
     image: certbot/certbot
     container_name: certbot
