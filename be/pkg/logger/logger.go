@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"falzo-be/pkg/config"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -28,6 +28,8 @@ const (
 	defaultLogMaxAgeDays       = 7
 	defaultHTTPLogBodyMaxBytes = 4096
 )
+
+var httpRequestLog = For("http.request")
 
 type Config struct {
 	ServiceName   string
@@ -241,17 +243,17 @@ func RequestLogger(next http.Handler) http.Handler {
 		}
 
 		durationMs := float64(time.Since(start).Microseconds()) / 1000
-		event := requestLogEvent(rec.status, r.URL.Path).
+		event := requestLogEvent(r.Context(), rec.status, r.URL.Path)
+		if event == nil {
+			return
+		}
+		event = event.
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
 			Int("status", rec.status).
 			Float64("duration_ms", durationMs).
 			Int("bytes", rec.bytes).
 			Str("remote_ip", r.RemoteAddr)
-
-		if requestID := chimiddleware.GetReqID(r.Context()); requestID != "" {
-			event = event.Str("request_id", sanitizeRequestID(requestID))
-		}
 
 		if r.ContentLength >= 0 {
 			event = event.Int64("content_length", r.ContentLength)
@@ -280,17 +282,17 @@ func shouldLogRequest(status int) bool {
 	return status >= http.StatusBadRequest
 }
 
-func requestLogEvent(status int, path string) *zerolog.Event {
+func requestLogEvent(ctx context.Context, status int, path string) *zerolog.Event {
 	if path == "/favicon.ico" {
-		return log.Debug()
+		return httpRequestLog.event(ctx, zerolog.DebugLevel)
 	}
 	if status >= http.StatusInternalServerError {
-		return log.Error()
+		return httpRequestLog.event(ctx, zerolog.ErrorLevel)
 	}
 	if status >= http.StatusBadRequest {
-		return log.Warn()
+		return httpRequestLog.event(ctx, zerolog.WarnLevel)
 	}
-	return log.Info()
+	return httpRequestLog.event(ctx, zerolog.InfoLevel)
 }
 
 func sanitizeRequestID(requestID string) string {

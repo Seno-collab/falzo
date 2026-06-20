@@ -13,9 +13,9 @@ import (
 	"falzo-be/internal/post"
 	pkgcache "falzo-be/pkg/cache"
 	"falzo-be/pkg/config"
+	"falzo-be/pkg/logger"
 
 	goredis "github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -28,6 +28,8 @@ const (
 	engagementActionSave    = "save"
 	engagementActionUnsave  = "unsave"
 )
+
+var engagementStreamLog = logger.For("post.engagement_stream")
 
 var defaultEngagementConfig = config.EngagementConfig{
 	ClaimMinIdle: 30 * time.Second,
@@ -209,7 +211,7 @@ func (w engagementStreamWorker) run(ctx context.Context) {
 		w.consumer = engagementConsumerName()
 	}
 	if err := w.ensureGroup(ctx); err != nil {
-		log.Error().Err(err).Msg("post engagement stream group setup failed")
+		engagementStreamLog.Error(ctx, err, "post engagement stream group setup failed")
 		return
 	}
 
@@ -332,12 +334,12 @@ func (w engagementStreamWorker) handleReadError(ctx context.Context, err error) 
 
 	if isRedisNoGroupError(err) {
 		if ensureErr := w.ensureGroup(ctx); ensureErr != nil {
-			log.Error().Err(ensureErr).Msg("post engagement stream group restore failed")
+			engagementStreamLog.Error(ctx, ensureErr, "post engagement stream group restore failed")
 		}
 		return
 	}
 
-	log.Error().Err(err).Msg("post engagement stream read failed")
+	engagementStreamLog.Error(ctx, err, "post engagement stream read failed")
 	select {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
@@ -351,17 +353,19 @@ func isRedisNoGroupError(err error) bool {
 func (w engagementStreamWorker) handleProcessingFailure(ctx context.Context, message goredis.XMessage, cause error) {
 	retries, err := w.client.HIncrBy(ctx, engagementRetryHash, message.ID, 1).Result()
 	if err != nil {
-		log.Error().Err(err).Str("message_id", message.ID).Msg("post engagement event retry count failed")
+		engagementStreamLog.Error(ctx, err, "post engagement event retry count failed", logger.Str("message_id", message.ID))
 		return
 	}
 
 	if retries < int64(w.config.MaxRetries) {
-		log.Error().
-			Err(cause).
-			Str("message_id", message.ID).
-			Int64("retry", retries).
-			Int("max_retries", w.config.MaxRetries).
-			Msg("post engagement event processing failed")
+		engagementStreamLog.Error(
+			ctx,
+			cause,
+			"post engagement event processing failed",
+			logger.Str("message_id", message.ID),
+			logger.Int64("retry", retries),
+			logger.Int("max_retries", w.config.MaxRetries),
+		)
 		return
 	}
 
@@ -376,26 +380,28 @@ func (w engagementStreamWorker) handleProcessingFailure(ctx context.Context, mes
 		Stream: engagementDeadStream,
 		Values: values,
 	}).Err(); err != nil {
-		log.Error().Err(err).Str("message_id", message.ID).Msg("post engagement dead-letter publish failed")
+		engagementStreamLog.Error(ctx, err, "post engagement dead-letter publish failed", logger.Str("message_id", message.ID))
 		return
 	}
 
 	w.ackProcessed(ctx, message.ID)
-	log.Error().
-		Err(cause).
-		Str("message_id", message.ID).
-		Int("max_retries", w.config.MaxRetries).
-		Msg("post engagement event moved to dead-letter stream")
+	engagementStreamLog.Error(
+		ctx,
+		cause,
+		"post engagement event moved to dead-letter stream",
+		logger.Str("message_id", message.ID),
+		logger.Int("max_retries", w.config.MaxRetries),
+	)
 }
 
 func (w engagementStreamWorker) ackProcessed(ctx context.Context, messageID string) {
 	if err := w.client.XAck(ctx, engagementStream, engagementConsumerGroup, messageID).Err(); err != nil {
-		log.Error().Err(err).Str("message_id", messageID).Msg("post engagement event ack failed")
+		engagementStreamLog.Error(ctx, err, "post engagement event ack failed", logger.Str("message_id", messageID))
 		return
 	}
 
 	if err := w.client.HDel(ctx, engagementRetryHash, messageID).Err(); err != nil {
-		log.Error().Err(err).Str("message_id", messageID).Msg("post engagement retry cleanup failed")
+		engagementStreamLog.Error(ctx, err, "post engagement retry cleanup failed", logger.Str("message_id", messageID))
 	}
 }
 

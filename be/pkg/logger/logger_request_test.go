@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"falzo-be/internal/share"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -245,9 +244,11 @@ func TestRequestLoggerSkipsErrorsAlreadyLoggedByWriteError(t *testing.T) {
 
 	log.Logger = zerolog.New(&output)
 	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		share.WriteError(w, r, errors.New("database unavailable"), "load_profile", func(error) share.ApiError {
-			return share.Internal()
-		})
+		For("test.error").Error(r.Context(), errors.New("database unavailable"), "request failed")
+		if marker, ok := w.(interface{ MarkErrorLogged() }); ok {
+			marker.MarkErrorLogged()
+		}
+		http.Error(w, "database unavailable", http.StatusInternalServerError)
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/users/42", nil)

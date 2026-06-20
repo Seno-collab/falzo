@@ -30,7 +30,9 @@ func mapLocationError(err error) share.ApiError {
 	case errors.Is(err, ErrLongitudeOutOfRange):
 		return share.BadRequest("lng", "lng must be between -180 and 180")
 	case errors.Is(err, ErrRadiusMustBePositive):
-		return share.BadRequest("radius", "radius must be greater than 0")
+		apiErr := share.BadRequest("radius", "radius must be greater than 0")
+		apiErr.LogErr = true
+		return apiErr
 	case errors.Is(err, ErrLocationIDRequired):
 		return share.Required("id", "location id is required")
 	case errors.Is(err, ErrPlaceSlugRequired):

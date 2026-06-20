@@ -36,9 +36,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 )
+
+var appLog = logger.For("app.server")
 
 type authAvatarEventPublisher struct {
 	posts     post.PostEventPublisher
@@ -80,25 +81,25 @@ func Run() {
 	logger.SetupLogger()
 	cfg := config.Load()
 	if err := config.Validate(cfg); err != nil {
-		log.Fatal().Err(err).Msg("invalid configuration")
+		appLog.Fatal(context.Background(), err, "invalid configuration")
 	}
 
 	db, err := database.New(cfg.Postgres)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to connect postgres")
+		appLog.Fatal(context.Background(), err, "failed to connect postgres")
 	}
 
 	accounts := authInfra.NewAccountRepository(db)
 	var sessions auth.SessionRepository = authInfra.NewSessionRepository(db)
 	redisClient, err := cache.New(cfg.Redis)
 	if err != nil {
-		log.Warn().Err(err).Msg("redis unavailable, continuing without session cache")
+		appLog.Warn(context.Background(), err, "redis unavailable, continuing without session cache")
 	} else {
 		sessions = authInfra.NewCachedSessionRepository(sessions, redisClient, cfg.Auth.TokenTTL)
 	}
 	i18nResolver := i18n.NewResolver(db.Pool(), redisClient)
 	if err := i18nResolver.Load(context.Background()); err != nil {
-		log.Warn().Err(err).Msg("i18n messages unavailable, continuing with built-in fallback")
+		appLog.Warn(context.Background(), err, "i18n messages unavailable, continuing with built-in fallback")
 	}
 	i18n.SetDefaultResolver(i18nResolver)
 	i18nListenerCtx, stopI18nListener := context.WithCancel(context.Background())
@@ -255,7 +256,7 @@ func Run() {
 	}
 	grpcListener, err := net.Listen("tcp", cfg.GRPC.Addr)
 	if err != nil {
-		log.Fatal().Err(err).Str("addr", cfg.GRPC.Addr).Msg("failed to listen grpc")
+		appLog.Fatal(context.Background(), err, "failed to listen grpc", logger.Str("addr", cfg.GRPC.Addr))
 	}
 	sm.Register("auth-session-cleanup-stop", cfg.HTTP.ShutdownTimeout, func(ctx context.Context) error {
 		stopSessionCleanup()
@@ -314,27 +315,27 @@ func Run() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		if err := grpcServer.Serve(grpcListener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			log.Error().Err(err).Str("addr", cfg.GRPC.Addr).Msg("grpc server failed")
+			appLog.Error(context.Background(), err, "grpc server failed", logger.Str("addr", cfg.GRPC.Addr))
 			os.Exit(1)
 		}
 	}()
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error().Err(err).Str("addr", srv.Addr).Msg("server failed")
+			appLog.Error(context.Background(), err, "server failed", logger.Str("addr", srv.Addr))
 			os.Exit(1)
 		}
 	}()
-	log.Info().Str("addr", srv.Addr).Msg("server started")
-	log.Info().Str("addr", cfg.GRPC.Addr).Msg("grpc server started")
+	appLog.Info(context.Background(), "server started", logger.Str("addr", srv.Addr))
+	appLog.Info(context.Background(), "grpc server started", logger.Str("addr", cfg.GRPC.Addr))
 	sig := <-quit
-	log.Info().Str("signal", sig.String()).Msg("shutdown initiated")
+	appLog.Info(context.Background(), "shutdown initiated", logger.Str("signal", sig.String()))
 
 	if err := sm.Shutdown(); err != nil {
-		log.Error().Err(err).Msg("shutdown completed with errors")
+		appLog.Error(context.Background(), err, "shutdown completed with errors")
 		os.Exit(1)
 	}
 
-	log.Info().Msg("shutdown complete")
+	appLog.Info(context.Background(), "shutdown complete")
 }
 
 func userIDRateLimitKey(r *http.Request) string {

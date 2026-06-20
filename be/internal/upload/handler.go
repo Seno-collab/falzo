@@ -11,10 +11,10 @@ import (
 	"falzo-be/internal/auth"
 	"falzo-be/internal/notification"
 	"falzo-be/internal/share"
+	"falzo-be/pkg/logger"
 	httpResponse "falzo-be/pkg/response"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -22,6 +22,8 @@ const (
 	multipartOverheadAllowance = 1 << 20
 	defaultUploadMaxBodyBytes  = defaultMaxImageSize + multipartOverheadAllowance
 )
+
+var handlerLog = logger.For("upload.handler")
 
 type handlerService interface {
 	CheckImage(ctx context.Context, input CheckImageInput) (CheckImageResult, error)
@@ -265,6 +267,6 @@ func (h *Handler) publishImageUploadedNotification(ctx context.Context, principa
 		ResourceID:  notification.ResourceIDInt64(result.ID),
 		ImageID:     result.ID,
 	}); err != nil {
-		log.Warn().Err(err).Int64("image_id", result.ID).Uint64("user_id", principal.UserID).Msg("upload notification publish failed")
+		handlerLog.Warn(ctx, err, "upload notification publish failed", logger.Int64("image_id", result.ID), logger.Uint64("user_id", principal.UserID))
 	}
 }

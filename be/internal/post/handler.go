@@ -13,11 +13,13 @@ import (
 	"falzo-be/internal/i18n"
 	"falzo-be/internal/notification"
 	"falzo-be/internal/share"
+	"falzo-be/pkg/logger"
 	httpResponse "falzo-be/pkg/response"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/rs/zerolog/log"
 )
+
+var handlerLog = logger.For("post.handler")
 
 type handlerService interface {
 	CreatePost(ctx context.Context, input CreatePostInput) (PostView, error)
@@ -242,7 +244,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 
 	if h.postPublisher != nil {
 		if err := h.postPublisher.PublishPostCreated(r.Context(), post); err != nil {
-			log.Warn().Err(err).Uint64("post_id", post.ID).Msg("post event publish failed")
+			handlerLog.Warn(r.Context(), err, "post event publish failed", logger.Uint64("post_id", post.ID))
 		}
 	}
 	h.publishFollowerPostNotifications(r.Context(), principal, post)
@@ -858,7 +860,7 @@ func (h *Handler) CommentPost(w http.ResponseWriter, r *http.Request) {
 
 	if h.commentPublisher != nil {
 		if err := h.commentPublisher.PublishCommentCreated(r.Context(), comment); err != nil {
-			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
+			handlerLog.Warn(r.Context(), err, "comment event publish failed", logger.Uint64("post_id", comment.PostID), logger.Uint64("comment_id", comment.ID))
 		}
 	}
 
@@ -905,7 +907,7 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 
 	if h.commentPublisher != nil {
 		if err := h.commentPublisher.PublishCommentUpdated(r.Context(), comment); err != nil {
-			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment event publish failed")
+			handlerLog.Warn(r.Context(), err, "comment event publish failed", logger.Uint64("post_id", comment.PostID), logger.Uint64("comment_id", comment.ID))
 		}
 	}
 
@@ -1140,7 +1142,7 @@ func (h *Handler) publishCommentNotification(ctx context.Context, principal *aut
 
 	item, err := h.service.GetPostDetail(ctx, GetPostDetailInput{PostID: comment.PostID})
 	if err != nil || item == nil {
-		log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Msg("comment notification post lookup failed")
+		handlerLog.Warn(ctx, err, "comment notification post lookup failed", logger.Uint64("post_id", comment.PostID), logger.Uint64("comment_id", comment.ID))
 		return
 	}
 	if item.UserID == 0 || item.UserID == principal.UserID {
@@ -1172,7 +1174,7 @@ func (h *Handler) publishCommentNotification(ctx context.Context, principal *aut
 			ResourceID:  notification.ResourceIDUint64(comment.ID),
 			PostID:      comment.PostID,
 		}); err != nil {
-			log.Warn().Err(err).Uint64("post_id", comment.PostID).Uint64("comment_id", comment.ID).Uint64("user_id", userID).Msg("comment notification publish failed")
+			handlerLog.Warn(ctx, err, "comment notification publish failed", logger.Uint64("post_id", comment.PostID), logger.Uint64("comment_id", comment.ID), logger.Uint64("user_id", userID))
 		}
 	}
 }
@@ -1184,7 +1186,7 @@ func (h *Handler) publishFollowerPostNotifications(ctx context.Context, principa
 
 	followerIDs, err := h.followers.ListFollowerIDs(ctx, principal.UserID)
 	if err != nil {
-		log.Warn().Err(err).Uint64("user_id", principal.UserID).Uint64("post_id", item.ID).Msg("post follower lookup failed")
+		handlerLog.Warn(ctx, err, "post follower lookup failed", logger.Uint64("user_id", principal.UserID), logger.Uint64("post_id", item.ID))
 		return
 	}
 
@@ -1220,7 +1222,7 @@ func (h *Handler) publishFollowerPostNotifications(ctx context.Context, principa
 			ResourceID:  notification.ResourceIDUint64(item.ID),
 			PostID:      item.ID,
 		}); err != nil {
-			log.Warn().Err(err).Uint64("post_id", item.ID).Uint64("user_id", userID).Msg("post follower notification publish failed")
+			handlerLog.Warn(ctx, err, "post follower notification publish failed", logger.Uint64("post_id", item.ID), logger.Uint64("user_id", userID))
 		}
 	}
 }
@@ -1230,7 +1232,7 @@ func (h *Handler) publishPostDeleted(ctx context.Context, postID uint64) {
 		return
 	}
 	if err := h.postPublisher.PublishPostDeleted(ctx, postID); err != nil {
-		log.Warn().Err(err).Uint64("post_id", postID).Msg("post deleted event publish failed")
+		handlerLog.Warn(ctx, err, "post deleted event publish failed", logger.Uint64("post_id", postID))
 	}
 }
 

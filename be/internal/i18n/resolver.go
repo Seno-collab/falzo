@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"falzo-be/pkg/cache"
+	"falzo-be/pkg/logger"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -52,6 +52,7 @@ type Resolver struct {
 
 var defaultResolverMu sync.RWMutex
 var defaultResolver *Resolver
+var resolverLog = logger.For("i18n.resolver")
 
 func NewResolver(db *pgxpool.Pool, redisClient cache.Client) *Resolver {
 	resolver := &Resolver{
@@ -234,33 +235,33 @@ func (r *Resolver) RunPostgresListener(ctx context.Context) {
 
 		conn, err := r.db.Acquire(ctx)
 		if err != nil {
-			log.Warn().Err(err).Msg("i18n listener could not acquire postgres connection")
+			resolverLog.Warn(ctx, err, "i18n listener could not acquire postgres connection")
 			sleepOrDone(ctx, postgresRetryDelay)
 			continue
 		}
 
 		if _, err := conn.Exec(ctx, "LISTEN i18n_messages_changed"); err != nil {
 			conn.Release()
-			log.Warn().Err(err).Msg("i18n listener could not subscribe")
+			resolverLog.Warn(ctx, err, "i18n listener could not subscribe")
 			sleepOrDone(ctx, postgresRetryDelay)
 			continue
 		}
 
-		log.Info().Msg("i18n listener subscribed")
+		resolverLog.Info(ctx, "i18n listener subscribed")
 		for {
 			if err := conn.Conn().PgConn().WaitForNotification(ctx); err != nil {
 				conn.Release()
 				if !errors.Is(err, context.Canceled) {
-					log.Warn().Err(err).Msg("i18n listener disconnected")
+					resolverLog.Warn(ctx, err, "i18n listener disconnected")
 				}
 				break
 			}
 
 			sleepOrDone(ctx, reloadDebounce)
 			if err := r.Load(ctx); err != nil {
-				log.Warn().Err(err).Msg("i18n cache reload failed")
+				resolverLog.Warn(ctx, err, "i18n cache reload failed")
 			} else {
-				log.Info().Msg("i18n cache reloaded")
+				resolverLog.Info(ctx, "i18n cache reloaded")
 			}
 		}
 	}
@@ -298,7 +299,7 @@ func (r *Resolver) lookupDB(ctx context.Context, locale, key string) (string, bo
 		return "", false
 	}
 	if err != nil {
-		log.Warn().Err(err).Str("locale", locale).Str("message_key", key).Msg("i18n db lookup failed")
+		resolverLog.Warn(ctx, err, "i18n db lookup failed", logger.Str("locale", locale), logger.Str("message_key", key))
 		return "", false
 	}
 

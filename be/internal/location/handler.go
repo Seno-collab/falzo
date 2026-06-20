@@ -2,6 +2,7 @@ package location
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -102,7 +103,13 @@ func (h *Handler) Nearby(w http.ResponseWriter, r *http.Request) {
 		RadiusMeters: radius,
 	})
 	if err != nil {
-		share.WriteError(w, r, err, "nearby_location", mapLocationError)
+		share.WriteError(
+			w,
+			r,
+			contextualizeNearbyError(err, lat, lng, radius),
+			"nearby_location",
+			mapLocationError,
+		)
 		return
 	}
 
@@ -131,4 +138,23 @@ func (h *Handler) GetPlaceBySlug(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpResponse.Success(w, http.StatusOK, "Place fetched successfully", place, r)
+}
+
+func contextualizeNearbyError(err error, lat, lng, radius float64) error {
+	if !errors.Is(err, ErrRadiusMustBePositive) {
+		return err
+	}
+
+	return share.NewAppError(
+		"LOCATION_RADIUS_INVALID",
+		err.Error(),
+		err,
+		nil,
+		"locations.nearby.validate_radius",
+		map[string]string{
+			"lat":           strconv.FormatFloat(lat, 'f', -1, 64),
+			"lng":           strconv.FormatFloat(lng, 'f', -1, 64),
+			"radius_meters": strconv.FormatFloat(radius, 'f', -1, 64),
+		},
+	)
 }

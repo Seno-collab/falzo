@@ -7,9 +7,9 @@ import (
 
 	"falzo-be/internal/post"
 	pkgcache "falzo-be/pkg/cache"
+	"falzo-be/pkg/logger"
 
 	goredis "github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -19,6 +19,8 @@ const (
 	postDeletedChannel    = "posts:deleted"
 	userAvatarChannel     = "users:avatar_updated"
 )
+
+var commonEventLog = logger.For("notification.common_event")
 
 type RedisCommentEventPublisher struct {
 	client   *goredis.Client
@@ -92,7 +94,7 @@ func RunRedisCommentEventSubscriber(ctx context.Context, broker *post.CommentEve
 
 	if _, err := pubsub.Receive(ctx); err != nil {
 		if ctx.Err() == nil {
-			log.Error().Err(err).Msg("comment event subscription setup failed")
+			commonEventLog.Error(ctx, err, "comment event subscription setup failed")
 		}
 		return
 	}
@@ -113,7 +115,7 @@ func RunRedisCommentEventSubscriber(ctx context.Context, broker *post.CommentEve
 
 			var comment post.CommentView
 			if err := json.Unmarshal([]byte(message.Payload), &comment); err != nil {
-				log.Error().Err(err).Msg("comment event payload decode failed")
+				commonEventLog.Error(ctx, err, "comment event payload decode failed")
 				continue
 			}
 
@@ -217,7 +219,7 @@ func RunRedisPostEventSubscriber(ctx context.Context, broker *post.PostEventBrok
 
 	if _, err := pubsub.Receive(ctx); err != nil {
 		if ctx.Err() == nil {
-			log.Error().Err(err).Msg("post event subscription setup failed")
+			commonEventLog.Error(ctx, err, "post event subscription setup failed")
 		}
 		return
 	}
@@ -240,21 +242,21 @@ func RunRedisPostEventSubscriber(ctx context.Context, broker *post.PostEventBrok
 			case userAvatarChannel:
 				var event post.UserAvatarUpdatedEvent
 				if err := json.Unmarshal([]byte(message.Payload), &event); err != nil {
-					log.Error().Err(err).Msg("user avatar event payload decode failed")
+					commonEventLog.Error(ctx, err, "user avatar event payload decode failed")
 					continue
 				}
 				broker.BroadcastUserAvatarUpdated(event)
 			case postDeletedChannel:
 				var item post.PostView
 				if err := json.Unmarshal([]byte(message.Payload), &item); err != nil {
-					log.Error().Err(err).Msg("post event payload decode failed")
+					commonEventLog.Error(ctx, err, "post event payload decode failed")
 					continue
 				}
 				broker.BroadcastPostDeleted(item.ID)
 			default:
 				var item post.PostView
 				if err := json.Unmarshal([]byte(message.Payload), &item); err != nil {
-					log.Error().Err(err).Msg("post event payload decode failed")
+					commonEventLog.Error(ctx, err, "post event payload decode failed")
 					continue
 				}
 				broker.BroadcastPostCreated(item)

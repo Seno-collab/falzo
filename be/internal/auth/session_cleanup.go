@@ -2,12 +2,13 @@ package auth
 
 import (
 	"context"
+	"falzo-be/pkg/logger"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 const sessionCleanupConfigRefreshInterval = time.Minute
+
+var sessionCleanupLog = logger.For("auth.session_cleanup")
 
 func RunSessionCleanup(ctx context.Context, sessions SessionRepository) {
 	if sessions == nil {
@@ -42,7 +43,7 @@ func watchSessionCleanupConfig(ctx context.Context, sessions SessionRepository, 
 				return
 			}
 
-			log.Error().Err(err).Msg("auth session cleanup config listener failed")
+			sessionCleanupLog.Error(ctx, err, "auth session cleanup config listener failed")
 			select {
 			case <-ctx.Done():
 				return
@@ -61,19 +62,19 @@ func watchSessionCleanupConfig(ctx context.Context, sessions SessionRepository, 
 func runSessionCleanupIfDue(ctx context.Context, sessions SessionRepository, lastRun *time.Time) {
 	cfg, err := sessions.SessionCleanupConfig(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("auth session cleanup config load failed")
+		sessionCleanupLog.Error(ctx, err, "auth session cleanup config load failed")
 		return
 	}
 	if !cfg.Enabled {
-		log.Debug().Msg("auth session cleanup disabled")
+		sessionCleanupLog.Debug(ctx, "auth session cleanup disabled")
 		return
 	}
 	if cfg.Interval <= 0 {
-		log.Error().Dur("interval", cfg.Interval).Msg("auth session cleanup interval is invalid")
+		sessionCleanupLog.Error(ctx, nil, "auth session cleanup interval is invalid", logger.Dur("interval", cfg.Interval))
 		return
 	}
 	if cfg.Retention < 0 {
-		log.Error().Dur("retention", cfg.Retention).Msg("auth session cleanup retention is invalid")
+		sessionCleanupLog.Error(ctx, nil, "auth session cleanup retention is invalid", logger.Dur("retention", cfg.Retention))
 		return
 	}
 
@@ -89,9 +90,9 @@ func runSessionCleanupIfDue(ctx context.Context, sessions SessionRepository, las
 func runSessionCleanup(ctx context.Context, sessions SessionRepository, retention time.Duration) {
 	deleted, err := sessions.CleanupExpired(ctx, retention)
 	if err != nil {
-		log.Error().Err(err).Msg("auth session cleanup failed")
+		sessionCleanupLog.Error(ctx, err, "auth session cleanup failed")
 		return
 	}
 
-	log.Info().Int64("deleted_sessions", deleted).Msg("auth session cleanup completed")
+	sessionCleanupLog.Info(ctx, "auth session cleanup completed", logger.Int64("deleted_sessions", deleted))
 }

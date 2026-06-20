@@ -19,6 +19,19 @@ type ErrorDetail struct {
 	Code       string `json:"code"`
 	Message    string `json:"message"`
 	MessageKey string `json:"message_key,omitempty"`
+	Debug      *Debug `json:"debug,omitempty"`
+}
+
+type Debug struct {
+	Module       string            `json:"module,omitempty"`
+	Operation    string            `json:"operation,omitempty"`
+	SourceFile   string            `json:"source_file,omitempty"`
+	SourceLine   int               `json:"source_line,omitempty"`
+	SourceFunc   string            `json:"source_func,omitempty"`
+	AppCode      string            `json:"app_code,omitempty"`
+	AppOperation string            `json:"app_operation,omitempty"`
+	AppMetadata  map[string]string `json:"app_metadata,omitempty"`
+	RootError    string            `json:"root_error,omitempty"`
 }
 
 type Envelope struct {

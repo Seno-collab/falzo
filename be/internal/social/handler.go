@@ -9,11 +9,13 @@ import (
 	"falzo-be/internal/auth"
 	"falzo-be/internal/notification"
 	"falzo-be/internal/share"
+	"falzo-be/pkg/logger"
 	httpResponse "falzo-be/pkg/response"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/rs/zerolog/log"
 )
+
+var handlerLog = logger.For("social.handler")
 
 type handlerService interface {
 	GetPublicProfile(ctx context.Context, input PublicProfileInput) (PublicProfile, error)
@@ -243,6 +245,6 @@ func (h *Handler) publishFollowNotification(ctx context.Context, principal *auth
 		Resource:    notification.ResourceUser,
 		ResourceID:  notification.ResourceIDUint64(principal.UserID),
 	}); err != nil {
-		log.Warn().Err(err).Uint64("target_user_id", targetUserID).Uint64("actor_user_id", principal.UserID).Msg("follow notification publish failed")
+		handlerLog.Warn(ctx, err, "follow notification publish failed", logger.Uint64("target_user_id", targetUserID), logger.Uint64("actor_user_id", principal.UserID))
 	}
 }

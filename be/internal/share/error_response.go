@@ -2,15 +2,13 @@ package share
 
 import (
 	"errors"
+	"falzo-be/pkg/config"
+	appLogger "falzo-be/pkg/logger"
 	httpResponse "falzo-be/pkg/response"
 	"net/http"
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
-
-	"github.com/rs/zerolog/log"
 )
 
 type ApiError struct {
@@ -21,6 +19,8 @@ type ApiError struct {
 	Detail  string
 	LogErr  bool
 }
+
+var errorLog = appLogger.For("share.error_response")
 
 type errorLogMarker interface {
 	MarkErrorLogged()
@@ -34,70 +34,107 @@ func WriteError(
 	mapper func(error) ApiError,
 ) {
 	mapped := mapper(err)
+	debugEnabled := config.GetBool("ERROR_RESPONSE_DEBUG_ENABLED", false)
+	var appErr *AppError
+	_ = errors.As(err, &appErr)
+
+	var source logSource
+	if mapped.LogErr || debugEnabled {
+		source = errorLogSource(2)
+	}
 
 	if mapped.LogErr {
-		source := errorLogSource(2)
 		logErr := err
 
-		entry := log.Error().
-			Err(err).
-			Str("module", source.Module).
-			Str("operation", operation).
-			Str("request_id", chimiddleware.GetReqID(r.Context())).
-			Str("method", r.Method).
-			Str("path", r.URL.Path).
-			Str("source_file", source.File).
-			Int("source_line", source.Line).
-			Str("source_func", source.Function).
-			Int("status", mapped.Status).
-			Str("api_code", mapped.Code).
-			Str("api_detail", mapped.Detail)
+		fields := []appLogger.Field{
+			appLogger.Str("module", source.Module),
+			appLogger.Str("operation", operation),
+			appLogger.Str("method", r.Method),
+			appLogger.Str("path", r.URL.Path),
+			appLogger.Str("source_file", source.File),
+			appLogger.Int("source_line", source.Line),
+			appLogger.Str("source_func", source.Function),
+			appLogger.Int("status", mapped.Status),
+			appLogger.Str("api_code", mapped.Code),
+			appLogger.Str("api_detail", mapped.Detail),
+		}
 
 		if r.RemoteAddr != "" {
-			entry = entry.Str("remote_ip", r.RemoteAddr)
+			fields = append(fields, appLogger.Str("remote_ip", r.RemoteAddr))
 		}
 		if userAgent := r.UserAgent(); userAgent != "" {
-			entry = entry.Str("user_agent", userAgent)
+			fields = append(fields, appLogger.Str("user_agent", userAgent))
 		}
 		if r.ContentLength >= 0 {
-			entry = entry.Int64("content_length", r.ContentLength)
+			fields = append(fields, appLogger.Int64("content_length", r.ContentLength))
 		}
 
-		var appErr *AppError
-		if errors.As(err, &appErr) {
+		if appErr != nil {
 			if appErr.Code != "" {
-				entry = entry.Str("app_code", appErr.Code)
+				fields = append(fields, appLogger.Str("app_code", appErr.Code))
 			}
 			if appErr.Operation != "" {
-				entry = entry.Str("app_operation", appErr.Operation)
+				fields = append(fields, appLogger.Str("app_operation", appErr.Operation))
 			}
 			if len(appErr.Metadata) > 0 {
-				entry = entry.Interface("app_metadata", appErr.Metadata)
+				fields = append(fields, appLogger.Interface("app_metadata", appErr.Metadata))
 			}
 			if appErr.Internal != nil {
 				logErr = appErr.Internal
-				entry = entry.AnErr("internal_error", appErr.Internal)
+				fields = append(fields, appLogger.AnErr("internal_error", appErr.Internal))
 			}
 		}
 
 		chain := errorChain(logErr)
 		if len(chain) > 0 {
-			entry = entry.Strs("error_chain", chain).Str("root_error", chain[len(chain)-1])
+			fields = append(fields, appLogger.Strs("error_chain", chain), appLogger.Str("root_error", chain[len(chain)-1]))
 		}
 
-		entry.Msg("request failed")
+		errorLog.Error(r.Context(), err, "request failed", fields...)
 
 		if marker, ok := w.(errorLogMarker); ok {
 			marker.MarkErrorLogged()
 		}
 	}
 
-	httpResponse.Error(w, mapped.Status, mapped.Message, r, httpResponse.ErrorDetail{
+	detail := httpResponse.ErrorDetail{
 		Code:    mapped.Code,
 		Field:   mapped.Field,
 		Message: mapped.Detail,
-	})
+	}
+	if debugEnabled {
+		detail.Debug = errorDebug(err, appErr, operation, source)
+	}
 
+	httpResponse.Error(w, mapped.Status, mapped.Message, r, detail)
+
+}
+
+func errorDebug(err error, appErr *AppError, operation string, source logSource) *httpResponse.Debug {
+	debug := &httpResponse.Debug{
+		Module:     source.Module,
+		Operation:  operation,
+		SourceFile: source.File,
+		SourceLine: source.Line,
+		SourceFunc: source.Function,
+	}
+
+	logErr := err
+	if appErr != nil {
+		debug.AppCode = appErr.Code
+		debug.AppOperation = appErr.Operation
+		debug.AppMetadata = appErr.Metadata
+		if appErr.Internal != nil {
+			logErr = appErr.Internal
+		}
+	}
+
+	chain := errorChain(logErr)
+	if len(chain) > 0 {
+		debug.RootError = chain[len(chain)-1]
+	}
+
+	return debug
 }
 
 type logSource struct {
