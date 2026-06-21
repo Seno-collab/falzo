@@ -1,7 +1,0 @@
-node_modules
-dist
-out
-.next
-.DS_Store
-*.log
-tsconfig.tsbuildinfo
