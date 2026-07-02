@@ -1,0 +1,17 @@
+.env
+.env.*
+
+bin/
+dist/
+tmp/
+
+*.log
+
+.vscode/
+.idea/
+
+coverage.out
+*.test
+
+/be/configs/config.local.yml
+/be/.env
