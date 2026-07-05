@@ -15,6 +15,8 @@ const (
 	CodeUserLocked         Code = "USER_LOCKED"
 	CodeUserDisabled       Code = "USER_DISABLED"
 	CodeTokenExpired       Code = "TOKEN_EXPIRED"
+	CodeUserNameExists     Code = "USERNAME_ALREADY_EXISTS"
+	CodeInvalidToken       Code = "INVALID_TOKEN"
 
 	CodeWalletNotEnoughBalance Code = "WALLET_NOT_ENOUGH_BALANCE"
 	CodeMatchNotFound          Code = "MATCH_NOT_FOUND"

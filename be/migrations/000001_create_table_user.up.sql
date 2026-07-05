@@ -1,0 +1,10 @@
+CREATE TABLE users (
+	id BIGSERIAL PRIMARY KEY,
+	username VARCHAR(100) NOT NULL UNIQUE,
+	password_hash TEXT NOT NULL,
+	status VARCHAR(30) NOT NULL,
+	failed_attempts INT NOT NULL DEFAULT 0,
+	locked_until TIMESTAMPTZ NULL,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

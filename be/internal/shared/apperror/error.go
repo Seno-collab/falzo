@@ -63,11 +63,9 @@ func FromError(err error) *AppError {
 }
 
 func IsCode(err error, code Code) bool {
-	var appErr *AppError
-	if errors.As(err, &appErr) {
+	if appErr, ok := errors.AsType[*AppError](err); ok {
 		return appErr.Code == code
 	}
-
 	return false
 }
 
@@ -109,6 +107,14 @@ func UserLocked() *AppError {
 
 func UserDisabled() *AppError {
 	return New(CodeUserDisabled, "User is disabled", http.StatusForbidden)
+}
+
+func UserNameExists() *AppError {
+	return New(CodeUserNameExists, "Username already exists", http.StatusConflict)
+}
+
+func InvalidToken() *AppError {
+	return New(CodeInvalidToken, "Invalid or expired token", http.StatusUnauthorized)
 }
 
 func WalletNotEnoughBalance() *AppError {

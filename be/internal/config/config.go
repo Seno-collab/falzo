@@ -14,6 +14,7 @@ type Config struct {
 	Database DatabaseConfig
 	Redis    RedisConfig
 	JWT      JWTConfig
+	Auth     AuthConfig
 	Game     GameConfig
 }
 
@@ -32,15 +33,23 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	Host     string
-	Port     int
-	Password string
-	DB       int
+	Host      string
+	Port      int
+	Password  string
+	DB        int
+	KeyPrefix string
 }
 
 type JWTConfig struct {
-	Secret         string
-	ExpiredMinutes int
+	Secret              string
+	ExpiredMinutes      int
+	RefreshExpiredHours int
+	ResetExpiredMinutes int
+}
+
+type AuthConfig struct {
+	MaxLoginAttempts int
+	LockMinutes      int
 }
 
 type GameConfig struct {
@@ -82,15 +91,19 @@ func Load(envPath string) (*Config, error) {
 			SSLMode:  v.GetString("DATABASE_SSL_MODE"),
 		},
 		Redis: RedisConfig{
-			Host:     v.GetString("REDIS_HOST"),
-			Port:     v.GetInt("REDIS_PORT"),
-			Password: v.GetString("REDIS_PASSWORD"),
-			DB:       v.GetInt("REDIS_DB"),
+			Host:      v.GetString("REDIS_HOST"),
+			Port:      v.GetInt("REDIS_PORT"),
+			Password:  v.GetString("REDIS_PASSWORD"),
+			DB:        v.GetInt("REDIS_DB"),
+			KeyPrefix: v.GetString("REDIS_KEY_PREFIX"),
 		},
 		JWT: JWTConfig{
-			Secret:         v.GetString("JWT_SECRET"),
-			ExpiredMinutes: v.GetInt("JWT_EXPIRED_MINUTES"),
+			Secret:              v.GetString("JWT_SECRET"),
+			ExpiredMinutes:      v.GetInt("JWT_EXPIRED_MINUTES"),
+			RefreshExpiredHours: v.GetInt("JWT_REFRESH_EXPIRED_HOURS"),
+			ResetExpiredMinutes: v.GetInt("JWT_RESET_EXPIRED_MINUTES"),
 		},
+		Auth: AuthConfig{MaxLoginAttempts: v.GetInt("AUTH_MAX_LOGIN_ATTEMPTS"), LockMinutes: v.GetInt("AUTH_LOCK_MINUTES")},
 		Game: GameConfig{
 			MaxPlayersPerRoom:  v.GetInt("GAME_MAX_PLAYERS_PER_ROOM"),
 			RoomTimeoutSeconds: v.GetInt("GAME_ROOM_TIMEOUT_SECONDS"),
@@ -117,6 +130,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("REDIS_DB", 0)
 
 	v.SetDefault("JWT_EXPIRED_MINUTES", 60)
+	v.SetDefault("JWT_REFRESH_EXPIRED_HOURS", 168)
+	v.SetDefault("JWT_RESET_EXPIRED_MINUTES", 15)
+	v.SetDefault("AUTH_MAX_LOGIN_ATTEMPTS", 5)
+	v.SetDefault("AUTH_LOCK_MINUTES", 15)
+	v.SetDefault("REDIS_KEY_PREFIX", "falzo")
 
 	v.SetDefault("GAME_MAX_PLAYERS_PER_ROOM", 4)
 	v.SetDefault("GAME_ROOM_TIMEOUT_SECONDS", 300)
@@ -141,6 +159,12 @@ func (c *Config) Validate() error {
 
 	if c.JWT.Secret == "" {
 		return fmt.Errorf("JWT_SECRET is required")
+	}
+	if len(c.JWT.Secret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	if c.Auth.MaxLoginAttempts <= 0 || c.Auth.LockMinutes <= 0 {
+		return fmt.Errorf("auth limits must be positive")
 	}
 
 	return nil
