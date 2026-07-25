@@ -71,9 +71,9 @@ export const rooms: readonly GameRoom[] = [
     round: 1,
     maxPlayers: 6,
     players: [
-      { id: "ha", name: "Hà", color: "mint", host: true },
+      { id: "ha", name: "Hà", color: "mint" },
       { id: "nam", name: "Nam", color: "sand" },
-      currentPlayer,
+      { ...currentPlayer, host: true },
     ],
   },
   {

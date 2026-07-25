@@ -159,6 +159,13 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.gameControl {
+  position: relative;
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
 .dealButton {
   display: inline-flex;
   min-height: 42px;
@@ -174,13 +181,243 @@
   cursor: pointer;
 }
 
+.dealButton:disabled {
+  border-color: #3c473f;
+  color: #89938c;
+  cursor: wait;
+}
+
+.dealButton[aria-describedby] {
+  cursor: not-allowed;
+}
+
 .dealButton span {
   color: #d9f275;
   font-size: 16px;
 }
 
+.adminHint {
+  color: #768179;
+  font-size: 8px;
+}
+
+.roundConfirm {
+  position: absolute;
+  z-index: 30;
+  display: grid;
+  width: 280px;
+  right: 0;
+  top: calc(100% + 10px);
+  gap: 9px;
+  padding: 17px;
+  border: 1px solid #536057;
+  border-radius: 16px 16px 16px 5px;
+  background: #202922;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 35%);
+  color: #f3f3eb;
+}
+
+.roundConfirm strong {
+  font-size: 13px;
+}
+
+.roundConfirm p {
+  display: block;
+  margin: 0;
+  color: #929d95;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.roundConfirm > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+.roundConfirm button {
+  min-height: 35px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.confirmNo {
+  border: 1px solid #465149;
+  background: transparent;
+  color: #b8c0ba;
+}
+
+.confirmYes {
+  border: 1px solid #d9f275;
+  background: #d9f275;
+  color: #172019;
+}
+
+.confirmNo:focus-visible,
+.confirmYes:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.roomLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.rightRail {
+  display: grid;
+  min-width: 0;
+  height: 670px;
+  grid-template-rows: minmax(0, 1fr) 170px;
+  gap: 14px;
+}
+
+.roomChat {
+  min-height: 0;
+  max-height: none;
+}
+
+.myAccount {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 78px;
+  align-items: center;
+  gap: 13px;
+  overflow: hidden;
+  padding: 15px;
+  border: 1px solid #ecf8ac;
+  border-radius: 20px 20px 20px 6px;
+  background: #d9f275;
+  color: #172019;
+  box-shadow: 0 16px 32px rgb(0 0 0 / 20%);
+}
+
+.myAccount::after {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  right: -75px;
+  bottom: -85px;
+  border: 1px solid rgb(23 32 25 / 12%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 28px rgb(23 32 25 / 3%);
+  content: "";
+  pointer-events: none;
+}
+
+.myIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.myAvatar {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 15px 15px 15px 5px;
+  background: #173d2a;
+  color: #d9f275;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgb(23 61 42 / 22%);
+}
+
+.myIdentity > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.myIdentity small {
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .15em;
+}
+
+.myIdentity strong {
+  overflow: hidden;
+  font-size: 15px;
+  letter-spacing: -.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myIdentity span {
+  color: #4e5e37;
+  font-size: 7px;
+  line-height: 1.4;
+}
+
+.myCard {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 78px;
+  height: 132px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 7px;
+  border: 1px solid #4b6452;
+  border-radius: 12px 12px 12px 4px;
+  background: #17271d;
+  color: #d9f275;
+  box-shadow: 0 12px 22px rgb(21 43 29 / 28%);
+  cursor: pointer;
+}
+
+.myCard:disabled {
+  border-color: rgb(23 39 29 / 32%);
+  background: rgb(23 39 29 / 76%);
+  color: #9caa6a;
+  cursor: default;
+}
+
+.myCard small,
+.myCard span {
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .11em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.myCard strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 25px;
+  letter-spacing: -.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.myCardRevealed {
+  border-color: #fffdf4;
+  background: #fffdf4;
+  color: #172019;
+}
+
+.myCardReady {
+  animation: deal-card .48s cubic-bezier(.2, .85, .35, 1.2) both;
+}
+
+.myCardRevealed strong {
+  font-size: 11px;
+}
+
 .board {
   display: grid;
+  min-width: 0;
   min-height: 670px;
   grid-template-rows: auto minmax(280px, 1fr) auto;
   gap: 26px;
@@ -312,6 +549,18 @@ button.playerCard {
   text-transform: uppercase;
 }
 
+.undealtCard {
+  border-style: dashed;
+  border-color: #465149;
+  background: transparent;
+  color: #69756c;
+  box-shadow: none;
+}
+
+.dealtCard {
+  animation: deal-card .48s cubic-bezier(.2, .85, .35, 1.2) both;
+}
+
 .emptySeat {
   border-style: dashed;
   background: transparent;
@@ -359,6 +608,194 @@ button.playerCard {
   font-size: 20px;
   font-weight: 900;
   transform: rotate(-4deg);
+}
+
+.dealingTable .tableMark {
+  animation: dealing-mark .7s ease-in-out infinite alternate;
+}
+
+.dealOverlay {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  inset: 0;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 46%, rgb(217 242 117 / 15%), transparent 28%),
+    rgb(7 13 9 / 88%);
+  backdrop-filter: blur(9px);
+  animation: deal-overlay-in .24s ease-out both;
+}
+
+.dealOverlay::before,
+.dealOverlay::after {
+  position: absolute;
+  border: 1px solid rgb(217 242 117 / 10%);
+  border-radius: 50%;
+  content: "";
+}
+
+.dealOverlay::before {
+  width: min(72vw, 760px);
+  height: min(72vw, 760px);
+  box-shadow:
+    0 0 0 70px rgb(217 242 117 / 2%),
+    0 0 0 140px rgb(217 242 117 / 1.5%);
+}
+
+.dealOverlay::after {
+  width: min(38vw, 390px);
+  height: min(38vw, 390px);
+  border-style: dashed;
+  animation: deal-orbit 18s linear infinite;
+}
+
+.dealShowcase {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+}
+
+.dealRecipient {
+  display: flex;
+  min-width: 250px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  animation: deal-copy-in .32s ease-out both;
+}
+
+.dealAvatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 3px solid rgb(255 255 255 / 18%);
+  border-radius: 50%;
+  color: #172019;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 28%);
+}
+
+.dealRecipient > div {
+  display: grid;
+  gap: 4px;
+}
+
+.dealRecipient small {
+  color: #8e9a91;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .18em;
+}
+
+.dealRecipient strong {
+  max-width: 300px;
+  overflow: hidden;
+  color: #f7f4e9;
+  font-size: 18px;
+  letter-spacing: -.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.largeDealCard {
+  position: relative;
+  display: flex;
+  width: 250px;
+  height: 360px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 32px 24px;
+  border: 1px solid #607666;
+  border-radius: 26px 26px 26px 8px;
+  background:
+    linear-gradient(135deg, transparent 48%, rgb(217 242 117 / 4%) 49%, rgb(217 242 117 / 4%) 51%, transparent 52%),
+    #17271d;
+  color: #d9f275;
+  box-shadow:
+    0 38px 75px rgb(0 0 0 / 48%),
+    inset 0 0 0 8px rgb(217 242 117 / 3%);
+  animation: large-card-deal .62s cubic-bezier(.18, .86, .25, 1.12) both;
+  transform-origin: 50% 115%;
+}
+
+.largeDealCard::before {
+  position: absolute;
+  width: 145px;
+  height: 145px;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgb(217 242 117 / 22%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 24px rgb(217 242 117 / 3%),
+    0 0 0 48px rgb(217 242 117 / 2%);
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.largeDealCard > span,
+.largeDealCard > small {
+  position: relative;
+  z-index: 1;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .19em;
+}
+
+.largeDealCard > strong {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 92px;
+  height: 92px;
+  place-items: center;
+  border: 1px solid rgb(217 242 117 / 36%);
+  border-radius: 50%;
+  background: #1d3023;
+  font-size: 47px;
+  box-shadow: 0 14px 30px rgb(0 0 0 / 22%);
+}
+
+.dealCounter {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  animation: deal-copy-in .36s .12s ease-out both;
+}
+
+.dealCounter > span {
+  color: #cbd4cd;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.dealCounter > div {
+  display: flex;
+  gap: 6px;
+}
+
+.dealCounter > div > span {
+  width: 22px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #354139;
+  transition: background .2s ease;
+}
+
+.dealCounter .progressDone {
+  background: #d9f275;
 }
 
 .table p {
@@ -446,6 +883,66 @@ button.playerCard {
   white-space: nowrap;
 }
 
+@keyframes deal-card {
+  from {
+    opacity: 0;
+    transform: translateY(28px) rotate(9deg) scale(.7);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+  }
+}
+
+@keyframes dealing-mark {
+  from {
+    transform: rotate(-8deg) scale(.94);
+  }
+
+  to {
+    transform: rotate(5deg) scale(1.08);
+  }
+}
+
+@keyframes deal-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes large-card-deal {
+  0% {
+    opacity: 0;
+    transform: translateY(52vh) rotate(18deg) scale(.55);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translateY(-14px) rotate(-3deg) scale(1.035);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+  }
+}
+
+@keyframes deal-copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes deal-orbit {
+  to { transform: rotate(360deg); }
+}
+
 .loading,
 .notFound {
   display: grid;
@@ -493,12 +990,26 @@ button.playerCard {
 }
 
 @media (max-width: 1040px) {
+  .roomLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .rightRail {
+    height: auto;
+    grid-template-rows: 500px 170px;
+  }
+
   .seatRow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .table {
     width: min(90%, 680px);
+  }
+
+  .roomChat {
+    min-height: 0;
+    max-height: none;
   }
 }
 
@@ -526,6 +1037,15 @@ button.playerCard {
     flex-direction: column;
   }
 
+  .gameControl {
+    justify-items: start;
+  }
+
+  .roundConfirm {
+    right: auto;
+    left: 0;
+  }
+
   .board {
     padding: 18px;
   }
@@ -538,6 +1058,19 @@ button.playerCard {
     width: 100%;
     min-height: 250px;
     border-radius: 120px;
+  }
+
+  .roomChat {
+    min-height: 0;
+    max-height: none;
+  }
+
+  .rightRail {
+    grid-template-rows: 450px auto;
+  }
+
+  .myAccount {
+    min-height: 170px;
   }
 }
 
@@ -562,11 +1095,72 @@ button.playerCard {
   .roomNote > span {
     display: none;
   }
+
+  .myAccount {
+    grid-template-columns: minmax(0, 1fr) 72px;
+    padding: 13px;
+  }
+
+  .myAvatar {
+    width: 42px;
+    height: 42px;
+  }
+
+  .myCard {
+    width: 72px;
+    height: 124px;
+  }
+
+  .dealOverlay {
+    padding: 16px;
+  }
+
+  .dealRecipient {
+    min-width: 0;
+  }
+
+  .dealRecipient strong {
+    max-width: 220px;
+    font-size: 16px;
+  }
+
+  .largeDealCard {
+    width: 190px;
+    height: 282px;
+    padding: 25px 18px;
+    border-radius: 21px 21px 21px 7px;
+  }
+
+  .largeDealCard::before {
+    width: 112px;
+    height: 112px;
+  }
+
+  .largeDealCard > strong {
+    width: 76px;
+    height: 76px;
+    font-size: 38px;
+  }
+
+  .dealCounter > div > span {
+    width: 15px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .dealButton,
   .playerCard {
     transition: none;
+  }
+
+  .dealtCard,
+  .myCardReady,
+  .dealingTable .tableMark,
+  .dealOverlay,
+  .dealOverlay::after,
+  .dealRecipient,
+  .largeDealCard,
+  .dealCounter {
+    animation: none;
   }
 }

@@ -136,6 +136,11 @@
   background: #171e19;
 }
 
+.sidebarMain {
+  display: grid;
+  gap: 32px;
+}
+
 .sidebarTitle {
   margin: 0 10px 14px;
   color: #778279;
@@ -190,6 +195,112 @@
   height: 6px;
   border-radius: 50%;
   background: #d9f275;
+}
+
+.friends {
+  padding-top: 25px;
+  border-top: 1px solid #313a33;
+}
+
+.friendsHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.friendsHeading .sidebarTitle {
+  margin-bottom: 0;
+}
+
+.friendsHeading > span {
+  color: #758078;
+  font-size: 8px;
+}
+
+.friendList {
+  display: grid;
+  gap: 3px;
+}
+
+.friend {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 11px 11px 11px 4px;
+  background: transparent;
+  color: #cbd1cc;
+  text-align: left;
+  cursor: pointer;
+}
+
+.friend:hover,
+.selectedFriend {
+  border-color: #37423a;
+  background: #202922;
+}
+
+.friendAvatar {
+  position: relative;
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 50%;
+  color: #18221b;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.friendStatus {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #171e19;
+  border-radius: 50%;
+}
+
+.friendStatus.online {
+  background: #d9f275;
+}
+
+.friendStatus.offline {
+  background: #667168;
+}
+
+.friend > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.friend strong,
+.friend small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend strong {
+  font-size: 10px;
+}
+
+.friend small {
+  color: #748078;
+  font-size: 8px;
+}
+
+.chatIcon {
+  color: #657168;
+  font-size: 11px;
+  letter-spacing: 1px;
 }
 
 .sidebarNote {
@@ -471,13 +582,58 @@
   font-size: 12px;
 }
 
+.directChat {
+  position: fixed;
+  z-index: 40;
+  width: min(330px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - 110px));
+  right: 22px;
+  bottom: 18px;
+  filter: drop-shadow(0 24px 45px rgb(0 0 0 / 32%));
+}
+
 @media (max-width: 1080px) {
   .workspace {
     grid-template-columns: 1fr;
   }
 
   .sidebar {
+    display: block;
+    padding: 16px 20px;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid #313832;
+  }
+
+  .sidebarMain > div:first-child,
+  .sidebarNote {
     display: none;
+  }
+
+  .sidebarMain {
+    display: block;
+  }
+
+  .friends {
+    padding: 0;
+    border: 0;
+  }
+
+  .friendsHeading {
+    margin: 0 0 9px;
+  }
+
+  .friendList {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .friend {
+    width: 190px;
+    flex: 0 0 auto;
   }
 }
 
@@ -527,6 +683,13 @@
 
   .roomCard {
     min-height: 265px;
+  }
+
+  .directChat {
+    width: calc(100vw - 24px);
+    height: min(520px, calc(100vh - 96px));
+    right: 12px;
+    bottom: 10px;
   }
 }
 

@@ -1,0 +1,259 @@
+.panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #3c4a40;
+  border-radius: 24px 24px 24px 7px;
+  background: #19211b;
+  color: #f7f4e9;
+}
+
+.header {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 18px;
+  border-bottom: 1px solid #323d35;
+}
+
+.identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.identity > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.identity strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity small {
+  overflow: hidden;
+  color: #7f8b82;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presenceDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.online,
+.room {
+  background: #d9f275;
+  box-shadow: 0 0 0 5px rgb(217 242 117 / 9%);
+}
+
+.offline {
+  background: #6d786f;
+  box-shadow: 0 0 0 5px rgb(109 120 111 / 9%);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerActions > span {
+  color: #78847b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.headerActions button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #3b473e;
+  border-radius: 9px;
+  background: transparent;
+  color: #9ca69f;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.headerActions button:hover {
+  border-color: #5a685d;
+  color: #fff;
+}
+
+.messages {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 19px 16px;
+  scrollbar-color: #465249 transparent;
+  scrollbar-width: thin;
+}
+
+.systemMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #313d34;
+  border-radius: 11px;
+  background: #1d2821;
+}
+
+.systemMessage span {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #546158;
+  border-radius: 50%;
+  color: #96a198;
+  font-size: 7px;
+  font-weight: 850;
+}
+
+.systemMessage p {
+  margin: 0;
+  color: #869188;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.message {
+  display: grid;
+  align-self: flex-start;
+  gap: 6px;
+  max-width: 88%;
+}
+
+.ownMessage {
+  align-self: flex-end;
+}
+
+.messageMeta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 3px;
+}
+
+.ownMessage .messageMeta {
+  justify-content: flex-end;
+}
+
+.messageMeta strong {
+  overflow: hidden;
+  color: #b7c0b9;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messageMeta span {
+  color: #667168;
+  font-size: 7px;
+}
+
+.message > p {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #364139;
+  border-radius: 4px 13px 13px;
+  background: #232e26;
+  color: #d7ddd8;
+  font-size: 10px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.ownMessage > p {
+  border-color: #839953;
+  border-radius: 13px 4px 13px 13px;
+  background: #d9f275;
+  color: #172019;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
+  padding: 13px;
+  border-top: 1px solid #323d35;
+  background: #171f19;
+}
+
+.form input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 13px;
+  border: 1px solid #3a463d;
+  border-radius: 12px;
+  outline: 0;
+  background: #202a23;
+  color: #f2f3ed;
+  font-size: 10px;
+}
+
+.form input::placeholder {
+  color: #6f7b72;
+}
+
+.form input:focus {
+  border-color: #7f914e;
+  box-shadow: 0 0 0 3px rgb(217 242 117 / 7%);
+}
+
+.form > button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 12px 12px 12px 4px;
+  background: #d9f275;
+  color: #172019;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.form > button:disabled {
+  background: #303a32;
+  color: #6d786f;
+  cursor: default;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
