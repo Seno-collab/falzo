@@ -47,5 +47,5 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, input RefreshTokenIn
 	if err := uc.sessions.SaveRefresh(ctx, pair.RefreshTokenID, u.ID, pair.RefreshExpiresAt.Sub(now)); err != nil {
 		return nil, err
 	}
-	return &LoginOutput{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken, TokenType: "Bearer", ExpiresIn: int64(pair.AccessExpiresAt.Sub(now).Seconds())}, nil
+	return &LoginOutput{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken, TokenType: "Bearer", ExpiresIn: int64(pair.AccessExpiresAt.Sub(now).Seconds()), UserName: u.UserName}, nil
 }

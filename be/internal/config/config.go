@@ -15,6 +15,7 @@ type Config struct {
 	Redis    RedisConfig
 	JWT      JWTConfig
 	Auth     AuthConfig
+	Google   GoogleConfig
 	Game     GameConfig
 }
 
@@ -50,6 +51,10 @@ type JWTConfig struct {
 type AuthConfig struct {
 	MaxLoginAttempts int
 	LockMinutes      int
+}
+
+type GoogleConfig struct {
+	ClientID string
 }
 
 type GameConfig struct {
@@ -104,6 +109,9 @@ func Load(envPath string) (*Config, error) {
 			ResetExpiredMinutes: v.GetInt("JWT_RESET_EXPIRED_MINUTES"),
 		},
 		Auth: AuthConfig{MaxLoginAttempts: v.GetInt("AUTH_MAX_LOGIN_ATTEMPTS"), LockMinutes: v.GetInt("AUTH_LOCK_MINUTES")},
+		Google: GoogleConfig{
+			ClientID: v.GetString("GOOGLE_CLIENT_ID"),
+		},
 		Game: GameConfig{
 			MaxPlayersPerRoom:  v.GetInt("GAME_MAX_PLAYERS_PER_ROOM"),
 			RoomTimeoutSeconds: v.GetInt("GAME_ROOM_TIMEOUT_SECONDS"),
@@ -165,6 +173,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.MaxLoginAttempts <= 0 || c.Auth.LockMinutes <= 0 {
 		return fmt.Errorf("auth limits must be positive")
+	}
+	if c.Google.ClientID == "" {
+		return fmt.Errorf("GOOGLE_CLIENT_ID is required")
 	}
 
 	return nil

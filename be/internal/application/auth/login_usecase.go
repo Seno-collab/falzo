@@ -26,6 +26,7 @@ type LoginOutput struct {
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int64  `json:"expires_in"`
+	UserName     string `json:"username"`
 }
 
 func NewLoginUseCase(hasher ports.PasswordHasher, users ports.UserRepository, tokens ports.TokenManager, sessions ports.TokenSessionStore, maxAttempts int, lockDuration time.Duration, c clock.Clock) *LoginUseCase {
@@ -59,5 +60,5 @@ func (uc *LoginUseCase) Execute(ctx context.Context, input LoginInput) (*LoginOu
 	if err := uc.sessions.SaveRefresh(ctx, pair.RefreshTokenID, u.ID, pair.RefreshExpiresAt.Sub(now)); err != nil {
 		return nil, err
 	}
-	return &LoginOutput{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken, TokenType: "Bearer", ExpiresIn: int64(pair.AccessExpiresAt.Sub(now).Seconds())}, nil
+	return &LoginOutput{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken, TokenType: "Bearer", ExpiresIn: int64(pair.AccessExpiresAt.Sub(now).Seconds()), UserName: u.UserName}, nil
 }

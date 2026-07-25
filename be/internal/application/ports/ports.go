@@ -3,15 +3,32 @@ package ports
 import (
 	domainuser "be/internal/domain/user"
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrIdentityProviderNotConfigured = errors.New("identity provider is not configured")
+	ErrInvalidExternalIdentity       = errors.New("invalid external identity")
 )
 
 type UserRepository interface {
 	FindByUserName(ctx context.Context, username string) (*domainuser.User, error)
 	FindByID(ctx context.Context, id int64) (*domainuser.User, error)
-	Create(ctx context.Context, user *domainuser.User) error
+	FindByIdentity(ctx context.Context, provider, subject string) (*domainuser.User, error)
+	CreateExternalUser(ctx context.Context, username, provider, subject, email string, now time.Time) (*domainuser.User, error)
 	UpdatePassword(ctx context.Context, userID int64, passwordHash string) error
 	UpdateLoginState(ctx context.Context, user *domainuser.User) error
+}
+
+type GoogleIdentity struct {
+	Subject       string
+	Email         string
+	EmailVerified bool
+}
+
+type GoogleIdentityVerifier interface {
+	Verify(ctx context.Context, credential string) (GoogleIdentity, error)
 }
 
 type TokenPair struct {

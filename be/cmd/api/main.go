@@ -9,10 +9,11 @@ import (
 	redisinfra "be/internal/insfrastructure/redis"
 	"be/internal/insfrastructure/security"
 	"be/internal/shared/clock"
+	loggerx "be/internal/shared/logger"
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,8 +22,12 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	})))
 	if err := run(); err != nil {
-		log.Fatal(err)
+		slog.Error("api stopped", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
 
@@ -31,6 +36,13 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	appLogger, logCloser, err := loggerx.New(cfg.Server.Env, "logs")
+	if err != nil {
+		return fmt.Errorf("create logger: %w", err)
+	}
+	defer logCloser.Close()
+	slog.SetDefault(appLogger)
+	slog.Info("api starting", slog.String("address", ":"+cfg.Server.Port))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	db, err := postgres.NewPool(ctx, cfg.Database)
@@ -52,24 +64,26 @@ func run() error {
 		return fmt.Errorf("create token manager: %w", err)
 	}
 	sessions := redisinfra.NewTokenSessionStore(redisClient, cfg.Redis.KeyPrefix)
-	register := authapp.NewRegisterUseCase(users, hasher, c)
 	login := authapp.NewLoginUseCase(hasher, users, tokens, sessions, cfg.Auth.MaxLoginAttempts, time.Duration(cfg.Auth.LockMinutes)*time.Minute, c)
 	refresh := authapp.NewRefreshTokenUseCase(users, tokens, sessions, c)
 	forgot := authapp.NewForgotPasswordUseCase(users, tokens, sessions, c)
 	reset := authapp.NewResetPasswordUseCase(users, hasher, tokens, sessions, c)
 	logout := authapp.NewLogoutUseCase(tokens, sessions, c)
-	authHandler := handler.NewAuthHandler(register, login, refresh, forgot, reset, logout, cfg.Server.Env != "production")
+	googleVerifier := security.NewGoogleIDTokenVerifier(cfg.Google.ClientID)
+	googleLogin := authapp.NewGoogleLoginUseCase(googleVerifier, users, tokens, sessions, c)
+	authHandler := handler.NewAuthHandler(login, refresh, forgot, reset, logout, cfg.Server.Env != "production", appLogger, googleLogin)
 
-	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(authHandler), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(authHandler, appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- server.ListenAndServe() }()
-	log.Printf("API listening on %s", server.Addr)
+	slog.Info("api listening", slog.String("address", server.Addr))
 	select {
 	case err := <-errCh:
 		if !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 	case <-ctx.Done():
+		slog.Info("api shutting down", slog.String("reason", ctx.Err().Error()))
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return server.Shutdown(shutdownCtx)
