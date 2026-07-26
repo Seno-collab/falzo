@@ -8,18 +8,18 @@ import styles from "./page.module.css";
 const gameSteps = [
   {
     number: "01",
-    title: "Gather the group",
-    description: "Bring 4–12 friends together around one table.",
+    title: "Join a room",
+    description: "Bring 4–12 friends together and let everyone take a seat.",
   },
   {
     number: "02",
     title: "Read your word",
-    description: "Most players match. The Undercover gets a similar word.",
+    description: "Most players share one word. The Undercover gets a similar one.",
   },
   {
     number: "03",
-    title: "Give a careful clue",
-    description: "Sound convincing, watch reactions, and vote out the outsider.",
+    title: "Talk and vote",
+    description: "Give a clue, listen carefully, then vote out the suspicious player.",
   },
 ] as const;
 
@@ -33,32 +33,25 @@ export default function HomePage() {
   }, []);
 
   const initial = username?.trim().charAt(0).toUpperCase() || "P";
+  const lobbyHref = username ? "/dashboard" : "/login";
 
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <Link className={styles.brand} href="/">
+        <Link className={styles.brand} href="/" aria-label="Falzo home">
           <span aria-hidden="true">F</span>
           falzo
         </Link>
-
-        <nav className={styles.navigation} aria-label="Main navigation">
-          <a href="#undercover">The game</a>
-          <a href="#how-to-play">How it works</a>
-        </nav>
 
         <div className={styles.headerAction}>
           {sessionReady ? (
             username ? (
               <Link className={styles.accountLink} href="/dashboard">
                 <span className={styles.avatar} aria-hidden="true">{initial}</span>
-                <span>{username}</span>
-                <span aria-hidden="true">→</span>
+                <span className={styles.accountName}>{username}</span>
               </Link>
             ) : (
-              <Link className={styles.signInLink} href="/login">
-                Sign in <span aria-hidden="true">↗</span>
-              </Link>
+              <Link className={styles.signInLink} href="/login">Sign in</Link>
             )
           ) : (
             <span className={styles.sessionPlaceholder} aria-hidden="true" />
@@ -69,93 +62,60 @@ export default function HomePage() {
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>
-            <span aria-hidden="true" /> SOCIAL DEDUCTION FOR REAL FRIENDS
+            <span aria-hidden="true" /> PARTY GAME FOR FRIENDS
           </p>
-          <h1>One word is wrong.<br />One friend is lying.</h1>
-          <p className={styles.heroDescription}>
-            Undercover turns any table into a guessing game. Read your secret word, give a
-            careful clue, and find the player who does not belong.
+          <h1>Find the friend with the wrong word.</h1>
+          <p className={styles.description}>
+            Undercover is a simple social deduction game. Give a careful clue,
+            read the room, and work out who does not belong.
           </p>
 
           <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href={username ? "/dashboard" : "/login"}>
-              {username ? "Open game lobby" : "Enter the lobby"}
+            <Link className={styles.primaryAction} href={lobbyHref}>
+              {username ? "View rooms" : "Start playing"}
               <span aria-hidden="true">→</span>
             </Link>
-            <a className={styles.textAction} href="#how-to-play">
-              See how it works <span aria-hidden="true">↓</span>
-            </a>
+            <a className={styles.secondaryAction} href="#how-to-play">How to play</a>
           </div>
 
-          <dl className={styles.heroFacts} aria-label="Undercover game facts">
-            <div><dt>4–12</dt><dd>players</dd></div>
-            <div><dt>10–20</dt><dd>minutes</dd></div>
-            <div><dt>Browser</dt><dd>no download</dd></div>
-          </dl>
-        </div>
-
-        <div className={styles.gameBoard} aria-label="Preview of Undercover secret word cards">
-          <div className={styles.boardTopline}>
-            <span>UNDERCOVER</span>
-            <span className={styles.developmentStatus}><i /> IN DEVELOPMENT</span>
-          </div>
-
-          <div className={styles.cardStage} aria-hidden="true">
-            <div className={`${styles.wordCard} ${styles.backCard}`}>
-              <span>FALZO</span>
-              <strong>?</strong>
-              <small>KEEP IT SECRET</small>
-            </div>
-            <div className={`${styles.wordCard} ${styles.civilianCard}`}>
-              <span>YOUR WORD</span>
-              <strong>FOREST</strong>
-              <small>CIVILIAN</small>
-            </div>
-            <div className={`${styles.wordCard} ${styles.undercoverCard}`}>
-              <span>YOUR WORD</span>
-              <strong>JUNGLE</strong>
-              <small>UNDERCOVER</small>
-            </div>
-          </div>
-
-          <div className={styles.boardFooter}>
-            <div className={styles.playerStack} aria-hidden="true">
-              <span>L</span><span>M</span><span>A</span><span>+3</span>
-            </div>
-            <span>Who has the wrong word?</span>
+          <div className={styles.gameFacts} aria-label="Game details">
+            <span><strong>4–12</strong> players</span>
+            <span><strong>10–20</strong> minutes</span>
+            <span><strong>Free</strong> in browser</span>
           </div>
         </div>
-      </section>
 
-      <section className={styles.gameStrip} aria-label="Game highlights">
-        <span>NO APP STORE</span>
-        <i aria-hidden="true">✦</i>
-        <span>ONE SECRET WORD</span>
-        <i aria-hidden="true">✦</i>
-        <span>ENDLESS ACCUSATIONS</span>
-        <i aria-hidden="true">✦</i>
-        <span>MADE FOR GAME NIGHT</span>
-      </section>
+        <div className={styles.gamePreview} aria-label="Undercover game preview">
+          <div className={styles.previewHeader}>
+            <div>
+              <span className={styles.previewLabel}>GAME 01</span>
+              <h2>Undercover</h2>
+            </div>
+            <span className={styles.status}><i aria-hidden="true" /> IN DEVELOPMENT</span>
+          </div>
 
-      <section className={styles.gameIntro} id="undercover">
-        <div className={styles.introNumber}>01</div>
-        <div className={styles.introCopy}>
-          <p className={styles.darkEyebrow}>MEET THE FIRST GAME</p>
-          <h2>Simple rules.<br />Suspicious friends.</h2>
-        </div>
-        <div className={styles.introDescription}>
-          <p>
-            Undercover is easy to explain and hard to master. You do not need a board, a deck,
-            or a long tutorial—just a group that thinks it knows each other.
-          </p>
-          <span>Social deduction · Word game · Party game</span>
+          <div className={styles.secretWord}>
+            <span>YOUR SECRET WORD</span>
+            <strong>FOREST</strong>
+            <small>Keep it hidden from the table</small>
+          </div>
+
+          <div className={styles.previewFooter}>
+            <div className={styles.players} aria-hidden="true">
+              <span>L</span>
+              <span>M</span>
+              <span>A</span>
+              <span>+3</span>
+            </div>
+            <p>One player has a different word.</p>
+          </div>
         </div>
       </section>
 
       <section className={styles.howToPlay} id="how-to-play" aria-labelledby="how-title">
-        <div className={styles.sectionTitle}>
-          <p>HOW A ROUND WORKS</p>
-          <h2 id="how-title">Three moves between<br />friends and suspicion.</h2>
+        <div className={styles.sectionHeading}>
+          <p>HOW TO PLAY</p>
+          <h2 id="how-title">Easy to learn.<br />Hard to fake.</h2>
         </div>
 
         <ol className={styles.steps}>
@@ -169,16 +129,17 @@ export default function HomePage() {
             </li>
           ))}
         </ol>
+      </section>
 
-        <div className={styles.bottomCta}>
-          <div>
-            <span>FALZO GAME 01</span>
-            <h2>The table is almost ready.</h2>
-          </div>
-          <Link href={username ? "/dashboard" : "/login"}>
-            {username ? "Go to your lobby" : "Join Falzo"} <span aria-hidden="true">→</span>
-          </Link>
+      <section className={styles.cta}>
+        <div>
+          <span>READY FOR GAME NIGHT?</span>
+          <h2>Take a seat and test your friends.</h2>
         </div>
+        <Link href={lobbyHref}>
+          {username ? "Open lobby" : "Join Falzo"}
+          <span aria-hidden="true">→</span>
+        </Link>
       </section>
 
       <footer className={styles.footer}>
@@ -186,7 +147,7 @@ export default function HomePage() {
           <span aria-hidden="true">F</span>
           falzo
         </Link>
-        <p>Games for dinners, road trips, and nights with friends.</p>
+        <p>Simple games for real friends.</p>
         <small>© 2026 FALZO</small>
       </footer>
     </main>

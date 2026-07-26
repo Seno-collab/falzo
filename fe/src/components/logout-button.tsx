@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { logout } from "@/lib/api";
-import { clearSession, getSession } from "@/lib/auth";
+import { clearSession, getStoredSession } from "@/lib/auth";
 
 export function LogoutButton() {
   const router = useRouter();
 
   async function handleLogout() {
-    const session = getSession();
+    const session = getStoredSession();
     clearSession();
 
     if (session?.refresh_token) {

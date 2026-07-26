@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
+import { useSession } from "@/components/session-guard";
+import { ErrorScreen } from "@/components/error-screen";
 import { ChatPanel, type ChatMessage } from "@/features/chat/chat-panel";
 import {
   dealCards,
@@ -11,15 +13,14 @@ import {
   type PlayerCard,
   type RoomPlayer,
 } from "@/features/rooms/data";
-import { getSession } from "@/lib/auth";
 import styles from "./room.module.css";
 
 type DealPhase = "waiting" | "dealing" | "ready";
 
 export default function RoomDetailPage() {
   const params = useParams<{ roomId: string }>();
-  const router = useRouter();
-  const [username, setUsername] = useState<string | null>(null);
+  const session = useSession();
+  const username = session.username;
   const [cards, setCards] = useState<PlayerCard[]>([]);
   const [cardRevealed, setCardRevealed] = useState(false);
   const [dealPhase, setDealPhase] = useState<DealPhase>("waiting");
@@ -29,22 +30,19 @@ export default function RoomDetailPage() {
   const dealTimersRef = useRef<number[]>([]);
 
   const room = useMemo(
-    () => (username ? getRoomForPlayer(params.roomId, username) : undefined),
+    () => getRoomForPlayer(params.roomId, username),
     [params.roomId, username],
   );
   const initialRoomMessages = useMemo(
     () => (room ? createInitialMessages(room.players, room.status) : []),
     [room],
   );
-
-  useEffect(() => {
-    const session = getSession();
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
-    setUsername(session.username);
-  }, [router]);
+  const rankedPlayers = useMemo(
+    () => room
+      ? [...room.players].sort((left, right) => right.score - left.score)
+      : [],
+    [room],
+  );
 
   useEffect(() => {
     if (room) {
@@ -64,18 +62,16 @@ export default function RoomDetailPage() {
     };
   }, [room]);
 
-  if (!username) {
-    return <main className={styles.loading}>Preparing the room…</main>;
-  }
-
   if (!room) {
     return (
-      <main className={styles.notFound}>
-        <span aria-hidden="true">?</span>
-        <h1>Room not found</h1>
-        <p>This demo room may have closed or the link is incorrect.</p>
-        <Link href="/dashboard">Back to rooms</Link>
-      </main>
+      <ErrorScreen
+        description="This room may have closed, or the invite link is incorrect."
+        eyebrow="ROOM NOT FOUND"
+        primaryHref="/dashboard"
+        primaryLabel="Back to rooms"
+        statusCode="404"
+        title="This room has left the table."
+      />
     );
   }
 
@@ -387,6 +383,58 @@ export default function RoomDetailPage() {
             </aside>
           </div>
         </div>
+
+        <section className={styles.leaderboard} aria-labelledby="leaderboard-title">
+          <div className={styles.leaderboardHeading}>
+            <div>
+              <p>ROOM STANDINGS</p>
+              <h2 id="leaderboard-title">Leaderboard</h2>
+            </div>
+            <span>{room.players.length} players · Round {room.round}</span>
+          </div>
+
+          <div className={styles.leaderboardTable}>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankedPlayers.map((player, index) => (
+                  <tr className={player.current ? styles.currentRanking : undefined} key={player.id}>
+                    <td>
+                      <span className={`${styles.rankNumber} ${index < 3 ? styles.topRank : ""}`}>
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                    </td>
+                    <td>
+                      <div className={styles.rankedPlayer}>
+                        <span className={`${styles.rankedAvatar} ${styles[player.color]}`} aria-hidden="true">
+                          {player.name.charAt(0).toUpperCase()}
+                        </span>
+                        <strong>{player.name}</strong>
+                        {player.current && <small>YOU</small>}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={styles.playerStatus}>
+                        {player.host ? "Room admin" : "Player"}
+                      </span>
+                    </td>
+                    <td className={styles.scoreCell}>
+                      <strong>{player.score}</strong>
+                      <span>PTS</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         <footer className={styles.roomNote}>
           <div>

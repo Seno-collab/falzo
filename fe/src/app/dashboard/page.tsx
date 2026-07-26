@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
+import { useSession } from "@/components/session-guard";
 import { ChatPanel, type ChatMessage } from "@/features/chat/chat-panel";
 import { getRoomsForPlayer } from "@/features/rooms/data";
-import { getSession } from "@/lib/auth";
 import styles from "./dashboard.module.css";
 
 type Friend = {
@@ -26,28 +25,12 @@ const friends: readonly Friend[] = [
 ];
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState<string | null>(null);
+  const session = useSession();
+  const username = session.username;
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const session = getSession();
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
-    setUsername(session.username);
-  }, [router]);
-
-  const rooms = useMemo(
-    () => (username ? getRoomsForPlayer(username) : []),
-    [username],
-  );
+  const rooms = useMemo(() => getRoomsForPlayer(username), [username]);
   const selectedFriend = friends.find((friend) => friend.id === selectedFriendId);
-
-  if (!username) {
-    return <main className={styles.loading}>Loading rooms…</main>;
-  }
 
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openRooms = rooms.filter((room) => room.status === "waiting").length;
@@ -187,12 +170,16 @@ export default function DashboardPage() {
                         <span className={styles.morePlayers}>+{room.players.length - 5}</span>
                       )}
                     </div>
-                    <span>{room.players.length}/{room.maxPlayers} seated</span>
+                    <span className={styles.seatedCount}>
+                      {room.players.length}/{room.maxPlayers} seated
+                    </span>
                   </div>
 
                   <div className={styles.roomFooter}>
-                    <span>{isFull ? "Room full" : `${room.maxPlayers - room.players.length} seats open`}</span>
-                    <Link href={`/rooms/${room.id}`}>
+                    <span className={!isFull ? styles.openSeats : undefined}>
+                      {isFull ? "Room full" : `${room.maxPlayers - room.players.length} seats open`}
+                    </span>
+                    <Link className={styles.viewRoomButton} href={`/rooms/${room.id}`}>
                       View room <span aria-hidden="true">→</span>
                     </Link>
                   </div>

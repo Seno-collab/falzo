@@ -4,6 +4,7 @@ export type RoomPlayer = {
   id: string;
   name: string;
   color: "lime" | "coral" | "blue" | "sand" | "violet" | "mint";
+  score: number;
   host?: boolean;
   current?: boolean;
 };
@@ -28,6 +29,7 @@ const currentPlayer: RoomPlayer = {
   id: "current-player",
   name: "You",
   color: "lime",
+  score: 0,
   current: true,
 };
 
@@ -40,11 +42,11 @@ export const rooms: readonly GameRoom[] = [
     round: 1,
     maxPlayers: 8,
     players: [
-      { id: "minh", name: "Minh", color: "coral", host: true },
-      currentPlayer,
-      { id: "lan", name: "Lan", color: "blue" },
-      { id: "bao", name: "Bảo", color: "sand" },
-      { id: "vy", name: "Vy", color: "violet" },
+      { id: "minh", name: "Minh", color: "coral", score: 18, host: true },
+      { ...currentPlayer, score: 12 },
+      { id: "lan", name: "Lan", color: "blue", score: 10 },
+      { id: "bao", name: "Bảo", color: "sand", score: 7 },
+      { id: "vy", name: "Vy", color: "violet", score: 4 },
     ],
   },
   {
@@ -55,12 +57,12 @@ export const rooms: readonly GameRoom[] = [
     round: 2,
     maxPlayers: 8,
     players: [
-      { id: "an", name: "An", color: "blue", host: true },
-      { id: "phuong", name: "Phương", color: "coral" },
-      currentPlayer,
-      { id: "khoa", name: "Khoa", color: "mint" },
-      { id: "tram", name: "Trâm", color: "violet" },
-      { id: "duy", name: "Duy", color: "sand" },
+      { id: "an", name: "An", color: "blue", score: 32, host: true },
+      { id: "phuong", name: "Phương", color: "coral", score: 26 },
+      { ...currentPlayer, score: 22 },
+      { id: "khoa", name: "Khoa", color: "mint", score: 18 },
+      { id: "tram", name: "Trâm", color: "violet", score: 14 },
+      { id: "duy", name: "Duy", color: "sand", score: 8 },
     ],
   },
   {
@@ -71,9 +73,9 @@ export const rooms: readonly GameRoom[] = [
     round: 1,
     maxPlayers: 6,
     players: [
-      { id: "ha", name: "Hà", color: "mint" },
-      { id: "nam", name: "Nam", color: "sand" },
-      { ...currentPlayer, host: true },
+      { id: "ha", name: "Hà", color: "mint", score: 8 },
+      { id: "nam", name: "Nam", color: "sand", score: 6 },
+      { ...currentPlayer, score: 4, host: true },
     ],
   },
   {
@@ -84,11 +86,11 @@ export const rooms: readonly GameRoom[] = [
     round: 1,
     maxPlayers: 10,
     players: [
-      { id: "linh", name: "Linh", color: "violet", host: true },
-      { id: "son", name: "Sơn", color: "coral" },
-      currentPlayer,
-      { id: "mai", name: "Mai", color: "blue" },
-      { id: "tuan", name: "Tuấn", color: "sand" },
+      { id: "linh", name: "Linh", color: "violet", score: 21, host: true },
+      { id: "son", name: "Sơn", color: "coral", score: 17 },
+      { ...currentPlayer, score: 15 },
+      { id: "mai", name: "Mai", color: "blue", score: 11 },
+      { id: "tuan", name: "Tuấn", color: "sand", score: 6 },
     ],
   },
   {
@@ -99,13 +101,13 @@ export const rooms: readonly GameRoom[] = [
     round: 3,
     maxPlayers: 8,
     players: [
-      { id: "nhi", name: "Nhi", color: "coral", host: true },
-      currentPlayer,
-      { id: "quan", name: "Quân", color: "blue" },
-      { id: "thu", name: "Thu", color: "mint" },
-      { id: "dat", name: "Đạt", color: "sand" },
-      { id: "yen", name: "Yến", color: "violet" },
-      { id: "long", name: "Long", color: "coral" },
+      { id: "nhi", name: "Nhi", color: "coral", score: 46, host: true },
+      { ...currentPlayer, score: 39 },
+      { id: "quan", name: "Quân", color: "blue", score: 35 },
+      { id: "thu", name: "Thu", color: "mint", score: 29 },
+      { id: "dat", name: "Đạt", color: "sand", score: 21 },
+      { id: "yen", name: "Yến", color: "violet", score: 16 },
+      { id: "long", name: "Long", color: "coral", score: 9 },
     ],
   },
 ] as const;

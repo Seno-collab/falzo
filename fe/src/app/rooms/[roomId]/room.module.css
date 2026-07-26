@@ -837,6 +837,165 @@ button.playerCard {
   text-transform: uppercase;
 }
 
+.leaderboard {
+  margin-top: 14px;
+  padding: 24px;
+  border: 1px solid #354038;
+  border-radius: 20px 20px 20px 6px;
+  background: #19221c;
+}
+
+.leaderboardHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.leaderboardHeading p {
+  margin: 0 0 6px;
+  color: #d9f275;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .17em;
+}
+
+.leaderboardHeading h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -.04em;
+}
+
+.leaderboardHeading > span {
+  color: #7f8b82;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.leaderboardTable {
+  overflow-x: auto;
+}
+
+.leaderboard table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboard th {
+  padding: 0 14px 10px;
+  color: #6f7a72;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: .13em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.leaderboard th:first-child,
+.leaderboard td:first-child {
+  width: 72px;
+  padding-left: 0;
+}
+
+.leaderboard th:last-child,
+.leaderboard td:last-child {
+  padding-right: 0;
+  text-align: right;
+}
+
+.leaderboard td {
+  padding: 10px 14px;
+  border-top: 1px solid #303a32;
+  color: #aab4ac;
+  font-size: 9px;
+}
+
+.leaderboard tbody tr {
+  transition: background .15s ease;
+}
+
+.leaderboard tbody tr:hover,
+.leaderboard .currentRanking {
+  background: rgb(217 242 117 / 4%);
+}
+
+.rankNumber {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  border: 1px solid #424e45;
+  border-radius: 9px 9px 9px 3px;
+  color: #828e85;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  font-weight: 850;
+}
+
+.topRank {
+  border-color: #75834d;
+  background: rgb(217 242 117 / 8%);
+  color: #d9f275;
+}
+
+.rankedPlayer {
+  display: flex;
+  min-width: 150px;
+  align-items: center;
+  gap: 10px;
+}
+
+.rankedAvatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #172019;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.rankedPlayer strong {
+  overflow: hidden;
+  color: #e8ece8;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankedPlayer small {
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: #d9f275;
+  color: #172019;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.playerStatus {
+  color: #8b968e;
+  font-size: 8px;
+}
+
+.scoreCell strong {
+  color: #f5f5ec;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+}
+
+.scoreCell span {
+  margin-left: 5px;
+  color: #69746c;
+  font-size: 6px;
+  font-weight: 850;
+}
+
 .roomNote {
   display: flex;
   align-items: center;
@@ -1093,6 +1252,27 @@ button.playerCard {
   }
 
   .roomNote > span {
+    display: none;
+  }
+
+  .leaderboard {
+    padding: 18px 14px;
+  }
+
+  .leaderboardHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .leaderboard th,
+  .leaderboard td {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .leaderboard th:nth-child(3),
+  .leaderboard td:nth-child(3) {
     display: none;
   }
 

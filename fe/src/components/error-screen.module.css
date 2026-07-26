@@ -1,0 +1,206 @@
+.errorBody {
+  margin: 0;
+}
+
+.page {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  padding: 48px 24px;
+  background:
+    radial-gradient(circle at 18% 82%, rgb(239 118 95 / 10%), transparent 27%),
+    radial-gradient(circle at 86% 12%, rgb(217 242 117 / 10%), transparent 24%),
+    #131915;
+  color: #f7f4e9;
+  font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
+}
+
+.orbit {
+  position: absolute;
+  width: min(74vw, 760px);
+  height: min(74vw, 760px);
+  right: -28vw;
+  top: -38vw;
+  border: 1px solid rgb(217 242 117 / 8%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 80px rgb(217 242 117 / 2%),
+    0 0 0 160px rgb(217 242 117 / 1.5%);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 720px);
+  justify-items: center;
+  text-align: center;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 52px;
+  color: #f7f4e9;
+  font-size: 21px;
+  font-weight: 850;
+  letter-spacing: -.045em;
+  text-decoration: none;
+}
+
+.brand > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px 10px 10px 3px;
+  background: #d9f275;
+  color: #15231b;
+  font-size: 16px;
+  letter-spacing: 0;
+  transform: rotate(-4deg);
+}
+
+.errorMark {
+  position: relative;
+  display: grid;
+  width: min(100%, 420px);
+  min-height: 180px;
+  place-items: center;
+  margin-bottom: 20px;
+}
+
+.errorMark > span {
+  color: rgb(247 244 233 / 6%);
+  font-size: clamp(128px, 26vw, 220px);
+  font-weight: 900;
+  letter-spacing: -.1em;
+  line-height: .72;
+}
+
+.errorMark > div {
+  position: absolute;
+  display: flex;
+  width: 104px;
+  height: 146px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 10px;
+  border: 1px solid #6d7c60;
+  border-radius: 17px 17px 17px 6px;
+  background: #1c2c21;
+  color: #d9f275;
+  box-shadow: 0 22px 50px rgb(0 0 0 / 32%);
+  transform: rotate(5deg);
+}
+
+.errorMark small {
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.errorMark strong {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgb(217 242 117 / 28%);
+  border-radius: 50%;
+  font-size: 25px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #d9f275;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .18em;
+}
+
+.content h1 {
+  max-width: 680px;
+  margin: 0;
+  font-size: clamp(43px, 7vw, 72px);
+  letter-spacing: -.065em;
+  line-height: .96;
+}
+
+.description {
+  max-width: 540px;
+  margin: 20px 0 0;
+  color: #9ca79f;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 850;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryAction {
+  border: 1px solid #d9f275;
+  background: #d9f275;
+  color: #172019;
+}
+
+.secondaryAction {
+  border: 1px solid #455148;
+  background: transparent;
+  color: #dce1dd;
+}
+
+.textAction {
+  padding: 10px;
+  color: #929d95;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 32px 18px;
+  }
+
+  .brand {
+    margin-bottom: 36px;
+  }
+
+  .errorMark {
+    min-height: 150px;
+  }
+
+  .description {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand > span,
+  .errorMark > div {
+    transform: none;
+  }
+}

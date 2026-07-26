@@ -516,6 +516,15 @@
   white-space: nowrap;
 }
 
+.players > .seatedCount {
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgb(196 172 232 / 12%);
+  color: #c4ace8;
+  font-size: 10px;
+  font-weight: 850;
+}
+
 .playerStack {
   display: flex;
   padding-left: 6px;
@@ -557,18 +566,39 @@
   font-size: 9px;
 }
 
-.roomFooter a {
+.roomFooter > .openSeats {
+  color: #e4e8e1;
+  font-weight: 850;
+}
+
+.viewRoomButton {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #f1f2eb;
+  padding: 9px 12px;
+  border: 1px solid #d9f275;
+  border-radius: 10px;
+  background: #d9f275;
+  color: #18221b;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 850;
   text-decoration: none;
+  transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
 }
 
-.roomFooter a span {
-  color: #d9f275;
+.viewRoomButton:hover {
+  border-color: #e7f99c;
+  background: #e7f99c;
+  transform: translateX(2px);
+}
+
+.viewRoomButton:focus-visible {
+  outline: 2px solid #f4f2e8;
+  outline-offset: 3px;
+}
+
+.viewRoomButton span {
+  color: currentColor;
   font-size: 15px;
 }
 

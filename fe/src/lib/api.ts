@@ -4,6 +4,7 @@ import type {
   AuthTokens,
   GoogleLoginResult,
 } from "@/types/auth";
+import { beginApiRequest } from "@/lib/api-activity";
 
 const API_PREFIX = "/api";
 
@@ -19,32 +20,38 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${API_PREFIX}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-  });
+  const finishRequest = beginApiRequest();
 
-  if (response.status === 204) {
-    return undefined as T;
+  try {
+    const response = await fetch(`${API_PREFIX}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init.headers,
+      },
+    });
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const payload = (await response.json().catch(() => null)) as
+      | ApiResponse<T>
+      | ApiErrorPayload
+      | null;
+
+    if (!response.ok) {
+      throw new ApiError(
+        payload?.message ?? "Something went wrong",
+        response.status,
+        payload?.code,
+      );
+    }
+
+    return (payload as ApiResponse<T>).data;
+  } finally {
+    finishRequest();
   }
-
-  const payload = (await response.json().catch(() => null)) as
-    | ApiResponse<T>
-    | ApiErrorPayload
-    | null;
-
-  if (!response.ok) {
-    throw new ApiError(
-      payload?.message ?? "Something went wrong",
-      response.status,
-      payload?.code,
-    );
-  }
-
-  return (payload as ApiResponse<T>).data;
 }
 
 function post<T>(path: string, body: unknown) {
