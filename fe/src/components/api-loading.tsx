@@ -22,18 +22,27 @@ export function ApiLoading({
 }: ApiLoadingProps) {
   const content = (
     <div className="api-loading-content">
-      <div className="api-loading-card" aria-hidden="true">
-        <span>FALZO</span>
-        <strong>?</strong>
-        <small>PLEASE WAIT</small>
-      </div>
-      <div className="api-loading-copy">
-        <strong>{label}</strong>
-        <span>
+      <div className="api-loading-panel">
+        <div className="api-loading-brand" aria-hidden="true">
+          <span>F</span>
+          <div>
+            <strong>falzo</strong>
+            <small>GAME LOBBY</small>
+          </div>
           <i />
-          <i />
-          <i />
-        </span>
+        </div>
+
+        <div className="api-loading-status">
+          <span aria-hidden="true">?</span>
+          <div>
+            <strong>{label}</strong>
+            <small>Keeping your seat ready</small>
+          </div>
+        </div>
+
+        <div className="api-loading-progress" aria-hidden="true">
+          <span />
+        </div>
       </div>
     </div>
   );

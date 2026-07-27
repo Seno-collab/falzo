@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { useSession } from "@/components/session-guard";
 import { ChatPanel, type ChatMessage } from "@/features/chat/chat-panel";
-import { getRoomsForPlayer } from "@/features/rooms/data";
+import { mapRoomResponse, type GameRoom } from "@/features/rooms/data";
+import { ApiError, createRoom, joinRoom, listRooms } from "@/lib/api";
+import { restoreSession } from "@/lib/auth";
+import type { RoomLanguage } from "@/types/room";
 import styles from "./dashboard.module.css";
 
 type Friend = {
@@ -25,15 +29,123 @@ const friends: readonly Friend[] = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const session = useSession();
   const username = session.username;
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<GameRoom[]>([]);
+  const [roomsLoaded, setRoomsLoaded] = useState(false);
+  const [roomsError, setRoomsError] = useState("");
+  const [roomsReloadToken, setRoomsReloadToken] = useState(0);
+  const [roomAction, setRoomAction] = useState<"create" | "join" | null>(null);
+  const [roomName, setRoomName] = useState("");
+  const [maxPlayers, setMaxPlayers] = useState(8);
+  const [roomLanguage, setRoomLanguage] = useState<RoomLanguage>("vi");
+  const [inviteCode, setInviteCode] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const rooms = useMemo(() => getRoomsForPlayer(username), [username]);
   const selectedFriend = friends.find((friend) => friend.id === selectedFriendId);
 
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openRooms = rooms.filter((room) => room.status === "waiting").length;
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadRooms(trackActivity: boolean) {
+      try {
+        const activeSession = await restoreSession();
+        if (!activeSession) {
+          router.replace("/login");
+          return;
+        }
+        const response = await listRooms(activeSession.access_token, { trackActivity });
+        if (!active) return;
+        setRooms(response.map(mapRoomResponse));
+        setRoomsError("");
+        setRoomsLoaded(true);
+      } catch (error) {
+        if (active) {
+          setRoomsError(roomApiErrorMessage(error));
+          setRoomsLoaded(true);
+        }
+      }
+    }
+
+    void loadRooms(true);
+    const pollTimer = window.setInterval(() => void loadRooms(false), 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(pollTimer);
+    };
+  }, [roomsReloadToken, router]);
+
+  function retryRooms() {
+    setRoomsError("");
+    setRoomsLoaded(false);
+    setRoomsReloadToken((current) => current + 1);
+  }
+
+  function openRoomAction(action: "create" | "join") {
+    setRoomAction(action);
+    setActionError("");
+  }
+
+  async function handleCreateRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = roomName.trim();
+    if (!name) {
+      setActionError("Enter a room name.");
+      return;
+    }
+
+    setSubmitting(true);
+    setActionError("");
+    try {
+      const activeSession = await restoreSession();
+      if (!activeSession) {
+        router.replace("/login");
+        return;
+      }
+      const response = await createRoom(activeSession.access_token, {
+        name,
+        maxPlayers,
+        languageCode: roomLanguage,
+      });
+      router.push(`/rooms/${response.id}`);
+    } catch (error) {
+      setActionError(roomApiErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleJoinRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = inviteCode.trim().toUpperCase();
+    if (code.length < 6) {
+      setActionError("Enter a valid invite code.");
+      return;
+    }
+
+    setSubmitting(true);
+    setActionError("");
+    try {
+      const activeSession = await restoreSession();
+      if (!activeSession) {
+        router.replace("/login");
+        return;
+      }
+      const response = await joinRoom(activeSession.access_token, code);
+      router.push(`/rooms/${response.id}`);
+    } catch (error) {
+      setActionError(roomApiErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <main className={styles.page}>
@@ -112,8 +224,8 @@ export default function DashboardPage() {
           <div className={styles.sidebarNote}>
             <span aria-hidden="true">i</span>
             <div>
-              <strong>Frontend room preview</strong>
-              <p>Rooms and cards are local demo data until the game API is ready.</p>
+              <strong>Live room lobby</strong>
+              <p>Rooms and private cards are synced by the server. Chat is still a local preview.</p>
             </div>
           </div>
         </aside>
@@ -131,14 +243,122 @@ export default function DashboardPage() {
           </div>
 
           <div className={styles.roomToolbar}>
-            <div>
+            <div className={styles.roomCount}>
               <span className={styles.liveDot} aria-hidden="true" />
-              <p><strong>{rooms.length} rooms</strong> available in this preview</p>
+              <p><strong>{rooms.length} rooms</strong> available now</p>
             </div>
-            <span>Invite code and create-room actions will connect to the backend later.</span>
+            <div className={styles.roomActions}>
+              <button onClick={() => openRoomAction("join")} type="button">
+                Join with code
+              </button>
+              <button className={styles.createRoomButton} onClick={() => openRoomAction("create")} type="button">
+                <span aria-hidden="true">+</span> Create room
+              </button>
+            </div>
           </div>
 
-          <div className={styles.roomGrid}>
+          {roomAction && (
+            <section className={styles.roomActionPanel} aria-labelledby="room-action-title">
+              <div className={styles.actionPanelHeading}>
+                <div>
+                  <p>{roomAction === "create" ? "NEW ROOM" : "ROOM INVITE"}</p>
+                  <h2 id="room-action-title">
+                    {roomAction === "create" ? "Create an Undercover room" : "Join your friends"}
+                  </h2>
+                </div>
+                <button
+                  aria-label="Close room form"
+                  className={styles.closeActionPanel}
+                  onClick={() => setRoomAction(null)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+
+              {roomAction === "create" ? (
+                <form className={styles.roomForm} onSubmit={handleCreateRoom}>
+                  <label>
+                    <span>Room name</span>
+                    <input
+                      autoFocus
+                      maxLength={80}
+                      onChange={(event) => setRoomName(event.target.value)}
+                      placeholder="Friday night"
+                      value={roomName}
+                    />
+                  </label>
+                  <label>
+                    <span>Players</span>
+                    <select
+                      onChange={(event) => setMaxPlayers(Number(event.target.value))}
+                      value={maxPlayers}
+                    >
+                      {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
+                        <option key={count} value={count}>{count} players</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Card language</span>
+                    <select
+                      onChange={(event) => setRoomLanguage(event.target.value as RoomLanguage)}
+                      value={roomLanguage}
+                    >
+                      <option value="vi">Tiếng Việt</option>
+                      <option value="en">English</option>
+                    </select>
+                  </label>
+                  <button disabled={submitting} type="submit">
+                    {submitting ? "Creating…" : "Create room"} <span aria-hidden="true">→</span>
+                  </button>
+                </form>
+              ) : (
+                <form className={styles.roomForm} onSubmit={handleJoinRoom}>
+                  <label className={styles.inviteField}>
+                    <span>Invite code</span>
+                    <input
+                      autoFocus
+                      maxLength={8}
+                      onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                      placeholder="OWL824"
+                      value={inviteCode}
+                    />
+                  </label>
+                  <button disabled={submitting} type="submit">
+                    {submitting ? "Joining…" : "Join room"} <span aria-hidden="true">→</span>
+                  </button>
+                </form>
+              )}
+
+              {actionError && (
+                <div className={styles.formError} role="alert">
+                  <span aria-hidden="true">!</span>
+                  <p>{actionError}</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {roomsError && (
+            <div className={styles.roomsError} role="alert">
+              <span className={styles.errorMark} aria-hidden="true">!</span>
+              <div>
+                <strong>Room server unavailable</strong>
+                <p>{roomsError}</p>
+                <small>
+                  {rooms.length > 0
+                    ? "Showing the last rooms we loaded."
+                    : "Your session is safe. Try again in a moment."}
+                </small>
+              </div>
+              <button onClick={retryRooms} type="button">
+                Try again <span aria-hidden="true">↻</span>
+              </button>
+            </div>
+          )}
+
+          {rooms.length > 0 ? <div className={styles.roomGrid}>
             {rooms.map((room) => {
               const isFull = room.players.length >= room.maxPlayers;
               return (
@@ -147,7 +367,12 @@ export default function DashboardPage() {
                     <span className={`${styles.status} ${styles[room.status]}`}>
                       {room.status === "waiting" ? "Waiting" : `Round ${room.round}`}
                     </span>
-                    <span className={styles.roomCode}>#{room.code}</span>
+                    <span className={styles.roomMeta}>
+                      <span className={styles.languageBadge}>
+                        {room.language === "vi" ? "VI" : "EN"}
+                      </span>
+                      <span className={styles.roomCode}>#{room.code}</span>
+                    </span>
                   </div>
 
                   <div>
@@ -186,7 +411,14 @@ export default function DashboardPage() {
                 </article>
               );
             })}
-          </div>
+          </div> : roomsLoaded && !roomsError && (
+            <div className={styles.emptyRooms}>
+              <span aria-hidden="true">?</span>
+              <h2>No rooms are open yet.</h2>
+              <p>Create the first room and invite your friends to take a seat.</p>
+              <button onClick={() => openRoomAction("create")} type="button">Create room</button>
+            </div>
+          )}
         </section>
       </div>
 
@@ -206,6 +438,11 @@ export default function DashboardPage() {
       )}
     </main>
   );
+}
+
+function roomApiErrorMessage(error: unknown) {
+  if (error instanceof ApiError) return error.message;
+  return "Could not reach the room server. Please try again.";
 }
 
 function createFriendMessages(friend: Friend): ChatMessage[] {

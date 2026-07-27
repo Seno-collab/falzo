@@ -144,8 +144,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("AUTH_LOCK_MINUTES", 15)
 	v.SetDefault("REDIS_KEY_PREFIX", "falzo")
 
-	v.SetDefault("GAME_MAX_PLAYERS_PER_ROOM", 4)
-	v.SetDefault("GAME_ROOM_TIMEOUT_SECONDS", 300)
+	v.SetDefault("GAME_MAX_PLAYERS_PER_ROOM", 12)
+	v.SetDefault("GAME_ROOM_TIMEOUT_SECONDS", 3600)
 }
 
 func (c *Config) Validate() error {
@@ -176,6 +176,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Google.ClientID == "" {
 		return fmt.Errorf("GOOGLE_CLIENT_ID is required")
+	}
+	if c.Game.MaxPlayersPerRoom < 4 || c.Game.MaxPlayersPerRoom > 12 {
+		return fmt.Errorf("GAME_MAX_PLAYERS_PER_ROOM must be between 4 and 12")
+	}
+	if c.Game.RoomTimeoutSeconds <= 0 {
+		return fmt.Errorf("GAME_ROOM_TIMEOUT_SECONDS must be positive")
 	}
 
 	return nil

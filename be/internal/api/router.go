@@ -10,7 +10,12 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(authHandler *handler.AuthHandler, logger *slog.Logger) *chi.Mux {
+func NewRouter(
+	authHandler *handler.AuthHandler,
+	roomHandler *handler.RoomHandler,
+	authenticator *apimiddleware.Authenticator,
+	logger *slog.Logger,
+) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(apimiddleware.RequestLogger(logger))
@@ -24,6 +29,15 @@ func NewRouter(authHandler *handler.AuthHandler, logger *slog.Logger) *chi.Mux {
 			r.Post("/reset-password", authHandler.ResetPassword)
 			r.Post("/logout", authHandler.Logout)
 			r.Post("/google/credential", authHandler.GoogleLogin)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(authenticator.RequireAccessToken)
+			r.Post("/rooms", roomHandler.Create)
+			r.Get("/rooms", roomHandler.List)
+			r.Post("/rooms/join", roomHandler.Join)
+			r.Get("/rooms/{roomID}", roomHandler.Get)
+			r.Post("/rooms/{roomID}/rounds", roomHandler.DealRound)
+			r.Get("/rooms/{roomID}/rounds/current/card", roomHandler.GetCurrentCard)
 		})
 	})
 	return r

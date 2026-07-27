@@ -117,6 +117,10 @@ func InvalidToken() *AppError {
 	return New(CodeInvalidToken, "Invalid or expired token", http.StatusUnauthorized)
 }
 
+func GameRoomFull() *AppError {
+	return New(CodeGameRoomFull, "Room is full", http.StatusConflict)
+}
+
 func WalletNotEnoughBalance() *AppError {
 	return New(CodeWalletNotEnoughBalance, "Wallet balance is not enough", http.StatusBadRequest)
 }

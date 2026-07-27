@@ -201,6 +201,14 @@
   font-size: 8px;
 }
 
+.dealError {
+  max-width: 280px;
+  color: #ff9c8b;
+  font-size: 8px;
+  line-height: 1.45;
+  text-align: right;
+}
+
 .roundConfirm {
   position: absolute;
   z-index: 30;
@@ -401,18 +409,8 @@
   text-transform: uppercase;
 }
 
-.myCardRevealed {
-  border-color: #fffdf4;
-  background: #fffdf4;
-  color: #172019;
-}
-
 .myCardReady {
   animation: deal-card .48s cubic-bezier(.2, .85, .35, 1.2) both;
-}
-
-.myCardRevealed strong {
-  font-size: 11px;
 }
 
 .board {
@@ -535,20 +533,6 @@ button.playerCard {
   letter-spacing: -.04em;
 }
 
-.revealedCard {
-  border-color: #f8f5e8;
-  background: #f8f5e8;
-  color: #19231c;
-}
-
-.revealedCard strong {
-  max-width: 100%;
-  overflow: hidden;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-}
-
 .undealtCard {
   border-style: dashed;
   border-color: #465149;
@@ -627,6 +611,162 @@ button.playerCard {
     rgb(7 13 9 / 88%);
   backdrop-filter: blur(9px);
   animation: deal-overlay-in .24s ease-out both;
+}
+
+.cardRevealOverlay {
+  position: fixed;
+  z-index: 120;
+  display: grid;
+  inset: 0;
+  place-items: center;
+  align-content: center;
+  gap: 20px;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 46%, rgb(217 242 117 / 15%), transparent 30%),
+    rgb(7 13 9 / 91%);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  animation: card-reveal-overlay-in .2s ease-out both;
+}
+
+.cardPromptOverlay {
+  background:
+    radial-gradient(circle at 50% 46%, rgb(139 92 246 / 18%), transparent 31%),
+    rgb(7 13 9 / 91%);
+}
+
+.facedownSecretCard,
+.revealedSecretCard {
+  position: relative;
+  display: flex;
+  width: min(280px, calc(100vw - 48px));
+  height: 400px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 34px 24px;
+  border: 1px solid #fffdf4;
+  border-radius: 28px 28px 28px 9px;
+  outline: 0;
+  background: #fffdf4;
+  color: #172019;
+  box-shadow: 0 42px 90px rgb(0 0 0 / 50%);
+  cursor: pointer;
+  animation: revealed-secret-card-in .38s cubic-bezier(.2, .85, .3, 1.12) both;
+}
+
+.facedownSecretCard {
+  border-color: rgb(217 242 117 / 72%);
+  background:
+    linear-gradient(145deg, rgb(217 242 117 / 9%), transparent 46%),
+    #17271d;
+  color: #d9f275;
+}
+
+.facedownSecretCard::after {
+  position: absolute;
+  width: 165px;
+  height: 165px;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgb(217 242 117 / 16%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 30px rgb(217 242 117 / 4%),
+    0 0 0 60px rgb(217 242 117 / 2%);
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.facedownSecretCard span,
+.facedownSecretCard strong,
+.facedownSecretCard small {
+  position: relative;
+  z-index: 1;
+}
+
+.facedownSecretCard span,
+.facedownSecretCard small {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.facedownSecretCard strong {
+  display: grid;
+  width: 108px;
+  height: 108px;
+  place-items: center;
+  border: 1px solid rgb(217 242 117 / 34%);
+  border-radius: 50%;
+  background: rgb(217 242 117 / 7%);
+  font-size: 58px;
+}
+
+.facedownSecretCard small {
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: #d9f275;
+  color: #172019;
+}
+
+.revealedSecretCard::before {
+  position: absolute;
+  width: 165px;
+  height: 165px;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgb(23 32 25 / 13%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 30px rgb(23 32 25 / 3%),
+    0 0 0 60px rgb(23 32 25 / 2%);
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.revealedSecretCard span,
+.revealedSecretCard strong,
+.revealedSecretCard small {
+  position: relative;
+  z-index: 1;
+}
+
+.revealedSecretCard span,
+.revealedSecretCard small {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.revealedSecretCard strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(30px, 8vw, 43px);
+  letter-spacing: -.055em;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.revealedSecretCard small {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #d9f275;
+}
+
+.cardRevealOverlay > p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: #aeb8b0;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .06em;
 }
 
 .dealOverlay::before,
@@ -979,21 +1119,60 @@ button.playerCard {
 }
 
 .playerStatus {
-  color: #8b968e;
-  font-size: 8px;
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: .05em;
+  white-space: nowrap;
 }
 
-.scoreCell strong {
-  color: #f5f5ec;
+.adminStatus {
+  border-color: rgb(247 191 75 / 34%);
+  background: rgb(247 191 75 / 11%);
+  color: #ffd77f;
+}
+
+.memberStatus {
+  border-color: rgb(104 196 255 / 30%);
+  background: rgb(104 196 255 / 10%);
+  color: #9ed7ff;
+}
+
+.scoreCell {
+  white-space: nowrap;
+}
+
+.scoreBadge {
+  display: inline-flex;
+  min-width: 58px;
+  min-height: 31px;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid rgb(177 132 255 / 38%);
+  border-radius: 10px;
+  background: rgb(139 92 246 / 15%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.scoreBadge strong {
+  color: #d9bcff;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1;
 }
 
-.scoreCell span {
-  margin-left: 5px;
-  color: #69746c;
+.scoreBadge small {
+  color: #a986df;
   font-size: 6px;
   font-weight: 850;
+  letter-spacing: .06em;
 }
 
 .roomNote {
@@ -1067,6 +1246,16 @@ button.playerCard {
 @keyframes deal-overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes card-reveal-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes revealed-secret-card-in {
+  from { opacity: 0; transform: translateY(24px) scale(.94) rotate(-2deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
 }
 
 @keyframes large-card-deal {
@@ -1295,6 +1484,22 @@ button.playerCard {
     padding: 16px;
   }
 
+  .cardRevealOverlay {
+    padding: 16px;
+  }
+
+  .revealedSecretCard {
+    width: min(245px, calc(100vw - 36px));
+    height: 350px;
+    padding: 28px 20px;
+  }
+
+  .facedownSecretCard {
+    width: min(245px, calc(100vw - 36px));
+    height: 350px;
+    padding: 28px 20px;
+  }
+
   .dealRecipient {
     min-width: 0;
   }
@@ -1338,6 +1543,9 @@ button.playerCard {
   .dealingTable .tableMark,
   .dealOverlay,
   .dealOverlay::after,
+  .cardRevealOverlay,
+  .facedownSecretCard,
+  .revealedSecretCard,
   .dealRecipient,
   .largeDealCard,
   .dealCounter {

@@ -2,37 +2,45 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { ApiLoading } from "@/components/api-loading";
 import { LogoutButton } from "@/components/logout-button";
 import { useSession } from "@/components/session-guard";
 import { ErrorScreen } from "@/components/error-screen";
 import { ChatPanel, type ChatMessage } from "@/features/chat/chat-panel";
 import {
-  dealCards,
-  getRoomForPlayer,
+  mapRoomResponse,
+  mapRoundCardResponse,
+  type GameRoom,
   type PlayerCard,
   type RoomPlayer,
 } from "@/features/rooms/data";
+import { ApiError, dealRoomRound, getCurrentRoomCard, getRoom } from "@/lib/api";
+import { restoreSession } from "@/lib/auth";
 import styles from "./room.module.css";
 
 type DealPhase = "waiting" | "dealing" | "ready";
+type CardOverlay = "hidden" | "facedown" | "revealed";
 
 export default function RoomDetailPage() {
   const params = useParams<{ roomId: string }>();
+  const router = useRouter();
   const session = useSession();
   const username = session.username;
+  const [room, setRoom] = useState<GameRoom | null>(null);
+  const [roomState, setRoomState] = useState<"loading" | "ready" | "not-found" | "error">("loading");
+  const [reloadToken, setReloadToken] = useState(0);
   const [cards, setCards] = useState<PlayerCard[]>([]);
-  const [cardRevealed, setCardRevealed] = useState(false);
+  const [cardRound, setCardRound] = useState(0);
+  const [cardOverlay, setCardOverlay] = useState<CardOverlay>("hidden");
   const [dealPhase, setDealPhase] = useState<DealPhase>("waiting");
+  const [dealPending, setDealPending] = useState(false);
+  const [dealError, setDealError] = useState("");
   const [dealtPlayerIds, setDealtPlayerIds] = useState<string[]>([]);
   const [activeDealPlayerId, setActiveDealPlayerId] = useState<string | null>(null);
   const [showNextRoundConfirm, setShowNextRoundConfirm] = useState(false);
   const dealTimersRef = useRef<number[]>([]);
 
-  const room = useMemo(
-    () => getRoomForPlayer(params.roomId, username),
-    [params.roomId, username],
-  );
   const initialRoomMessages = useMemo(
     () => (room ? createInitialMessages(room.players, room.status) : []),
     [room],
@@ -44,13 +52,58 @@ export default function RoomDetailPage() {
     [room],
   );
 
+  const rosterKey = room
+    ? `${room.id}:${room.players.map((player) => player.id).join(",")}`
+    : "";
+
   useEffect(() => {
-    if (room) {
+    let active = true;
+
+    async function loadRoom(trackActivity: boolean) {
+      try {
+        const activeSession = await restoreSession();
+        if (!activeSession) {
+          router.replace("/login");
+          return;
+        }
+        const response = await getRoom(activeSession.access_token, params.roomId, { trackActivity });
+        if (!active) return;
+        setRoom(mapRoomResponse(response));
+        setRoomState("ready");
+      } catch (error) {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 404) {
+          setRoom(null);
+          setRoomState("not-found");
+          return;
+        }
+        if (trackActivity) {
+          setRoom(null);
+          setRoomState("error");
+        }
+      }
+    }
+
+    setRoomState("loading");
+    void loadRoom(true);
+    const pollTimer = window.setInterval(() => void loadRoom(false), 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(pollTimer);
+    };
+  }, [params.roomId, reloadToken, router]);
+
+  useEffect(() => {
+    if (rosterKey) {
       dealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       dealTimersRef.current = [];
       setCards([]);
-      setCardRevealed(false);
+      setCardRound(0);
+      setCardOverlay("hidden");
       setDealPhase("waiting");
+      setDealPending(false);
+      setDealError("");
       setDealtPlayerIds([]);
       setActiveDealPlayerId(null);
       setShowNextRoundConfirm(false);
@@ -60,9 +113,69 @@ export default function RoomDetailPage() {
       dealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       dealTimersRef.current = [];
     };
-  }, [room]);
+  }, [rosterKey]);
 
-  if (!room) {
+  useEffect(() => {
+    if (cardOverlay === "hidden") return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setCardOverlay("hidden");
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [cardOverlay]);
+
+  useEffect(() => {
+    if (
+      roomState !== "ready"
+      || !room
+      || room.status !== "playing"
+      || room.round <= cardRound
+      || dealPhase === "dealing"
+    ) {
+      return;
+    }
+
+    const activeRoom = room;
+    let active = true;
+
+    async function loadCurrentCard() {
+      try {
+        const activeSession = await restoreSession();
+        if (!activeSession) {
+          router.replace("/login");
+          return;
+        }
+        const response = await getCurrentRoomCard(
+          activeSession.access_token,
+          activeRoom.id,
+          { trackActivity: false },
+        );
+        if (!active) return;
+        setCards([mapRoundCardResponse(response)]);
+        setCardRound(response.round);
+        setDealtPlayerIds(activeRoom.players.map((player) => player.id));
+        setDealPhase("ready");
+        setCardOverlay("facedown");
+        setDealError("");
+      } catch (error) {
+        if (!active || (error instanceof ApiError && error.status === 404)) return;
+        setDealError(error instanceof Error ? error.message : "Could not load your card");
+      }
+    }
+
+    void loadCurrentCard();
+    return () => {
+      active = false;
+    };
+  }, [cardRound, dealPhase, room, roomState, router]);
+
+  if (roomState === "loading") {
+    return <ApiLoading label="Loading room…" variant="page" />;
+  }
+
+  if (roomState === "not-found") {
     return (
       <ErrorScreen
         description="This room may have closed, or the invite link is incorrect."
@@ -71,6 +184,20 @@ export default function RoomDetailPage() {
         primaryLabel="Back to rooms"
         statusCode="404"
         title="This room has left the table."
+      />
+    );
+  }
+
+  if (roomState === "error" || !room) {
+    return (
+      <ErrorScreen
+        description="The room server could not be reached. Your room was not intentionally closed."
+        eyebrow="ROOM UNAVAILABLE"
+        onRetry={() => setReloadToken((current) => current + 1)}
+        primaryHref="/dashboard"
+        primaryLabel="Back to rooms"
+        statusCode="500"
+        title="We could not load this room."
       />
     );
   }
@@ -93,14 +220,38 @@ export default function RoomDetailPage() {
     seats[index] = player;
   });
 
-  function startGame() {
-    if (!room || !isRoomAdmin || dealPhase === "dealing") return;
+  async function startGame() {
+    if (!room || !isRoomAdmin || dealPhase === "dealing" || dealPending) return;
 
     dealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     dealTimersRef.current = [];
     setShowNextRoundConfirm(false);
-    setCards(dealCards(room.players));
-    setCardRevealed(false);
+    setDealPending(true);
+    setDealError("");
+    setCardOverlay("hidden");
+
+    try {
+      const activeSession = await restoreSession();
+      if (!activeSession) {
+        router.replace("/login");
+        return;
+      }
+      const response = await dealRoomRound(activeSession.access_token, room.id);
+      setCards([mapRoundCardResponse(response)]);
+      setCardRound(response.round);
+      setRoom((current) => current ? {
+        ...current,
+        status: "playing",
+        round: response.round,
+        version: current.version + 1,
+      } : current);
+    } catch (error) {
+      setDealError(error instanceof Error ? error.message : "Could not deal the next round");
+      return;
+    } finally {
+      setDealPending(false);
+    }
+
     setDealtPlayerIds([]);
     setActiveDealPlayerId(null);
     setDealPhase("dealing");
@@ -118,12 +269,18 @@ export default function RoomDetailPage() {
     const completionTimer = window.setTimeout(() => {
       setActiveDealPlayerId(null);
       setDealPhase("ready");
+      setCardOverlay("facedown");
     }, firstDealDelay + room.players.length * dealStepDuration);
     dealTimersRef.current.push(completionTimer);
   }
 
+  function revealCurrentCard() {
+    if (!currentCard || dealPhase !== "ready") return;
+    setCardOverlay("revealed");
+  }
+
   function handleGameAction() {
-    if (!isRoomAdmin || dealPhase === "dealing") return;
+    if (!isRoomAdmin || dealPhase === "dealing" || dealPending) return;
     if (dealPhase === "ready") {
       setShowNextRoundConfirm(true);
       return;
@@ -190,6 +347,49 @@ export default function RoomDetailPage() {
         </div>
       )}
 
+      {cardOverlay === "facedown" && currentCard && (
+        <div
+          aria-label="Your new secret card is ready"
+          aria-modal="true"
+          className={`${styles.cardRevealOverlay} ${styles.cardPromptOverlay}`}
+          role="dialog"
+        >
+          <button
+            autoFocus
+            className={styles.facedownSecretCard}
+            onClick={revealCurrentCard}
+            type="button"
+          >
+            <span>YOUR NEW CARD</span>
+            <strong>?</strong>
+            <small>Tap to reveal</small>
+          </button>
+          <p>Your private card is ready</p>
+        </div>
+      )}
+
+      {cardOverlay === "revealed" && currentCard && (
+        <div
+          aria-label="Your revealed secret card"
+          aria-modal="true"
+          className={styles.cardRevealOverlay}
+          onClick={() => setCardOverlay("hidden")}
+          role="dialog"
+        >
+          <button
+            autoFocus
+            className={styles.revealedSecretCard}
+            onClick={() => setCardOverlay("hidden")}
+            type="button"
+          >
+            <span>YOUR SECRET WORD</span>
+            <strong>{currentCard.word}</strong>
+            <small>{currentCard.role}</small>
+          </button>
+          <p>Click anywhere to hide your card</p>
+        </div>
+      )}
+
       <section className={styles.content}>
         <div className={styles.roomHeading}>
           <div>
@@ -204,6 +404,8 @@ export default function RoomDetailPage() {
               {room.players.length}/{room.maxPlayers} players
               <span aria-hidden="true">·</span>
               {openSeats} seats open
+              <span aria-hidden="true">·</span>
+              {room.language === "vi" ? "Tiếng Việt" : "English"}
             </p>
           </div>
 
@@ -211,7 +413,7 @@ export default function RoomDetailPage() {
             <button
               aria-describedby={!isRoomAdmin ? "admin-action-hint" : undefined}
               className={styles.dealButton}
-              disabled={dealPhase === "dealing" || !isRoomAdmin}
+              disabled={dealPhase === "dealing" || dealPending || !isRoomAdmin}
               onClick={handleGameAction}
               title={!isRoomAdmin ? "Only the room admin can control rounds" : undefined}
               type="button"
@@ -219,13 +421,17 @@ export default function RoomDetailPage() {
               <span aria-hidden="true">
                 {!isRoomAdmin
                   ? "◇"
+                  : dealPending
+                    ? "…"
                   : dealPhase === "waiting"
                     ? "▶"
                     : dealPhase === "dealing"
                       ? "…"
                       : "↻"}
               </span>
-              {dealPhase === "waiting"
+              {dealPending
+                ? "Preparing cards…"
+                : dealPhase === "waiting"
                 ? "Start game"
                 : dealPhase === "dealing"
                   ? `Dealing ${dealtPlayerIds.length}/${room.players.length}`
@@ -235,6 +441,12 @@ export default function RoomDetailPage() {
             {!isRoomAdmin && (
               <small className={styles.adminHint} id="admin-action-hint">
                 Only the room admin can control rounds
+              </small>
+            )}
+
+            {dealError && (
+              <small className={styles.dealError} role="alert">
+                {dealError}
               </small>
             )}
 
@@ -270,11 +482,10 @@ export default function RoomDetailPage() {
               {seats.slice(0, splitAt).map((player, index) => (
                 <PlayerSeat
                   card={cards.find((card) => card.playerId === player?.id)}
-                  cardRevealed={cardRevealed}
                   dealPhase={dealPhase}
                   dealt={Boolean(player && dealtPlayerIds.includes(player.id))}
                   key={player?.id ?? `empty-top-${index}`}
-                  onReveal={() => setCardRevealed((visible) => !visible)}
+                  onReveal={revealCurrentCard}
                   player={player}
                 />
               ))}
@@ -311,11 +522,10 @@ export default function RoomDetailPage() {
               {seats.slice(splitAt).map((player, index) => (
                 <PlayerSeat
                   card={cards.find((card) => card.playerId === player?.id)}
-                  cardRevealed={cardRevealed}
                   dealPhase={dealPhase}
                   dealt={Boolean(player && dealtPlayerIds.includes(player.id))}
                   key={player?.id ?? `empty-bottom-${index}`}
-                  onReveal={() => setCardRevealed((visible) => !visible)}
+                  onReveal={revealCurrentCard}
                   player={player}
                 />
               ))}
@@ -352,12 +562,10 @@ export default function RoomDetailPage() {
               </div>
 
               <button
-                aria-label={cardRevealed ? "Hide your secret card" : "Reveal your secret card"}
-                className={`${styles.myCard} ${
-                  currentCardDealt ? styles.myCardReady : ""
-                } ${cardRevealed ? styles.myCardRevealed : ""}`}
+                aria-label="Reveal your secret card"
+                className={`${styles.myCard} ${currentCardDealt ? styles.myCardReady : ""}`}
                 disabled={!currentCard || !currentCardDealt || dealPhase !== "ready"}
-                onClick={() => setCardRevealed((visible) => !visible)}
+                onClick={revealCurrentCard}
                 type="button"
               >
                 {!currentCardDealt || !currentCard ? (
@@ -365,12 +573,6 @@ export default function RoomDetailPage() {
                     <small>{dealPhase === "dealing" ? "INCOMING" : "NO CARD"}</small>
                     <strong>—</strong>
                     <span>{dealPhase === "dealing" ? "Please wait" : "Start game"}</span>
-                  </>
-                ) : cardRevealed ? (
-                  <>
-                    <small>{currentCard.role}</small>
-                    <strong>{currentCard.word}</strong>
-                    <span>Tap to hide</span>
                   </>
                 ) : (
                   <>
@@ -416,18 +618,24 @@ export default function RoomDetailPage() {
                         <span className={`${styles.rankedAvatar} ${styles[player.color]}`} aria-hidden="true">
                           {player.name.charAt(0).toUpperCase()}
                         </span>
-                        <strong>{player.name}</strong>
+                        <strong title={player.name}>{player.name}</strong>
                         {player.current && <small>YOU</small>}
                       </div>
                     </td>
                     <td>
-                      <span className={styles.playerStatus}>
+                      <span
+                        className={`${styles.playerStatus} ${
+                          player.host ? styles.adminStatus : styles.memberStatus
+                        }`}
+                      >
                         {player.host ? "Room admin" : "Player"}
                       </span>
                     </td>
                     <td className={styles.scoreCell}>
-                      <strong>{player.score}</strong>
-                      <span>PTS</span>
+                      <span className={styles.scoreBadge}>
+                        <strong>{player.score}</strong>
+                        <small>PTS</small>
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -440,11 +648,11 @@ export default function RoomDetailPage() {
           <div>
             <span aria-hidden="true">i</span>
             <p>
-              This is frontend-only room state. The backend must own room membership,
-              card assignment, and secret words before real multiplayer play.
+              Room membership, rounds, and private cards are synced with the backend.
+              Chat and scores remain local previews until their APIs are available.
             </p>
           </div>
-          <span>UI PREVIEW</span>
+          <span>ROOM + CARD API CONNECTED</span>
         </footer>
       </section>
     </main>
@@ -485,7 +693,6 @@ function createInitialMessages(players: RoomPlayer[], status: "waiting" | "playi
 type PlayerSeatProps = {
   player: RoomPlayer | null;
   card?: PlayerCard;
-  cardRevealed: boolean;
   dealPhase: DealPhase;
   dealt: boolean;
   onReveal: () => void;
@@ -494,7 +701,6 @@ type PlayerSeatProps = {
 function PlayerSeat({
   player,
   card,
-  cardRevealed,
   dealPhase,
   dealt,
   onReveal,
@@ -513,7 +719,6 @@ function PlayerSeat({
   }
 
   const canReveal = player.current && card && dealt && dealPhase === "ready";
-  const showCard = Boolean(canReveal && cardRevealed);
 
   return (
     <article className={`${styles.seat} ${player.current ? styles.currentSeat : ""}`}>
@@ -522,7 +727,7 @@ function PlayerSeat({
           {player.name.charAt(0).toUpperCase()}
         </span>
         <div>
-          <strong>{player.name}</strong>
+          <strong title={player.name}>{player.name}</strong>
           <small>
             {player.current
               ? player.host ? "You · Admin" : "You"
@@ -539,24 +744,14 @@ function PlayerSeat({
         </div>
       ) : canReveal ? (
         <button
-          aria-label={showCard ? "Hide your secret card" : "Reveal your secret card"}
-          className={`${styles.playerCard} ${styles.dealtCard} ${showCard ? styles.revealedCard : ""}`}
+          aria-label="Reveal your secret card"
+          className={`${styles.playerCard} ${styles.dealtCard}`}
           onClick={onReveal}
           type="button"
         >
-          {showCard ? (
-            <>
-              <small>{card.role}</small>
-              <strong>{card.word}</strong>
-              <span>Tap to hide</span>
-            </>
-          ) : (
-            <>
-              <small>YOUR CARD</small>
-              <strong>?</strong>
-              <span>Tap to reveal</span>
-            </>
-          )}
+          <small>YOUR CARD</small>
+          <strong>?</strong>
+          <span>Tap to reveal</span>
         </button>
       ) : (
         <div className={`${styles.playerCard} ${styles.dealtCard}`} aria-label={`${player.name} has a private card`}>

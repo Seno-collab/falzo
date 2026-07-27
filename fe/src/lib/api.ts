@@ -4,6 +4,7 @@ import type {
   AuthTokens,
   GoogleLoginResult,
 } from "@/types/auth";
+import type { RoomLanguage, RoomResponse, RoundCardResponse } from "@/types/room";
 import { beginApiRequest } from "@/lib/api-activity";
 
 const API_PREFIX = "/api";
@@ -19,8 +20,18 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit): Promise<T> {
-  const finishRequest = beginApiRequest();
+type RequestOptions = {
+  trackActivity?: boolean;
+};
+
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  options: RequestOptions = {},
+): Promise<T> {
+  const finishRequest = options.trackActivity === false
+    ? () => undefined
+    : beginApiRequest();
 
   try {
     const response = await fetch(`${API_PREFIX}${path}`, {
@@ -77,4 +88,76 @@ export function refresh(refreshToken: string) {
 
 export function logout(refreshToken: string) {
   return post<void>("/v1/auth/logout", { refresh_token: refreshToken });
+}
+
+function roomRequest<T>(
+  accessToken: string,
+  path: string,
+  init: RequestInit,
+  options?: RequestOptions,
+) {
+  return request<T>(path, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...init.headers,
+    },
+  }, options);
+}
+
+export function listRooms(accessToken: string, options?: RequestOptions) {
+  return roomRequest<RoomResponse[]>(accessToken, "/v1/rooms", {
+    method: "GET",
+  }, options);
+}
+
+export function getRoom(accessToken: string, roomId: string, options?: RequestOptions) {
+  return roomRequest<RoomResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}`,
+    { method: "GET" },
+    options,
+  );
+}
+
+export function createRoom(
+  accessToken: string,
+  input: { name: string; maxPlayers: number; languageCode: RoomLanguage },
+) {
+  return roomRequest<RoomResponse>(accessToken, "/v1/rooms", {
+    method: "POST",
+    body: JSON.stringify({
+      name: input.name,
+      max_players: input.maxPlayers,
+      language_code: input.languageCode,
+    }),
+  });
+}
+
+export function joinRoom(accessToken: string, inviteCode: string) {
+  return roomRequest<RoomResponse>(accessToken, "/v1/rooms/join", {
+    method: "POST",
+    body: JSON.stringify({ invite_code: inviteCode }),
+  });
+}
+
+export function dealRoomRound(accessToken: string, roomId: string) {
+  return roomRequest<RoundCardResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds`,
+    { method: "POST" },
+  );
+}
+
+export function getCurrentRoomCard(
+  accessToken: string,
+  roomId: string,
+  options?: RequestOptions,
+) {
+  return roomRequest<RoundCardResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/card`,
+    { method: "GET" },
+    options,
+  );
 }

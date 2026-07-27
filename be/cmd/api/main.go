@@ -3,7 +3,9 @@ package main
 import (
 	"be/internal/api"
 	"be/internal/api/handler"
+	apimiddleware "be/internal/api/middleware"
 	authapp "be/internal/application/auth"
+	roomapp "be/internal/application/room"
 	"be/internal/config"
 	"be/internal/insfrastructure/persistence/postgres"
 	redisinfra "be/internal/insfrastructure/redis"
@@ -72,8 +74,32 @@ func run() error {
 	googleVerifier := security.NewGoogleIDTokenVerifier(cfg.Google.ClientID)
 	googleLogin := authapp.NewGoogleLoginUseCase(googleVerifier, users, tokens, sessions, c)
 	authHandler := handler.NewAuthHandler(login, refresh, forgot, reset, logout, cfg.Server.Env != "production", appLogger, googleLogin)
+	rooms := postgres.NewRoomRepository(db)
+	inviteCodes := security.NewInviteCodeGenerator(6)
+	createRoom := roomapp.NewCreateRoomUseCase(
+		rooms,
+		inviteCodes,
+		c,
+		cfg.Game.MaxPlayersPerRoom,
+		time.Duration(cfg.Game.RoomTimeoutSeconds)*time.Second,
+	)
+	listRooms := roomapp.NewListRoomsUseCase(rooms)
+	getRoom := roomapp.NewGetRoomUseCase(rooms)
+	joinRoom := roomapp.NewJoinRoomUseCase(rooms)
+	dealRound := roomapp.NewDealRoundUseCase(rooms, c)
+	getCurrentCard := roomapp.NewGetCurrentCardUseCase(rooms)
+	roomHandler := handler.NewRoomHandler(
+		createRoom,
+		listRooms,
+		getRoom,
+		joinRoom,
+		dealRound,
+		getCurrentCard,
+		appLogger,
+	)
+	authenticator := apimiddleware.NewAuthenticator(tokens)
 
-	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(authHandler, appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(authHandler, roomHandler, authenticator, appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- server.ListenAndServe() }()
 	slog.Info("api listening", slog.String("address", server.Addr))

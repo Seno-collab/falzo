@@ -50,108 +50,139 @@ button, input { font: inherit; }
 }
 
 .api-loading-content {
-  display: grid;
-  justify-items: center;
-  gap: 22px;
+  width: min(340px, calc(100vw - 32px));
 }
 
-.api-loading-card {
-  position: relative;
-  display: flex;
-  width: 112px;
-  height: 158px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
+.api-loading-panel {
   overflow: hidden;
-  padding: 18px 12px;
-  border: 1px solid #718263;
-  border-radius: 18px 18px 18px 6px;
-  background:
-    radial-gradient(circle at 50% 50%, rgb(217 242 117 / 10%), transparent 35%),
-    #1b2c20;
-  color: var(--lime);
-  box-shadow: 0 24px 50px rgb(0 0 0 / 34%);
-  animation: api-loading-card-float 1.5s ease-in-out infinite;
+  padding: 18px;
+  border: 1px solid #455148;
+  border-radius: 20px 20px 20px 7px;
+  background: #19221c;
+  box-shadow: 0 28px 65px rgb(0 0 0 / 35%);
+  animation: api-loading-panel-in .25s ease-out both;
 }
 
-.api-loading-card::before {
-  position: absolute;
-  width: 76px;
-  height: 76px;
-  left: 50%;
-  top: 50%;
-  border: 1px solid rgb(217 242 117 / 22%);
-  border-radius: 50%;
-  box-shadow: 0 0 0 15px rgb(217 242 117 / 3%);
-  content: "";
-  transform: translate(-50%, -50%);
-}
-
-.api-loading-card span,
-.api-loading-card small,
-.api-loading-card strong {
-  position: relative;
-  z-index: 1;
-}
-
-.api-loading-card span,
-.api-loading-card small {
-  font-size: 6px;
-  font-style: normal;
-  font-weight: 900;
-  letter-spacing: .16em;
-}
-
-.api-loading-card strong {
+.api-loading-brand {
   display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border: 1px solid rgb(217 242 117 / 30%);
-  border-radius: 50%;
-  font-size: 25px;
-}
-
-.api-loading-copy {
-  display: grid;
-  justify-items: center;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
   gap: 10px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #303a32;
 }
 
-.api-loading-copy > strong {
-  font-size: 12px;
-  letter-spacing: .01em;
+.api-loading-brand > span {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 9px 9px 9px 3px;
+  background: var(--lime);
+  color: #18221b;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-.api-loading-copy > span {
-  display: flex;
-  gap: 6px;
+.api-loading-brand > div {
+  display: grid;
+  gap: 1px;
 }
 
-.api-loading-copy i {
-  width: 5px;
-  height: 5px;
+.api-loading-brand strong {
+  color: #f4f2e8;
+  font-size: 16px;
+  letter-spacing: -.04em;
+}
+
+.api-loading-brand small {
+  color: #758078;
+  font-size: 6px;
+  font-weight: 850;
+  letter-spacing: .15em;
+}
+
+.api-loading-brand i {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--lime);
-  animation: api-loading-dot .9s ease-in-out infinite alternate;
+  box-shadow: 0 0 0 4px rgb(217 242 117 / 9%);
+  animation: api-loading-pulse 1.1s ease-in-out infinite alternate;
 }
 
-.api-loading-copy i:nth-child(2) { animation-delay: .15s; }
-.api-loading-copy i:nth-child(3) { animation-delay: .3s; }
+.api-loading-status {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 2px 20px;
+}
+
+.api-loading-status > span {
+  display: grid;
+  width: 48px;
+  height: 58px;
+  place-items: center;
+  border-radius: 13px 13px 13px 4px;
+  background: var(--lime);
+  color: #18221b;
+  font-size: 25px;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 18%);
+}
+
+.api-loading-status > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.api-loading-status strong {
+  color: #f2f1e9;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.api-loading-status small {
+  color: #7f8a82;
+  font-size: 9px;
+}
+
+.api-loading-progress {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #2d3730;
+}
+
+.api-loading-progress span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lime);
+  animation: api-loading-progress 1.15s ease-in-out infinite;
+}
 
 @keyframes api-loading-overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes api-loading-card-float {
-  50% { transform: translateY(-7px) rotate(1.5deg); }
+@keyframes api-loading-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes api-loading-dot {
-  from { opacity: .25; transform: translateY(2px); }
-  to { opacity: 1; transform: translateY(-2px); }
+@keyframes api-loading-pulse {
+  from { opacity: .35; }
+  to { opacity: 1; }
+}
+
+@keyframes api-loading-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(290%); }
 }
 
 .button {
@@ -329,8 +360,9 @@ button, input { font: inherit; }
   .google-button-skeleton,
   .google-button-spinner,
   .api-loading-overlay,
-  .api-loading-card,
-  .api-loading-copy i {
+  .api-loading-panel,
+  .api-loading-brand i,
+  .api-loading-progress span {
     animation: none;
   }
 }
