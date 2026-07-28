@@ -6,6 +6,7 @@ import (
 	apimiddleware "be/internal/api/middleware"
 	roomapp "be/internal/application/room"
 	domainroom "be/internal/domain/room"
+	"be/internal/realtime"
 	"be/internal/shared/apperror"
 	"errors"
 	"log/slog"
@@ -22,6 +23,7 @@ type RoomHandler struct {
 	joinRoom   *roomapp.JoinRoomUseCase
 	dealRound  *roomapp.DealRoundUseCase
 	getCard    *roomapp.GetCurrentCardUseCase
+	realtime   *realtime.Hub
 	logger     *slog.Logger
 }
 
@@ -32,6 +34,7 @@ func NewRoomHandler(
 	joinRoom *roomapp.JoinRoomUseCase,
 	dealRound *roomapp.DealRoundUseCase,
 	getCard *roomapp.GetCurrentCardUseCase,
+	realtimeHub *realtime.Hub,
 	logger *slog.Logger,
 ) *RoomHandler {
 	if logger == nil {
@@ -44,6 +47,7 @@ func NewRoomHandler(
 		joinRoom:   joinRoom,
 		dealRound:  dealRound,
 		getCard:    getCard,
+		realtime:   realtimeHub,
 		logger:     logger,
 	}
 }
@@ -113,6 +117,7 @@ func (h *RoomHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.writeRoomError(w, r, "create_room", err)
 		return
 	}
+	h.syncRoomMembers(room)
 	response.Created(w, mapRoomResponse(room, principal.UserID))
 }
 
@@ -170,6 +175,7 @@ func (h *RoomHandler) Join(w http.ResponseWriter, r *http.Request) {
 		h.writeRoomError(w, r, "join_room", err)
 		return
 	}
+	h.syncRoomMembers(room)
 	response.OK(w, mapRoomResponse(room, principal.UserID))
 }
 
@@ -188,7 +194,19 @@ func (h *RoomHandler) DealRound(w http.ResponseWriter, r *http.Request) {
 		h.writeRoomError(w, r, "deal_round", err)
 		return
 	}
+	if h.realtime != nil {
+		h.realtime.Publish(card.RoomID, realtime.EventRoundStarted, realtime.RoundStarted{
+			Round:   card.RoundNumber,
+			DealtAt: card.DealtAt,
+		})
+	}
 	response.Created(w, mapRoundCardResponse(card))
+}
+
+func (h *RoomHandler) syncRoomMembers(room *domainroom.Room) {
+	if h.realtime != nil {
+		h.realtime.UpdateMembers(room.ID, mapRealtimeMembers(room))
+	}
 }
 
 func (h *RoomHandler) GetCurrentCard(w http.ResponseWriter, r *http.Request) {

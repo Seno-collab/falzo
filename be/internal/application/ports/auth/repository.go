@@ -1,4 +1,4 @@
-package ports
+package authports
 
 import (
 	domainuser "be/internal/domain/user"

@@ -48,7 +48,7 @@ func (uc *CreateRoomUseCase) Execute(ctx context.Context, input CreateRoomInput)
 	}
 
 	now := uc.clock.Now()
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		inviteCode, err := uc.inviteCodes.Generate()
 		if err != nil {
 			return nil, err

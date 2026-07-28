@@ -7,14 +7,16 @@ import { ApiLoading } from "@/components/api-loading";
 import { LogoutButton } from "@/components/logout-button";
 import { useSession } from "@/components/session-guard";
 import { ErrorScreen } from "@/components/error-screen";
-import { ChatPanel, type ChatMessage } from "@/features/chat/chat-panel";
+import { ChatPanel } from "@/features/chat/chat-panel";
 import {
+  colorForPlayer,
   mapRoomResponse,
   mapRoundCardResponse,
   type GameRoom,
   type PlayerCard,
   type RoomPlayer,
 } from "@/features/rooms/data";
+import { useRoomRealtime } from "@/features/rooms/use-room-realtime";
 import { ApiError, dealRoomRound, getCurrentRoomCard, getRoom } from "@/lib/api";
 import { restoreSession } from "@/lib/auth";
 import styles from "./room.module.css";
@@ -40,11 +42,8 @@ export default function RoomDetailPage() {
   const [activeDealPlayerId, setActiveDealPlayerId] = useState<string | null>(null);
   const [showNextRoundConfirm, setShowNextRoundConfirm] = useState(false);
   const dealTimersRef = useRef<number[]>([]);
+  const realtime = useRoomRealtime(params.roomId, username);
 
-  const initialRoomMessages = useMemo(
-    () => (room ? createInitialMessages(room.players, room.status) : []),
-    [room],
-  );
   const rankedPlayers = useMemo(
     () => room
       ? [...room.players].sort((left, right) => right.score - left.score)
@@ -86,13 +85,43 @@ export default function RoomDetailPage() {
 
     setRoomState("loading");
     void loadRoom(true);
-    const pollTimer = window.setInterval(() => void loadRoom(false), 3000);
-
     return () => {
       active = false;
-      window.clearInterval(pollTimer);
     };
   }, [params.roomId, reloadToken, router]);
+
+  useEffect(() => {
+    if (realtime.players.length === 0) return;
+    setRoom((current) => {
+      if (!current) return current;
+      const currentPlayers = new Map(current.players.map((player) => [player.id, player]));
+      return {
+        ...current,
+        players: realtime.players.map((player) => {
+          const existing = currentPlayers.get(String(player.id));
+          return {
+            id: String(player.id),
+            name: player.name,
+            color: existing?.color ?? colorForPlayer(player.id),
+            score: existing?.score ?? 0,
+            host: player.host,
+            current: existing?.current ?? player.name === username,
+            online: player.online,
+          };
+        }),
+      };
+    });
+  }, [realtime.players, username]);
+
+  useEffect(() => {
+    if (!realtime.roundStarted) return;
+    const startedRound = realtime.roundStarted.round;
+    setRoom((current) => current ? {
+      ...current,
+      status: "playing",
+      round: Math.max(current.round, startedRound),
+    } : current);
+  }, [realtime.roundStarted]);
 
   useEffect(() => {
     if (rosterKey) {
@@ -204,6 +233,7 @@ export default function RoomDetailPage() {
 
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openSeats = room.maxPlayers - room.players.length;
+  const onlinePlayers = room.players.filter((player) => player.online).length;
   const currentPlayer = room.players.find((player) => player.current);
   const isRoomAdmin = Boolean(currentPlayer?.host);
   const activeDealPlayer = room.players.find((player) => player.id === activeDealPlayerId);
@@ -535,13 +565,14 @@ export default function RoomDetailPage() {
           <div className={styles.rightRail}>
             <ChatPanel
               className={styles.roomChat}
+              connected={realtime.connected}
               contextLabel={`#${room.code}`}
-              currentUsername={username}
-              initialMessages={initialRoomMessages}
               inputPlaceholder="Message the room…"
               key={room.id}
-              presence="room"
-              subtitle={`${room.players.length} players here`}
+              messages={realtime.messages}
+              onSendMessage={realtime.sendChat}
+              presence={realtime.connected ? "online" : "offline"}
+              subtitle={`${onlinePlayers}/${room.players.length} online · ${realtime.status}`}
               title="Room chat"
             />
 
@@ -625,10 +656,10 @@ export default function RoomDetailPage() {
                     <td>
                       <span
                         className={`${styles.playerStatus} ${
-                          player.host ? styles.adminStatus : styles.memberStatus
+                          player.online ? styles.onlineStatus : styles.offlineStatus
                         }`}
                       >
-                        {player.host ? "Room admin" : "Player"}
+                        {player.host ? "Admin" : "Player"} · {player.online ? "Online" : "Offline"}
                       </span>
                     </td>
                     <td className={styles.scoreCell}>
@@ -649,45 +680,14 @@ export default function RoomDetailPage() {
             <span aria-hidden="true">i</span>
             <p>
               Room membership, rounds, and private cards are synced with the backend.
-              Chat and scores remain local previews until their APIs are available.
+              Chat and online presence are delivered live through WebSocket and Redis.
             </p>
           </div>
-          <span>ROOM + CARD API CONNECTED</span>
+          <span>{realtime.connected ? "REALTIME CONNECTED" : "REALTIME RECONNECTING"}</span>
         </footer>
       </section>
     </main>
   );
-}
-
-function createInitialMessages(players: RoomPlayer[], status: "waiting" | "playing"): ChatMessage[] {
-  const host = players.find((player) => player.host);
-  const guest = players.find((player) => !player.host && !player.current);
-
-  return [
-    {
-      id: "joined",
-      sender: "Falzo",
-      text: status === "waiting"
-        ? "You joined the room. Say hello while everyone takes a seat."
-        : "You joined during a live round. Keep secret words out of chat.",
-      time: "Now",
-      system: true,
-    },
-    ...(host ? [{
-      id: "host-message",
-      sender: host.name,
-      text: status === "waiting"
-        ? "We’ll start when everyone is ready."
-        : "One clue each. Keep it short.",
-      time: "2m",
-    }] : []),
-    ...(guest ? [{
-      id: "guest-message",
-      sender: guest.name,
-      text: status === "waiting" ? "Ready when you are 👀" : "Who wants to go first?",
-      time: "1m",
-    }] : []),
-  ];
 }
 
 type PlayerSeatProps = {
@@ -732,6 +732,7 @@ function PlayerSeat({
             {player.current
               ? player.host ? "You · Admin" : "You"
               : player.host ? "Room admin" : "Player"}
+            {` · ${player.online ? "Online" : "Offline"}`}
           </small>
         </div>
       </div>

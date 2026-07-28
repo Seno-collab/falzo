@@ -1,7 +1,7 @@
 package authapp
 
 import (
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	domainuser "be/internal/domain/user"
 	"be/internal/shared/clock"
 	"context"
@@ -10,10 +10,10 @@ import (
 )
 
 type LoginUseCase struct {
-	passwordHasher ports.PasswordHasher
-	users          ports.UserRepository
-	tokens         ports.TokenManager
-	sessions       ports.TokenSessionStore
+	passwordHasher authports.PasswordHasher
+	users          authports.UserRepository
+	tokens         authports.TokenManager
+	sessions       authports.TokenSessionStore
 	maxAttempts    int
 	clock          clock.Clock
 	lockDuration   time.Duration
@@ -29,7 +29,7 @@ type LoginOutput struct {
 	UserName     string `json:"username"`
 }
 
-func NewLoginUseCase(hasher ports.PasswordHasher, users ports.UserRepository, tokens ports.TokenManager, sessions ports.TokenSessionStore, maxAttempts int, lockDuration time.Duration, c clock.Clock) *LoginUseCase {
+func NewLoginUseCase(hasher authports.PasswordHasher, users authports.UserRepository, tokens authports.TokenManager, sessions authports.TokenSessionStore, maxAttempts int, lockDuration time.Duration, c clock.Clock) *LoginUseCase {
 	return &LoginUseCase{passwordHasher: hasher, users: users, tokens: tokens, sessions: sessions, maxAttempts: maxAttempts, lockDuration: lockDuration, clock: c}
 }
 

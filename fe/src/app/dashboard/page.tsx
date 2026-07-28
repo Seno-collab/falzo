@@ -5,34 +5,27 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { useSession } from "@/components/session-guard";
-import { ChatPanel, type ChatMessage } from "@/features/chat/chat-panel";
 import { mapRoomResponse, type GameRoom } from "@/features/rooms/data";
-import { ApiError, createRoom, joinRoom, listRooms } from "@/lib/api";
+import {
+  ApiError,
+  countUnreadNotifications,
+  createRoom,
+  joinRoom,
+  listFriends,
+  listRooms,
+} from "@/lib/api";
 import { restoreSession } from "@/lib/auth";
 import type { RoomLanguage } from "@/types/room";
+import type { Friend } from "@/types/social";
 import styles from "./dashboard.module.css";
-
-type Friend = {
-  id: string;
-  name: string;
-  status: "online" | "offline";
-  activity: string;
-  color: "lime" | "coral" | "blue" | "sand" | "violet" | "mint";
-};
-
-const friends: readonly Friend[] = [
-  { id: "minh", name: "Minh", status: "online", activity: "In Night Owls", color: "coral" },
-  { id: "lan", name: "Lan", status: "online", activity: "Looking for a room", color: "blue" },
-  { id: "khoa", name: "Khoa", status: "online", activity: "In round 2", color: "mint" },
-  { id: "vy", name: "Vy", status: "offline", activity: "Last seen 18m ago", color: "violet" },
-  { id: "bao", name: "Bảo", status: "offline", activity: "Last seen yesterday", color: "sand" },
-];
 
 export default function DashboardPage() {
   const router = useRouter();
   const session = useSession();
   const username = session.username;
-  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [roomsError, setRoomsError] = useState("");
@@ -44,8 +37,6 @@ export default function DashboardPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [actionError, setActionError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  const selectedFriend = friends.find((friend) => friend.id === selectedFriendId);
 
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openRooms = rooms.filter((room) => room.status === "waiting").length;
@@ -81,6 +72,34 @@ export default function DashboardPage() {
       window.clearInterval(pollTimer);
     };
   }, [roomsReloadToken, router]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSocialData() {
+      try {
+        const activeSession = await restoreSession();
+        if (!activeSession) return;
+        const [friendData, unreadData] = await Promise.all([
+          listFriends(activeSession.access_token, { trackActivity: false }),
+          countUnreadNotifications(activeSession.access_token, { trackActivity: false }),
+        ]);
+        if (!active) return;
+        setFriends(friendData);
+        setUnreadNotifications(unreadData.count);
+        setFriendsLoaded(true);
+      } catch {
+        if (active) setFriendsLoaded(true);
+      }
+    }
+
+    void loadSocialData();
+    const pollTimer = window.setInterval(() => void loadSocialData(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(pollTimer);
+    };
+  }, []);
 
   function retryRooms() {
     setRoomsError("");
@@ -161,6 +180,10 @@ export default function DashboardPage() {
         </div>
 
         <div className={styles.account}>
+          <Link className={styles.notificationLink} href="/friends#notifications" aria-label={`${unreadNotifications} unread friend notifications`}>
+            <span aria-hidden="true">!</span>
+            {unreadNotifications > 0 && <strong>{unreadNotifications > 99 ? "99+" : unreadNotifications}</strong>}
+          </Link>
           <span className={styles.avatar} aria-hidden="true">
             {initial}
           </span>
@@ -190,33 +213,29 @@ export default function DashboardPage() {
             <section className={styles.friends} aria-label="Friends">
               <div className={styles.friendsHeading}>
                 <p className={styles.sidebarTitle}>FRIENDS</p>
-                <span>{friends.filter((friend) => friend.status === "online").length} online</span>
+                <Link href="/friends">Manage</Link>
               </div>
 
               <div className={styles.friendList}>
-                {friends.map((friend) => (
-                  <button
-                    className={`${styles.friend} ${
-                      selectedFriendId === friend.id ? styles.selectedFriend : ""
-                    }`}
+                {friends.slice(0, 5).map((friend, index) => (
+                  <Link
+                    className={styles.friend}
+                    href="/friends"
                     key={friend.id}
-                    onClick={() => setSelectedFriendId(friend.id)}
-                    type="button"
                   >
-                    <span className={`${styles.friendAvatar} ${styles[friend.color]}`}>
-                      {friend.name.charAt(0).toUpperCase()}
-                      <span
-                        className={`${styles.friendStatus} ${styles[friend.status]}`}
-                        aria-label={friend.status}
-                      />
+                    <span className={`${styles.friendAvatar} ${styles[friendColor(index)]}`}>
+                      {friend.username.charAt(0).toUpperCase()}
                     </span>
                     <span>
-                      <strong>{friend.name}</strong>
-                      <small>{friend.activity}</small>
+                      <strong>{friend.username}</strong>
+                      <small>Falzo friend</small>
                     </span>
-                    <span className={styles.chatIcon} aria-hidden="true">···</span>
-                  </button>
+                    <span className={styles.chatIcon} aria-hidden="true">→</span>
+                  </Link>
                 ))}
+                {friendsLoaded && friends.length === 0 && (
+                  <Link className={styles.emptyFriendList} href="/friends">+ Find your first friend</Link>
+                )}
               </div>
             </section>
           </div>
@@ -225,7 +244,7 @@ export default function DashboardPage() {
             <span aria-hidden="true">i</span>
             <div>
               <strong>Live room lobby</strong>
-              <p>Rooms and private cards are synced by the server. Chat is still a local preview.</p>
+              <p>Rooms, chat and friend activity are synced by the server.</p>
             </div>
           </div>
         </aside>
@@ -422,20 +441,6 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      {selectedFriend && (
-        <div className={styles.directChat}>
-          <ChatPanel
-            currentUsername={username}
-            initialMessages={createFriendMessages(selectedFriend)}
-            inputPlaceholder={`Message ${selectedFriend.name}…`}
-            key={selectedFriend.id}
-            onClose={() => setSelectedFriendId(null)}
-            presence={selectedFriend.status}
-            subtitle={selectedFriend.status === "online" ? selectedFriend.activity : "Offline"}
-            title={selectedFriend.name}
-          />
-        </div>
-      )}
     </main>
   );
 }
@@ -445,40 +450,7 @@ function roomApiErrorMessage(error: unknown) {
   return "Could not reach the room server. Please try again.";
 }
 
-function createFriendMessages(friend: Friend): ChatMessage[] {
-  if (friend.status === "offline") {
-    return [
-      {
-        id: `${friend.id}-offline`,
-        sender: "Falzo",
-        text: `${friend.name} is offline. Your messages will stay in this demo chat.`,
-        time: "Now",
-        system: true,
-      },
-      {
-        id: `${friend.id}-last-message`,
-        sender: friend.name,
-        text: "Let’s play another round later.",
-        time: "Yesterday",
-      },
-    ];
-  }
-
-  return [
-    {
-      id: `${friend.id}-online`,
-      sender: "Falzo",
-      text: `${friend.name} is online now.`,
-      time: "Now",
-      system: true,
-    },
-    {
-      id: `${friend.id}-message`,
-      sender: friend.name,
-      text: friend.activity.startsWith("In ")
-        ? "I’m already in a room. Join when you’re ready!"
-        : "Want to start an Undercover room?",
-      time: "1m",
-    },
-  ];
+function friendColor(index: number) {
+  const colors = ["lime", "coral", "blue", "mint", "violet", "sand"] as const;
+  return colors[index % colors.length];
 }

@@ -1,7 +1,7 @@
 package authapp
 
 import (
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	domainuser "be/internal/domain/user"
 	"be/internal/shared/clock"
 	"context"
@@ -20,10 +20,10 @@ var (
 )
 
 type GoogleLoginUseCase struct {
-	identityVerifier ports.GoogleIdentityVerifier
-	users            ports.UserRepository
-	tokens           ports.TokenManager
-	sessions         ports.TokenSessionStore
+	identityVerifier authports.GoogleIdentityVerifier
+	users            authports.UserRepository
+	tokens           authports.TokenManager
+	sessions         authports.TokenSessionStore
 	clock            clock.Clock
 }
 
@@ -32,10 +32,10 @@ type GoogleLoginInput struct {
 }
 
 func NewGoogleLoginUseCase(
-	identityVerifier ports.GoogleIdentityVerifier,
-	users ports.UserRepository,
-	tokens ports.TokenManager,
-	sessions ports.TokenSessionStore,
+	identityVerifier authports.GoogleIdentityVerifier,
+	users authports.UserRepository,
+	tokens authports.TokenManager,
+	sessions authports.TokenSessionStore,
 	c clock.Clock,
 ) *GoogleLoginUseCase {
 	return &GoogleLoginUseCase{
@@ -50,7 +50,7 @@ func NewGoogleLoginUseCase(
 func (uc *GoogleLoginUseCase) Execute(ctx context.Context, input GoogleLoginInput) (*LoginOutput, error) {
 	identity, err := uc.identityVerifier.Verify(ctx, input.Credential)
 	if err != nil {
-		if errors.Is(err, ports.ErrIdentityProviderNotConfigured) {
+		if errors.Is(err, authports.ErrIdentityProviderNotConfigured) {
 			return nil, ErrGoogleLoginNotConfigured
 		}
 		return nil, ErrInvalidGoogleCredential

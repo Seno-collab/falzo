@@ -10,6 +10,7 @@ export type RoomPlayer = {
   score: number;
   host?: boolean;
   current?: boolean;
+  online?: boolean;
 };
 
 export type GameRoom = {
@@ -58,6 +59,7 @@ export function mapRoomResponse(room: RoomResponse): GameRoom {
         score: 0,
         host: player.host,
         current: player.current,
+        online: false,
       })),
   };
 }
@@ -70,7 +72,7 @@ export function mapRoundCardResponse(card: RoundCardResponse): PlayerCard {
   };
 }
 
-function colorForPlayer(playerId: number): PlayerColor {
+export function colorForPlayer(playerId: number): PlayerColor {
   const index = Math.abs(playerId) % playerColors.length;
   return playerColors[index];
 }

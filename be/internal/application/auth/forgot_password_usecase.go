@@ -1,7 +1,7 @@
 package authapp
 
 import (
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	domainuser "be/internal/domain/user"
 	"be/internal/shared/clock"
 	"context"
@@ -9,9 +9,9 @@ import (
 )
 
 type ForgotPasswordUseCase struct {
-	users    ports.UserRepository
-	tokens   ports.TokenManager
-	sessions ports.TokenSessionStore
+	users    authports.UserRepository
+	tokens   authports.TokenManager
+	sessions authports.TokenSessionStore
 	clock    clock.Clock
 }
 
@@ -20,7 +20,7 @@ type ForgotPasswordOutput struct {
 	ResetToken string `json:"reset_token,omitempty"`
 }
 
-func NewForgotPasswordUseCase(users ports.UserRepository, tokens ports.TokenManager, sessions ports.TokenSessionStore, c clock.Clock) *ForgotPasswordUseCase {
+func NewForgotPasswordUseCase(users authports.UserRepository, tokens authports.TokenManager, sessions authports.TokenSessionStore, c clock.Clock) *ForgotPasswordUseCase {
 	return &ForgotPasswordUseCase{users: users, tokens: tokens, sessions: sessions, clock: c}
 }
 
@@ -42,16 +42,16 @@ func (uc *ForgotPasswordUseCase) Execute(ctx context.Context, input ForgotPasswo
 }
 
 type ResetPasswordUseCase struct {
-	users    ports.UserRepository
-	hasher   ports.PasswordHasher
-	tokens   ports.TokenManager
-	sessions ports.TokenSessionStore
+	users    authports.UserRepository
+	hasher   authports.PasswordHasher
+	tokens   authports.TokenManager
+	sessions authports.TokenSessionStore
 	clock    clock.Clock
 }
 
 type ResetPasswordInput struct{ Token, NewPassword string }
 
-func NewResetPasswordUseCase(users ports.UserRepository, hasher ports.PasswordHasher, tokens ports.TokenManager, sessions ports.TokenSessionStore, c clock.Clock) *ResetPasswordUseCase {
+func NewResetPasswordUseCase(users authports.UserRepository, hasher authports.PasswordHasher, tokens authports.TokenManager, sessions authports.TokenSessionStore, c clock.Clock) *ResetPasswordUseCase {
 	return &ResetPasswordUseCase{users: users, hasher: hasher, tokens: tokens, sessions: sessions, clock: c}
 }
 

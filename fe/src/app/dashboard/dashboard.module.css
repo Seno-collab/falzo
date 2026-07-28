@@ -69,6 +69,41 @@
   gap: 10px;
 }
 
+.notificationLink {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #3a443d;
+  border-radius: 10px;
+  color: #aab3ac;
+  font-size: 11px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.notificationLink:hover {
+  border-color: #d9f275;
+  color: #d9f275;
+}
+
+.notificationLink strong {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0 4px;
+  border: 2px solid #131915;
+  border-radius: 999px;
+  background: #ef765f;
+  color: #fff;
+  font-size: 7px;
+}
+
 .avatar {
   display: grid;
   width: 34px;
@@ -214,9 +249,15 @@
   margin-bottom: 0;
 }
 
-.friendsHeading > span {
+.friendsHeading > span,
+.friendsHeading > a {
   color: #758078;
   font-size: 8px;
+  text-decoration: none;
+}
+
+.friendsHeading > a:hover {
+  color: #d9f275;
 }
 
 .friendList {
@@ -236,11 +277,11 @@
   background: transparent;
   color: #cbd1cc;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.friend:hover,
-.selectedFriend {
+.friend:hover {
   border-color: #37423a;
   background: #202922;
 }
@@ -255,24 +296,6 @@
   color: #18221b;
   font-size: 9px;
   font-weight: 850;
-}
-
-.friendStatus {
-  position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 9px;
-  height: 9px;
-  border: 2px solid #171e19;
-  border-radius: 50%;
-}
-
-.friendStatus.online {
-  background: #d9f275;
-}
-
-.friendStatus.offline {
-  background: #667168;
 }
 
 .friend > span:nth-child(2) {
@@ -301,6 +324,22 @@
   color: #657168;
   font-size: 11px;
   letter-spacing: 1px;
+}
+
+.emptyFriendList {
+  display: block;
+  padding: 10px;
+  border: 1px dashed #3d4840;
+  border-radius: 10px;
+  color: #879289;
+  font-size: 9px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.emptyFriendList:hover {
+  border-color: #d9f275;
+  color: #d9f275;
 }
 
 .sidebarNote {
@@ -902,16 +941,6 @@
   font-size: 12px;
 }
 
-.directChat {
-  position: fixed;
-  z-index: 40;
-  width: min(330px, calc(100vw - 32px));
-  height: min(520px, calc(100vh - 110px));
-  right: 22px;
-  bottom: 18px;
-  filter: drop-shadow(0 24px 45px rgb(0 0 0 / 32%));
-}
-
 @media (max-width: 1080px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -1030,12 +1059,6 @@
     min-height: 265px;
   }
 
-  .directChat {
-    width: calc(100vw - 24px);
-    height: min(520px, calc(100vh - 96px));
-    right: 12px;
-    bottom: 10px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

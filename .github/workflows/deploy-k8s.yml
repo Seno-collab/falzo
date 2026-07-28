@@ -1,0 +1,184 @@
+name: Deploy Falzo to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-k8s.yml"
+      - "be/**"
+      - "fe/**"
+      - "deploy/k8s/**"
+  workflow_dispatch:
+
+concurrency:
+  group: falzo-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_TAG: ${{ github.sha }}
+  KUBE_NAMESPACE: falzo
+
+jobs:
+  prepare:
+    name: Prepare image names
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      registry_namespace: ${{ steps.names.outputs.registry_namespace }}
+    steps:
+      - name: Normalize GHCR namespace
+        id: names
+        shell: bash
+        run: echo "registry_namespace=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }} image
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./be
+            dockerfile: be/Dockerfile
+            image: falzo-backend
+            build_args: ""
+          - name: migration
+            context: ./be
+            dockerfile: be/Dockerfile.migrate
+            image: falzo-migrate
+            build_args: ""
+          - name: frontend
+            context: ./fe
+            dockerfile: fe/Dockerfile
+            image: falzo-frontend
+            build_args: |
+              BACKEND_URL=http://falzo-backend:8080
+              NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.registry_namespace }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    name: Deploy production
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    env:
+      REGISTRY_NAMESPACE: ${{ needs.prepare.outputs.registry_namespace }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure cluster credentials
+        shell: bash
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          test -n "$KUBE_CONFIG_B64"
+          mkdir -p "$RUNNER_TEMP/falzo-kube"
+          printf '%s' "$KUBE_CONFIG_B64" | base64 --decode > "$RUNNER_TEMP/falzo-kube/config"
+          chmod 600 "$RUNNER_TEMP/falzo-kube/config"
+          echo "KUBECONFIG=$RUNNER_TEMP/falzo-kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster context
+        run: |
+          kubectl config current-context
+          kubectl cluster-info
+
+      - name: Prepare namespace and GHCR credentials
+        shell: bash
+        env:
+          GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          test -n "$GHCR_PULL_USERNAME"
+          test -n "$GHCR_PULL_TOKEN"
+          kubectl get namespace "$KUBE_NAMESPACE" >/dev/null
+          kubectl create secret docker-registry ghcr-pull \
+            --namespace "$KUBE_NAMESPACE" \
+            --docker-server "$REGISTRY" \
+            --docker-username "$GHCR_PULL_USERNAME" \
+            --docker-password "$GHCR_PULL_TOKEN" \
+            --dry-run=client \
+            -o yaml | kubectl apply -f -
+          kubectl get secret falzo-secrets -n "$KUBE_NAMESPACE" >/dev/null
+
+      - name: Apply PostgreSQL, Redis and configuration
+        run: |
+          kubectl apply -k deploy/k8s/platform
+          kubectl rollout status statefulset/falzo-postgres -n "$KUBE_NAMESPACE" --timeout=180s
+          kubectl rollout status statefulset/falzo-redis -n "$KUBE_NAMESPACE" --timeout=180s
+
+      - name: Run database migrations
+        shell: bash
+        run: |
+          migration_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-migrate:$IMAGE_TAG"
+          kubectl delete job falzo-migrate -n "$KUBE_NAMESPACE" --ignore-not-found
+          kubectl kustomize deploy/k8s/migration \
+            | sed "s#ghcr.io/your-org/falzo-migrate:replace-me#$migration_image#g" \
+            | kubectl apply -f -
+
+          if ! kubectl wait \
+            --for=condition=complete \
+            job/falzo-migrate \
+            -n "$KUBE_NAMESPACE" \
+            --timeout=300s; then
+            kubectl logs job/falzo-migrate -n "$KUBE_NAMESPACE" || true
+            kubectl describe job falzo-migrate -n "$KUBE_NAMESPACE" || true
+            exit 1
+          fi
+
+      - name: Deploy backend and frontend
+        shell: bash
+        run: |
+          backend_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-backend:$IMAGE_TAG"
+          frontend_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-frontend:$IMAGE_TAG"
+          kubectl kustomize deploy/k8s/app \
+            | sed \
+              -e "s#ghcr.io/your-org/falzo-backend:replace-me#$backend_image#g" \
+              -e "s#ghcr.io/your-org/falzo-frontend:replace-me#$frontend_image#g" \
+            | kubectl apply -f -
+
+          kubectl rollout status deployment/falzo-backend -n "$KUBE_NAMESPACE" --timeout=180s
+          kubectl rollout status deployment/falzo-frontend -n "$KUBE_NAMESPACE" --timeout=180s
+          kubectl get pods,services,ingress -n "$KUBE_NAMESPACE"

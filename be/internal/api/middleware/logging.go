@@ -1,10 +1,13 @@
 package middleware
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -238,4 +241,20 @@ func (w *statusWriter) Write(body []byte) (int, error) {
 
 func (w *statusWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	conn, readWriter, err := hijacker.Hijack()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = conn.Close()
+		return nil, nil, fmt.Errorf("clear hijacked connection deadline: %w", err)
+	}
+	return conn, readWriter, nil
 }

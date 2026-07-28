@@ -1,7 +1,7 @@
 package security
 
 import (
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	"context"
 	"fmt"
 
@@ -16,21 +16,21 @@ func NewGoogleIDTokenVerifier(clientID string) *GoogleIDTokenVerifier {
 	return &GoogleIDTokenVerifier{clientID: clientID}
 }
 
-func (v *GoogleIDTokenVerifier) Verify(ctx context.Context, credential string) (ports.GoogleIdentity, error) {
+func (v *GoogleIDTokenVerifier) Verify(ctx context.Context, credential string) (authports.GoogleIdentity, error) {
 	if v.clientID == "" {
-		return ports.GoogleIdentity{}, ports.ErrIdentityProviderNotConfigured
+		return authports.GoogleIdentity{}, authports.ErrIdentityProviderNotConfigured
 	}
 	payload, err := idtoken.Validate(ctx, credential, v.clientID)
 	if err != nil {
-		return ports.GoogleIdentity{}, fmt.Errorf("%w: %v", ports.ErrInvalidExternalIdentity, err)
+		return authports.GoogleIdentity{}, fmt.Errorf("%w: %v", authports.ErrInvalidExternalIdentity, err)
 	}
 	if payload.Issuer != "https://accounts.google.com" && payload.Issuer != "accounts.google.com" {
-		return ports.GoogleIdentity{}, fmt.Errorf("%w: invalid issuer", ports.ErrInvalidExternalIdentity)
+		return authports.GoogleIdentity{}, fmt.Errorf("%w: invalid issuer", authports.ErrInvalidExternalIdentity)
 	}
 
 	email, _ := payload.Claims["email"].(string)
 	emailVerified, _ := payload.Claims["email_verified"].(bool)
-	return ports.GoogleIdentity{
+	return authports.GoogleIdentity{
 		Subject:       payload.Subject,
 		Email:         email,
 		EmailVerified: emailVerified,

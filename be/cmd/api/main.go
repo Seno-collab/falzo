@@ -6,10 +6,12 @@ import (
 	apimiddleware "be/internal/api/middleware"
 	authapp "be/internal/application/auth"
 	roomapp "be/internal/application/room"
+	socialapp "be/internal/application/social"
 	"be/internal/config"
 	"be/internal/insfrastructure/persistence/postgres"
 	redisinfra "be/internal/insfrastructure/redis"
 	"be/internal/insfrastructure/security"
+	"be/internal/realtime"
 	"be/internal/shared/clock"
 	loggerx "be/internal/shared/logger"
 	"context"
@@ -88,6 +90,16 @@ func run() error {
 	joinRoom := roomapp.NewJoinRoomUseCase(rooms)
 	dealRound := roomapp.NewDealRoundUseCase(rooms, c)
 	getCurrentCard := roomapp.NewGetCurrentCardUseCase(rooms)
+	realtimeBackplane := redisinfra.NewRealtimeBackplane(redisClient, cfg.Redis.KeyPrefix, appLogger)
+	realtimeHub := realtime.NewHub(
+		c,
+		realtime.WithBackplane(realtimeBackplane),
+		realtime.WithLogger(appLogger),
+	)
+	if err := realtimeHub.Start(ctx); err != nil {
+		return fmt.Errorf("start realtime hub: %w", err)
+	}
+	defer realtimeHub.Close()
 	roomHandler := handler.NewRoomHandler(
 		createRoom,
 		listRooms,
@@ -95,11 +107,25 @@ func run() error {
 		joinRoom,
 		dealRound,
 		getCurrentCard,
+		realtimeHub,
 		appLogger,
+	)
+	realtimeHandler := handler.NewRealtimeHandler(
+		getRoom,
+		realtimeHub,
+		cfg.Server.WebSocketOriginPatterns,
+		appLogger,
+	)
+	socialRepository := postgres.NewSocialRepository(db)
+	socialService := socialapp.NewService(socialRepository, c)
+	socialHandler := handler.NewSocialHandler(socialService, appLogger)
+	healthHandler := handler.NewHealthHandler(
+		func(ctx context.Context) error { return db.Ping(ctx) },
+		func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
 	)
 	authenticator := apimiddleware.NewAuthenticator(tokens)
 
-	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(authHandler, roomHandler, authenticator, appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(healthHandler, authHandler, roomHandler, realtimeHandler, socialHandler, authenticator, appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- server.ListenAndServe() }()
 	slog.Info("api listening", slog.String("address", server.Addr))
@@ -110,6 +136,7 @@ func run() error {
 		}
 	case <-ctx.Done():
 		slog.Info("api shutting down", slog.String("reason", ctx.Err().Error()))
+		realtimeHub.Close()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return server.Shutdown(shutdownCtx)

@@ -14,11 +14,11 @@ func NewRedisClient(ctx context.Context, cfg config.RedisConfig, db int) (*redis
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password:     cfg.Password,
 		DB:           db,
-		PoolSize:     20,
-		MinIdleConns: 5,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
+		PoolSize:     cfg.PoolSize,
+		MinIdleConns: cfg.MinIdleConns,
+		DialTimeout:  time.Duration(cfg.DialTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(cfg.WriteTimeoutSeconds) * time.Second,
 	})
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()

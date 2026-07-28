@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"be/internal/application/ports"
+	cacheports "be/internal/application/ports/cache"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,13 +11,13 @@ import (
 type LoaderFunc[T any] func(ctx context.Context) (*T, error)
 
 type GenericCache[T any] struct {
-	store  ports.CacheStore
+	store  cacheports.Store
 	key    string
 	ttl    time.Duration
 	loader LoaderFunc[T]
 }
 
-func NewGenericCache[T any](store ports.CacheStore, key string, ttl time.Duration, loader LoaderFunc[T]) *GenericCache[T] {
+func NewGenericCache[T any](store cacheports.Store, key string, ttl time.Duration, loader LoaderFunc[T]) *GenericCache[T] {
 	return &GenericCache[T]{
 		store:  store,
 		key:    key,

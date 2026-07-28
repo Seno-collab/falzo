@@ -1,22 +1,22 @@
 package authapp
 
 import (
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	domainuser "be/internal/domain/user"
 	"be/internal/shared/clock"
 	"context"
 )
 
 type RefreshTokenUseCase struct {
-	users    ports.UserRepository
-	tokens   ports.TokenManager
-	sessions ports.TokenSessionStore
+	users    authports.UserRepository
+	tokens   authports.TokenManager
+	sessions authports.TokenSessionStore
 	clock    clock.Clock
 }
 
 type RefreshTokenInput struct{ RefreshToken string }
 
-func NewRefreshTokenUseCase(users ports.UserRepository, tokens ports.TokenManager, sessions ports.TokenSessionStore, c clock.Clock) *RefreshTokenUseCase {
+func NewRefreshTokenUseCase(users authports.UserRepository, tokens authports.TokenManager, sessions authports.TokenSessionStore, c clock.Clock) *RefreshTokenUseCase {
 	return &RefreshTokenUseCase{users: users, tokens: tokens, sessions: sessions, clock: c}
 }
 

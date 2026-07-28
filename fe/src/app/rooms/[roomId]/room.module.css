@@ -1143,6 +1143,18 @@ button.playerCard {
   color: #9ed7ff;
 }
 
+.onlineStatus {
+  border-color: rgb(217 242 117 / 34%);
+  background: rgb(217 242 117 / 10%);
+  color: #d9f275;
+}
+
+.offlineStatus {
+  border-color: rgb(127 139 130 / 28%);
+  background: rgb(127 139 130 / 8%);
+  color: #8d9990;
+}
+
 .scoreCell {
   white-space: nowrap;
 }

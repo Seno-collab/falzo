@@ -1,19 +1,19 @@
 package authapp
 
 import (
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	domainuser "be/internal/domain/user"
 	"be/internal/shared/clock"
 	"context"
 )
 
 type LogoutUseCase struct {
-	tokens   ports.TokenManager
-	sessions ports.TokenSessionStore
+	tokens   authports.TokenManager
+	sessions authports.TokenSessionStore
 	clock    clock.Clock
 }
 
-func NewLogoutUseCase(tokens ports.TokenManager, sessions ports.TokenSessionStore, c clock.Clock) *LogoutUseCase {
+func NewLogoutUseCase(tokens authports.TokenManager, sessions authports.TokenSessionStore, c clock.Clock) *LogoutUseCase {
 	return &LogoutUseCase{tokens: tokens, sessions: sessions, clock: c}
 }
 

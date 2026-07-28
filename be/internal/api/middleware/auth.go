@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"be/internal/api/http/response"
-	"be/internal/application/ports"
+	authports "be/internal/application/ports/auth"
 	"be/internal/shared/apperror"
 	"context"
 	"net/http"
@@ -14,28 +14,67 @@ type Principal struct {
 	UserID   int64
 	UserName string
 }
-type principalContextKey struct{}
-type Authenticator struct{ tokens ports.TokenManager }
 
-func NewAuthenticator(tokens ports.TokenManager) *Authenticator {
+const webSocketBearerPrefix = "bearer."
+
+type principalContextKey struct{}
+type Authenticator struct{ tokens authports.TokenManager }
+
+func NewAuthenticator(tokens authports.TokenManager) *Authenticator {
 	return &Authenticator{tokens: tokens}
 }
 
 func (a *Authenticator) RequireAccessToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Fields(r.Header.Get("Authorization"))
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
 			response.Error(w, apperror.Unauthorized("Bearer token is required"))
 			return
 		}
-		claims, err := a.tokens.ParseAccess(parts[1], time.Now().UTC())
-		if err != nil {
-			response.Error(w, apperror.InvalidToken())
+		a.authenticate(next, w, r, token)
+	})
+}
+
+func (a *Authenticator) RequireWebSocketAccessToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			token, ok = webSocketProtocolToken(r.Header.Get("Sec-WebSocket-Protocol"))
+		}
+		if !ok {
+			response.Error(w, apperror.Unauthorized("WebSocket access token is required"))
 			return
 		}
-		ctx := context.WithValue(r.Context(), principalContextKey{}, Principal{UserID: claims.UserID, UserName: claims.UserName})
-		next.ServeHTTP(w, r.WithContext(ctx))
+		a.authenticate(next, w, r, token)
 	})
+}
+
+func (a *Authenticator) authenticate(next http.Handler, w http.ResponseWriter, r *http.Request, token string) {
+	claims, err := a.tokens.ParseAccess(token, time.Now().UTC())
+	if err != nil {
+		response.Error(w, apperror.InvalidToken())
+		return
+	}
+	ctx := context.WithValue(r.Context(), principalContextKey{}, Principal{UserID: claims.UserID, UserName: claims.UserName})
+	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+func bearerToken(authorization string) (string, bool) {
+	parts := strings.Fields(authorization)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+		return "", false
+	}
+	return parts[1], true
+}
+
+func webSocketProtocolToken(header string) (string, bool) {
+	for protocol := range strings.SplitSeq(header, ",") {
+		protocol = strings.TrimSpace(protocol)
+		if len(protocol) > len(webSocketBearerPrefix) && strings.EqualFold(protocol[:len(webSocketBearerPrefix)], webSocketBearerPrefix) {
+			return protocol[len(webSocketBearerPrefix):], true
+		}
+	}
+	return "", false
 }
 
 func PrincipalFromContext(ctx context.Context) (Principal, bool) {

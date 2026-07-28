@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -20,8 +21,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port                    string
+	Env                     string
+	WebSocketOriginPatterns []string
 }
 
 type DatabaseConfig struct {
@@ -34,11 +36,16 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	Host      string
-	Port      int
-	Password  string
-	DB        int
-	KeyPrefix string
+	Host                string
+	Port                int
+	Password            string
+	DB                  int
+	KeyPrefix           string
+	PoolSize            int
+	MinIdleConns        int
+	DialTimeoutSeconds  int
+	ReadTimeoutSeconds  int
+	WriteTimeoutSeconds int
 }
 
 type JWTConfig struct {
@@ -81,11 +88,17 @@ func Load(envPath string) (*Config, error) {
 	v.AutomaticEnv()
 
 	setDefaults(v)
+	serverEnv := v.GetString("SERVER_ENV")
+	webSocketOriginPatterns := splitCommaSeparated(v.GetString("WEBSOCKET_ORIGIN_PATTERNS"))
+	if len(webSocketOriginPatterns) == 0 && serverEnv != "production" {
+		webSocketOriginPatterns = []string{"localhost:3000", "127.0.0.1:3000"}
+	}
 
 	cfg := &Config{
 		Server: ServerConfig{
-			Port: v.GetString("SERVER_PORT"),
-			Env:  v.GetString("SERVER_ENV"),
+			Port:                    v.GetString("SERVER_PORT"),
+			Env:                     serverEnv,
+			WebSocketOriginPatterns: webSocketOriginPatterns,
 		},
 		Database: DatabaseConfig{
 			Host:     v.GetString("DATABASE_HOST"),
@@ -96,11 +109,16 @@ func Load(envPath string) (*Config, error) {
 			SSLMode:  v.GetString("DATABASE_SSL_MODE"),
 		},
 		Redis: RedisConfig{
-			Host:      v.GetString("REDIS_HOST"),
-			Port:      v.GetInt("REDIS_PORT"),
-			Password:  v.GetString("REDIS_PASSWORD"),
-			DB:        v.GetInt("REDIS_DB"),
-			KeyPrefix: v.GetString("REDIS_KEY_PREFIX"),
+			Host:                v.GetString("REDIS_HOST"),
+			Port:                v.GetInt("REDIS_PORT"),
+			Password:            v.GetString("REDIS_PASSWORD"),
+			DB:                  v.GetInt("REDIS_DB"),
+			KeyPrefix:           v.GetString("REDIS_KEY_PREFIX"),
+			PoolSize:            v.GetInt("REDIS_POOL_SIZE"),
+			MinIdleConns:        v.GetInt("REDIS_MIN_IDLE_CONNS"),
+			DialTimeoutSeconds:  v.GetInt("REDIS_DIAL_TIMEOUT_SECONDS"),
+			ReadTimeoutSeconds:  v.GetInt("REDIS_READ_TIMEOUT_SECONDS"),
+			WriteTimeoutSeconds: v.GetInt("REDIS_WRITE_TIMEOUT_SECONDS"),
 		},
 		JWT: JWTConfig{
 			Secret:              v.GetString("JWT_SECRET"),
@@ -136,6 +154,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("REDIS_HOST", "localhost")
 	v.SetDefault("REDIS_PORT", 6379)
 	v.SetDefault("REDIS_DB", 0)
+	v.SetDefault("REDIS_POOL_SIZE", 20)
+	v.SetDefault("REDIS_MIN_IDLE_CONNS", 5)
+	v.SetDefault("REDIS_DIAL_TIMEOUT_SECONDS", 5)
+	v.SetDefault("REDIS_READ_TIMEOUT_SECONDS", 3)
+	v.SetDefault("REDIS_WRITE_TIMEOUT_SECONDS", 3)
 
 	v.SetDefault("JWT_EXPIRED_MINUTES", 60)
 	v.SetDefault("JWT_REFRESH_EXPIRED_HOURS", 168)
@@ -174,6 +197,12 @@ func (c *Config) Validate() error {
 	if c.Auth.MaxLoginAttempts <= 0 || c.Auth.LockMinutes <= 0 {
 		return fmt.Errorf("auth limits must be positive")
 	}
+	if c.Redis.PoolSize <= 0 || c.Redis.MinIdleConns < 0 || c.Redis.MinIdleConns > c.Redis.PoolSize {
+		return fmt.Errorf("redis pool settings are invalid")
+	}
+	if c.Redis.DialTimeoutSeconds <= 0 || c.Redis.ReadTimeoutSeconds <= 0 || c.Redis.WriteTimeoutSeconds <= 0 {
+		return fmt.Errorf("redis timeouts must be positive")
+	}
 	if c.Google.ClientID == "" {
 		return fmt.Errorf("GOOGLE_CLIENT_ID is required")
 	}
@@ -201,4 +230,14 @@ func (c *DatabaseConfig) DSN() string {
 
 func (c *RedisConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+func splitCommaSeparated(value string) []string {
+	values := make([]string, 0)
+	for item := range strings.SplitSeq(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			values = append(values, item)
+		}
+	}
+	return values
 }

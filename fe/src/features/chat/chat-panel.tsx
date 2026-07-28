@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useId, useRef, useState, useEffect } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import styles from "./chat-panel.module.css";
 
 export type ChatMessage = {
@@ -15,8 +15,11 @@ export type ChatMessage = {
 type ChatPanelProps = {
   title: string;
   subtitle: string;
-  currentUsername: string;
-  initialMessages: readonly ChatMessage[];
+  messages?: readonly ChatMessage[];
+  initialMessages?: readonly ChatMessage[];
+  currentUsername?: string;
+  connected?: boolean;
+  onSendMessage?: (text: string) => boolean;
   presence?: "online" | "offline" | "room";
   contextLabel?: string;
   inputPlaceholder?: string;
@@ -27,8 +30,11 @@ type ChatPanelProps = {
 export function ChatPanel({
   title,
   subtitle,
-  currentUsername,
-  initialMessages,
+  messages,
+  initialMessages = [],
+  currentUsername = "You",
+  connected = true,
+  onSendMessage,
   presence = "online",
   contextLabel,
   inputPlaceholder = "Write a message…",
@@ -36,32 +42,32 @@ export function ChatPanel({
   onClose,
 }: ChatPanelProps) {
   const inputId = useId();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [...initialMessages]);
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>(() => [...initialMessages]);
   const [draftMessage, setDraftMessage] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const visibleMessages = messages ?? localMessages;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
-  }, [messages]);
+  }, [visibleMessages]);
 
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draftMessage.trim();
     if (!text) return;
 
-    setMessages((current) => [
-      ...current,
-      {
-        id: `local-${Date.now()}`,
-        sender: currentUsername,
-        text,
-        time: new Intl.DateTimeFormat("en", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }).format(new Date()),
-        own: true,
-      },
-    ]);
+    if (onSendMessage) {
+      if (onSendMessage(text)) setDraftMessage("");
+      return;
+    }
+
+    setLocalMessages((current) => [...current, {
+      id: `local-${Date.now()}`,
+      sender: currentUsername,
+      text,
+      time: new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(new Date()),
+      own: true,
+    }]);
     setDraftMessage("");
   }
 
@@ -87,7 +93,13 @@ export function ChatPanel({
       </header>
 
       <div className={styles.messages} aria-live="polite">
-        {messages.map((message) => (
+        {visibleMessages.length === 0 && (
+          <div className={styles.systemMessage}>
+            <span aria-hidden="true">i</span>
+            <p>No messages yet. Say hello to the room.</p>
+          </div>
+        )}
+        {visibleMessages.map((message) => (
           message.system ? (
             <div className={styles.systemMessage} key={message.id}>
               <span aria-hidden="true">i</span>
@@ -115,14 +127,15 @@ export function ChatPanel({
         </label>
         <input
           autoComplete="off"
+          disabled={!connected}
           id={inputId}
-          maxLength={240}
+          maxLength={500}
           onChange={(event) => setDraftMessage(event.target.value)}
-          placeholder={inputPlaceholder}
+          placeholder={connected ? inputPlaceholder : "Reconnecting…"}
           type="text"
           value={draftMessage}
         />
-        <button disabled={!draftMessage.trim()} type="submit">
+        <button disabled={!connected || !draftMessage.trim()} type="submit">
           <span aria-hidden="true">↑</span>
           <span className={styles.srOnly}>Send message</span>
         </button>
