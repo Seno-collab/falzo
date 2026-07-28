@@ -13,7 +13,7 @@ its database migration has completed.
 
 - A Kubernetes cluster with a default `StorageClass`.
 - `kubectl` with access to the cluster.
-- An ingress-nginx controller for the included Ingress.
+- A Traefik ingress controller with `web` and `websecure` entrypoints.
 - A container registry reachable by the cluster.
 - A TLS Secret or cert-manager certificate named `falzo-tls`.
 
@@ -56,15 +56,65 @@ registry and immutable tag that were pushed. Avoid `latest` for a real release.
 
 ## 2. Configure host and non-secret values
 
-Update these placeholders before deployment:
+Review these values before deployment:
 
-- `game.example.com` in `platform/configmap.yaml` and `app/ingress.yaml`.
+- The public host is configured as `falzo.life` in `platform/configmap.yaml`
+  and `app/ingress.yaml`.
 - `GOOGLE_CLIENT_ID` in `platform/configmap.yaml`.
 - CPU, memory and PVC sizes for the target cluster.
 - `storageClassName` in each `volumeClaimTemplates` if the cluster has no
   default StorageClass.
 
 The WebSocket origin pattern must be the public host without `https://`.
+
+## Edge routing for falzo.life
+
+Do not run a separate Nginx container inside the Falzo application. Install one
+ingress controller for the cluster. Falzo uses the actively maintained Traefik
+controller because the community ingress-nginx controller was retired in March
+2026.
+
+K3s normally includes Traefik. Verify it with:
+
+```bash
+kubectl get ingressclass
+kubectl get pods,service -n kube-system -l app.kubernetes.io/name=traefik
+```
+
+For a cluster without an ingress controller, install Traefik once as a cluster
+administrator. Pin the chart version selected for the cluster:
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+helm search repo traefik/traefik --versions
+
+helm upgrade --install traefik traefik/traefik \
+  --namespace traefik \
+  --create-namespace \
+  --version REPLACE_WITH_PINNED_VERSION \
+  --set providers.kubernetesIngress.enabled=true \
+  --set ports.web.redirections.entryPoint.to=websecure \
+  --set ports.web.redirections.entryPoint.scheme=https
+```
+
+Point the DNS `A` record for `falzo.life` to the external IP assigned to
+Traefik. On a bare-metal cluster, a `LoadBalancer` implementation such as
+MetalLB or the K3s ServiceLB is also required:
+
+```bash
+kubectl get service -A | grep LoadBalancer
+kubectl get ingress falzo -n falzo
+```
+
+The TLS Secret `falzo-tls` must contain a certificate valid for `falzo.life`.
+It can be created manually as shown later in this guide or maintained by
+cert-manager. In Google Cloud Console, add `https://falzo.life` to the OAuth
+client's authorized JavaScript origins.
+
+Traefik routes `/api`, including WebSocket upgrades, to the Go service. All
+other paths are routed to Next.js. The production frontend derives `wss://`
+from the browser origin, so no separate public WebSocket domain is required.
 
 ## 3. Create secrets
 
@@ -183,6 +233,10 @@ relevant push to `main`, and can also be started manually with
 4. Runs the migration Job and stops immediately if it fails.
 5. Applies the application manifests and waits for both rolling updates.
 
+The workflow targets `linux/amd64`, matching standard GitHub-hosted runners and
+most Linux VPS clusters without QEMU emulation. For an ARM cluster, use a native
+ARM64 runner and change the workflow platform to `linux/arm64`.
+
 Create a GitHub Environment named `production`. Add deployment protection rules
 or required reviewers there if production should require manual approval.
 
@@ -213,6 +267,7 @@ Create the namespace once with an administrator before the first workflow run:
 
 ```bash
 kubectl apply -f deploy/k8s/platform/namespace.yaml
+kubectl apply -f deploy/k8s/ci/rbac.yaml
 ```
 
 The namespace is intentionally excluded from the platform Kustomization so the

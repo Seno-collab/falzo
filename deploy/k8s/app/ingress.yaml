@@ -6,17 +6,16 @@ metadata:
     app.kubernetes.io/name: falzo
     app.kubernetes.io/part-of: falzo
   annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "75"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "75"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
     - hosts:
-        - game.example.com
+        - falzo.life
       secretName: falzo-tls
   rules:
-    - host: game.example.com
+    - host: falzo.life
       http:
         paths:
           - path: /api

@@ -5,7 +5,7 @@ metadata:
 data:
   SERVER_ENV: production
   SERVER_PORT: "8080"
-  WEBSOCKET_ORIGIN_PATTERNS: game.example.com
+  WEBSOCKET_ORIGIN_PATTERNS: falzo.life
   GOOGLE_CLIENT_ID: replace-me.apps.googleusercontent.com
   DATABASE_HOST: falzo-postgres
   DATABASE_PORT: "5432"
