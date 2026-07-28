@@ -93,7 +93,10 @@ jobs:
     needs:
       - prepare
       - build
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
     environment: production
     permissions:
       contents: read
@@ -103,24 +106,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-
-      - name: Configure cluster credentials
-        shell: bash
-        env:
-          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
-        run: |
-          test -n "$KUBE_CONFIG_B64"
-          mkdir -p "$RUNNER_TEMP/falzo-kube"
-          printf '%s' "$KUBE_CONFIG_B64" | base64 --decode > "$RUNNER_TEMP/falzo-kube/config"
-          chmod 600 "$RUNNER_TEMP/falzo-kube/config"
-          echo "KUBECONFIG=$RUNNER_TEMP/falzo-kube/config" >> "$GITHUB_ENV"
-
       - name: Verify cluster context
         run: |
           kubectl config current-context
           kubectl cluster-info
+          kubectl get nodes
 
       - name: Prepare namespace and GHCR credentials
         shell: bash
