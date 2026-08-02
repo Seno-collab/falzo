@@ -93,78 +93,162 @@ jobs:
     needs:
       - prepare
       - build
-    runs-on:
-      - self-hosted
-      - linux
-      - x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
     permissions:
       contents: read
     env:
       REGISTRY_NAMESPACE: ${{ needs.prepare.outputs.registry_namespace }}
+      GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Verify cluster context
-        run: |
-          kubectl config current-context
-          kubectl cluster-info
-          kubectl get nodes
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
 
-      - name: Prepare namespace and GHCR credentials
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KEY"
+          test -n "$VPS_APP_DIR"
+          [[ "$VPS_APP_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]
+
+          VPS_PORT="${VPS_PORT:-22}"
+          echo "VPS_PORT=$VPS_PORT" >> "$GITHUB_ENV"
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/falzo-deploy
+          chmod 600 ~/.ssh/falzo-deploy
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Render deployment manifests
         shell: bash
         env:
           GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         run: |
+          set -euo pipefail
+
           test -n "$GHCR_PULL_USERNAME"
           test -n "$GHCR_PULL_TOKEN"
+          test -n "$GOOGLE_CLIENT_ID"
+
+          manifest_dir="$RUNNER_TEMP/falzo-manifests"
+          mkdir -p "$manifest_dir"
+
           kubectl create secret docker-registry ghcr-pull \
             --namespace "$KUBE_NAMESPACE" \
             --docker-server "$REGISTRY" \
             --docker-username "$GHCR_PULL_USERNAME" \
             --docker-password "$GHCR_PULL_TOKEN" \
             --dry-run=client \
-            -o yaml | kubectl apply -f -
-          kubectl get secret falzo-secrets -n "$KUBE_NAMESPACE" >/dev/null
+            -o yaml > "$manifest_dir/ghcr-pull.yaml"
 
-      - name: Apply PostgreSQL, Redis and configuration
-        run: |
-          kubectl apply -k deploy/k8s/platform
-          kubectl rollout status statefulset/falzo-postgres -n "$KUBE_NAMESPACE" --timeout=180s
-          kubectl rollout status statefulset/falzo-redis -n "$KUBE_NAMESPACE" --timeout=180s
+          kubectl kustomize deploy/k8s/platform \
+            | sed "s#replace-me.apps.googleusercontent.com#$GOOGLE_CLIENT_ID#g" \
+            > "$manifest_dir/platform.yaml"
 
-      - name: Run database migrations
-        shell: bash
-        run: |
           migration_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-migrate:$IMAGE_TAG"
-          kubectl delete job falzo-migrate -n "$KUBE_NAMESPACE" --ignore-not-found
           kubectl kustomize deploy/k8s/migration \
             | sed "s#ghcr.io/your-org/falzo-migrate:replace-me#$migration_image#g" \
-            | kubectl apply -f -
+            > "$manifest_dir/migration.yaml"
 
-          if ! kubectl wait \
-            --for=condition=complete \
-            job/falzo-migrate \
-            -n "$KUBE_NAMESPACE" \
-            --timeout=300s; then
-            kubectl logs job/falzo-migrate -n "$KUBE_NAMESPACE" || true
-            kubectl describe job falzo-migrate -n "$KUBE_NAMESPACE" || true
-            exit 1
-          fi
-
-      - name: Deploy backend and frontend
-        shell: bash
-        run: |
           backend_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-backend:$IMAGE_TAG"
           frontend_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-frontend:$IMAGE_TAG"
           kubectl kustomize deploy/k8s/app \
             | sed \
               -e "s#ghcr.io/your-org/falzo-backend:replace-me#$backend_image#g" \
               -e "s#ghcr.io/your-org/falzo-frontend:replace-me#$frontend_image#g" \
-            | kubectl apply -f -
+            > "$manifest_dir/app.yaml"
 
-          kubectl rollout status deployment/falzo-backend -n "$KUBE_NAMESPACE" --timeout=180s
-          kubectl rollout status deployment/falzo-frontend -n "$KUBE_NAMESPACE" --timeout=180s
-          kubectl get pods,services,ingress -n "$KUBE_NAMESPACE"
+          if rg -n 'replace-me|ghcr.io/your-org' "$manifest_dir"; then
+            echo "Rendered manifests still contain deployment placeholders"
+            exit 1
+          fi
+
+          echo "MANIFEST_DIR=$manifest_dir" >> "$GITHUB_ENV"
+
+      - name: Upload manifests to VPS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_dir="$VPS_APP_DIR/releases/$IMAGE_TAG"
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$remote_dir'"
+          scp -i ~/.ssh/falzo-deploy -P "$VPS_PORT" \
+            "$MANIFEST_DIR"/*.yaml \
+            "$VPS_USER@$VPS_HOST:$remote_dir/"
+          echo "REMOTE_DIR=$remote_dir" >> "$GITHUB_ENV"
+
+      - name: Deploy to K3s on VPS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "REMOTE_DIR='$REMOTE_DIR' KUBE_NAMESPACE='$KUBE_NAMESPACE' bash -s" <<'EOF'
+          set -euo pipefail
+
+          cleanup() {
+            rm -rf -- "$REMOTE_DIR"
+          }
+          trap cleanup EXIT
+
+          if ! command -v k3s >/dev/null 2>&1; then
+            echo "K3s is not installed. Run the Bootstrap Falzo K3s VPS workflow first."
+            exit 1
+          fi
+
+          if [ "$(id -u)" -eq 0 ]; then
+            kube() { k3s kubectl "$@"; }
+          elif sudo -n k3s kubectl version >/dev/null 2>&1; then
+            kube() { sudo -n k3s kubectl "$@"; }
+          else
+            echo "The VPS user needs passwordless sudo access to k3s kubectl."
+            exit 1
+          fi
+
+          kube get nodes
+          kube get ingressclass traefik
+          kube get storageclass
+          kube get namespace "$KUBE_NAMESPACE"
+          kube apply -f "$REMOTE_DIR/ghcr-pull.yaml"
+          kube get secret falzo-secrets -n "$KUBE_NAMESPACE" >/dev/null
+          kube get secret falzo-tls -n "$KUBE_NAMESPACE" >/dev/null
+
+          kube apply -f "$REMOTE_DIR/platform.yaml"
+          kube rollout status statefulset/falzo-postgres -n "$KUBE_NAMESPACE" --timeout=180s
+          kube rollout status statefulset/falzo-redis -n "$KUBE_NAMESPACE" --timeout=180s
+
+          kube delete job falzo-migrate -n "$KUBE_NAMESPACE" --ignore-not-found
+          kube apply -f "$REMOTE_DIR/migration.yaml"
+
+          if ! kube wait \
+            --for=condition=complete \
+            job/falzo-migrate \
+            -n "$KUBE_NAMESPACE" \
+            --timeout=300s; then
+            kube logs job/falzo-migrate -n "$KUBE_NAMESPACE" || true
+            kube describe job falzo-migrate -n "$KUBE_NAMESPACE" || true
+            exit 1
+          fi
+
+          kube apply -f "$REMOTE_DIR/app.yaml"
+          kube rollout status deployment/falzo-backend -n "$KUBE_NAMESPACE" --timeout=180s
+          kube rollout status deployment/falzo-frontend -n "$KUBE_NAMESPACE" --timeout=180s
+          kube get pods,services,ingress -n "$KUBE_NAMESPACE"
+          EOF

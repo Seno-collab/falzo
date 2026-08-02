@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type SubmitEvent, useEffect, useId, useRef, useState } from "react";
 import styles from "./chat-panel.module.css";
 
 export type ChatMessage = {
@@ -51,7 +51,7 @@ export function ChatPanel({
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
   }, [visibleMessages]);
 
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draftMessage.trim();
     if (!text) return;

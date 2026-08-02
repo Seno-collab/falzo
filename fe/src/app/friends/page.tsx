@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type SubmitEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/session-guard";
 import {
@@ -120,7 +120,7 @@ export default function FriendsPage() {
     }
   }
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+  async function handleSearch(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = query.trim();
     if (value.length < 2) {
@@ -422,7 +422,7 @@ function FindPanel({
   setPanel,
   setQuery,
 }: {
-  handleSearch: (event: FormEvent<HTMLFormElement>) => void;
+  handleSearch: (event: SubmitEvent<HTMLFormElement>) => void;
   onSend: (user: SocialUser) => void;
   pendingAction: string;
   query: string;

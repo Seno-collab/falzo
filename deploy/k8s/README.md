@@ -242,34 +242,47 @@ or required reviewers there if production should require manual approval.
 
 Add these Environment secrets:
 
-- `KUBE_CONFIG_B64`: base64-encoded kubeconfig for a deployment-only Kubernetes
-  service account.
+- `VPS_HOST`: public IP address or DNS name used for SSH.
+- `VPS_USER`: SSH deployment user.
+- `VPS_PORT`: SSH port; use `22` when no custom port is configured.
+- `VPS_SSH_KEY`: private key accepted by the VPS deployment user.
+- `VPS_APP_DIR`: absolute writable directory used for temporary deployment
+  manifests, for example `/opt/falzo`.
 - `GHCR_PULL_USERNAME`: GitHub account that owns the package read token.
 - `GHCR_PULL_TOKEN`: a classic PAT with `read:packages`, used by Kubernetes to
   pull private GHCR images.
 
-Create `KUBE_CONFIG_B64` without line wrapping:
-
-```bash
-base64 < /path/to/deploy-kubeconfig | tr -d '\n'
-```
-
 Add the repository variable `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. It is a public OAuth
-client identifier embedded into the frontend image, so it does not need to be a
-secret.
+client identifier embedded into the frontend image and injected into the backend
+ConfigMap during deployment, so it does not need to be a secret.
+
+The deploy job runs on a GitHub-hosted runner and connects to the VPS over SSH.
+It renders immutable manifests locally, uploads them under `VPS_APP_DIR`, then
+runs `k3s kubectl` on the server. Kubernetes port 6443 does not need to be
+exposed publicly. The SSH user must be `root` or have passwordless `sudo` access
+to `k3s kubectl`.
+
+Before the first deployment, manually run the `Bootstrap Falzo K3s VPS` workflow.
+It installs a default single-node K3s cluster when needed, verifies Traefik and
+the `local-path` StorageClass, creates the `falzo` namespace, and generates the
+database, Redis and JWT credentials when `falzo-secrets` does not already exist.
+The bootstrap creates a temporary 30-day self-signed `falzo-tls` certificate only
+when that Secret is absent. Replace it with a trusted certificate after the
+`falzo.life` DNS record points to the VPS.
 
 The cluster must already contain `falzo-secrets` and `falzo-tls`. Application
 database/JWT/Redis secrets remain cluster-managed and are not copied into GitHub
 Actions. For cloud-hosted Kubernetes, prefer the provider's GitHub OIDC login
 instead of storing a long-lived kubeconfig.
 
-Create the namespace once with an administrator before the first workflow run:
+To bootstrap the namespace manually instead of using the workflow:
 
 ```bash
 kubectl apply -f deploy/k8s/platform/namespace.yaml
 kubectl apply -f deploy/k8s/ci/rbac.yaml
 ```
 
-The namespace is intentionally excluded from the platform Kustomization so the
-GitHub Actions kubeconfig can be restricted to the `falzo` namespace instead of
-requiring cluster-wide namespace permissions.
+The namespace is intentionally excluded from the platform Kustomization because
+it must exist before the workflow creates the GHCR pull Secret. The SSH deployment
+runs Kubernetes commands locally on the VPS; only TCP 22 (or the configured SSH
+port), 80 and 443 need to be reachable externally.

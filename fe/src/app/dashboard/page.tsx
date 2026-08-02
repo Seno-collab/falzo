@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
@@ -112,7 +112,7 @@ export default function DashboardPage() {
     setActionError("");
   }
 
-  async function handleCreateRoom(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateRoom(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = roomName.trim();
     if (!name) {
@@ -141,7 +141,7 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleJoinRoom(event: FormEvent<HTMLFormElement>) {
+  async function handleJoinRoom(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = inviteCode.trim().toUpperCase();
     if (code.length < 6) {
