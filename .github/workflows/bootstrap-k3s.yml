@@ -49,6 +49,19 @@ jobs:
           chmod 600 ~/.ssh/falzo-deploy
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
+          if ! ssh \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -i ~/.ssh/falzo-deploy \
+            -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "printf 'SSH access verified\\n'" \
+            2>"$RUNNER_TEMP/falzo-ssh-error.log"; then
+            ssh_error="$(tail -n 8 "$RUNNER_TEMP/falzo-ssh-error.log" | tr '\r\n' '  ' | sed 's/%/%25/g')"
+            echo "::error title=SSH connection failed::$ssh_error"
+            exit 1
+          fi
+
       - name: Upload bootstrap manifests
         shell: bash
         run: |
