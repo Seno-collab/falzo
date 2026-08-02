@@ -1,0 +1,152 @@
+name: Bootstrap Falzo K3s VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/bootstrap-k3s.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: falzo-production-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Install and prepare K3s
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KEY"
+          test -n "$VPS_APP_DIR"
+          [[ "$VPS_APP_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]
+
+          VPS_PORT="${VPS_PORT:-22}"
+          echo "VPS_PORT=$VPS_PORT" >> "$GITHUB_ENV"
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/falzo-deploy
+          chmod 600 ~/.ssh/falzo-deploy
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload bootstrap manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_dir="$VPS_APP_DIR/bootstrap/$GITHUB_SHA"
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$remote_dir/platform' '$remote_dir/ci'"
+          scp -i ~/.ssh/falzo-deploy -P "$VPS_PORT" \
+            deploy/k8s/platform/namespace.yaml \
+            "$VPS_USER@$VPS_HOST:$remote_dir/platform/"
+          scp -i ~/.ssh/falzo-deploy -P "$VPS_PORT" \
+            deploy/k8s/ci/rbac.yaml \
+            "$VPS_USER@$VPS_HOST:$remote_dir/ci/"
+          echo "REMOTE_DIR=$remote_dir" >> "$GITHUB_ENV"
+
+      - name: Install and configure K3s
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "REMOTE_DIR='$REMOTE_DIR' bash -s" <<'EOF'
+          set -euo pipefail
+
+          cleanup() {
+            rm -rf -- "$REMOTE_DIR"
+          }
+          trap cleanup EXIT
+
+          if [ "$(id -u)" -eq 0 ]; then
+            run_root() { "$@"; }
+          elif sudo -n true; then
+            run_root() { sudo -n "$@"; }
+          else
+            echo "The VPS user needs passwordless sudo for K3s bootstrap."
+            exit 1
+          fi
+
+          case "$(uname -m)" in
+            x86_64|amd64) ;;
+            *)
+              echo "The deployment images target linux/amd64, but this VPS is $(uname -m)."
+              exit 1
+              ;;
+          esac
+
+          if ! command -v k3s >/dev/null 2>&1; then
+            command -v curl >/dev/null 2>&1
+            curl -sfL https://get.k3s.io -o /tmp/falzo-install-k3s.sh
+            run_root sh /tmp/falzo-install-k3s.sh
+            rm -f /tmp/falzo-install-k3s.sh
+          fi
+
+          kube() { run_root k3s kubectl "$@"; }
+
+          kube wait --for=condition=Ready node --all --timeout=180s
+          kube get pods -n kube-system -l app.kubernetes.io/name=traefik
+          kube get ingressclass traefik
+          kube get storageclass local-path
+
+          kube apply -f "$REMOTE_DIR/platform/namespace.yaml"
+          kube apply -f "$REMOTE_DIR/ci/rbac.yaml"
+
+          if ! kube get secret falzo-secrets -n falzo >/dev/null 2>&1; then
+            database_password="$(openssl rand -hex 32)"
+            redis_password="$(openssl rand -hex 32)"
+            jwt_secret="$(openssl rand -hex 48)"
+            database_url="postgres://falzo_user:${database_password}@falzo-postgres:5432/falzo_game_db?sslmode=disable"
+
+            kube create secret generic falzo-secrets \
+              --namespace falzo \
+              --from-literal=DATABASE_PASSWORD="$database_password" \
+              --from-literal=REDIS_PASSWORD="$redis_password" \
+              --from-literal=JWT_SECRET="$jwt_secret" \
+              --from-literal=DATABASE_URL="$database_url"
+
+            unset database_password redis_password jwt_secret database_url
+          fi
+
+          if ! kube get secret falzo-tls -n falzo >/dev/null 2>&1; then
+            tls_dir="$(mktemp -d)"
+            openssl req -x509 -nodes -newkey rsa:2048 \
+              -keyout "$tls_dir/tls.key" \
+              -out "$tls_dir/tls.crt" \
+              -days 30 \
+              -subj "/CN=falzo.life" \
+              -addext "subjectAltName=DNS:falzo.life"
+            kube create secret tls falzo-tls \
+              --namespace falzo \
+              --cert="$tls_dir/tls.crt" \
+              --key="$tls_dir/tls.key"
+            rm -rf -- "$tls_dir"
+            echo "Created a temporary self-signed TLS certificate. Replace it after DNS is configured."
+          fi
+
+          kube get nodes
+          kube get secret falzo-secrets falzo-tls -n falzo
+          EOF
