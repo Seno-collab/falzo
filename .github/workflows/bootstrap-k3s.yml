@@ -45,8 +45,14 @@ jobs:
           echo "VPS_PORT=$VPS_PORT" >> "$GITHUB_ENV"
 
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/falzo-deploy
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/falzo-deploy
           chmod 600 ~/.ssh/falzo-deploy
+
+          if ! ssh-keygen -y -f ~/.ssh/falzo-deploy > /dev/null; then
+            echo "::error title=Invalid VPS SSH key::VPS_SSH_KEY must contain a valid private key with its original multi-line formatting."
+            exit 1
+          fi
+
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
           if ! ssh \
