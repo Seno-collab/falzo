@@ -30,6 +30,11 @@ import styles from "./friends.module.css";
 
 type Panel = "friends" | "requests" | "find" | "notifications";
 
+function asArray<T>(value: T[] | null | undefined): T[] {
+  if (Array.isArray(value)) return value;
+  return [];
+}
+
 export default function FriendsPage() {
   const router = useRouter();
   const session = useSession();
@@ -47,13 +52,18 @@ export default function FriendsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const safeFriends = asArray(friends);
+  const safeRequests = asArray(requests);
+  const safeNotifications = asArray(notifications);
+  const safeResults = asArray(results);
+
   const incomingRequests = useMemo(
-    () => requests.filter((request) => request.receiver_name === session.username),
-    [requests, session.username],
+    () => safeRequests.filter((request) => request.receiver_name === session.username),
+    [safeRequests, session.username],
   );
   const outgoingRequests = useMemo(
-    () => requests.filter((request) => request.sender_name === session.username),
-    [requests, session.username],
+    () => safeRequests.filter((request) => request.sender_name === session.username),
+    [safeRequests, session.username],
   );
 
   const loadSocialData = useCallback(async (trackActivity: boolean) => {
@@ -68,10 +78,10 @@ export default function FriendsPage() {
       listNotifications(activeSession.access_token, {}, { trackActivity }),
       countUnreadNotifications(activeSession.access_token, { trackActivity }),
     ]);
-    setFriends(friendData);
-    setRequests(requestData);
-    setNotifications(notificationData);
-    setUnreadCount(unreadData.count);
+    setFriends(asArray(friendData));
+    setRequests(asArray(requestData));
+    setNotifications(asArray(notificationData));
+    setUnreadCount(typeof unreadData?.count === "number" ? unreadData.count : 0);
     return true;
   }, [router]);
 
@@ -132,7 +142,8 @@ export default function FriendsPage() {
     setNotice("");
     try {
       const accessToken = await activeAccessToken();
-      setResults(await searchUsers(accessToken, value));
+      const searchData = await searchUsers(accessToken, value);
+      setResults(asArray(searchData));
       setSearched(true);
     } catch (searchError) {
       setError(socialErrorMessage(searchError));
@@ -148,9 +159,12 @@ export default function FriendsPage() {
       `Friend request sent to ${user.username}.`,
     );
     if (sent) {
-      setResults((current) => current.map((item) => (
-        item.id === user.id ? { ...item, relationship: "OUTGOING_REQUEST" } : item
-      )));
+      setResults((current) => asArray(current).map((item) => {
+        if (item.id === user.id) {
+          return { ...item, relationship: "OUTGOING_REQUEST" };
+        }
+        return item;
+      }));
     }
   }
 
@@ -171,9 +185,12 @@ export default function FriendsPage() {
         const accessToken = await activeAccessToken();
         await markNotificationRead(accessToken, notification.id);
         const readAt = new Date().toISOString();
-        setNotifications((current) => current.map((item) => (
-          item.id === notification.id ? { ...item, read: true, read_at: readAt } : item
-        )));
+        setNotifications((current) => asArray(current).map((item) => {
+          if (item.id === notification.id) {
+            return { ...item, read: true, read_at: readAt };
+          }
+          return item;
+        }));
         setUnreadCount((current) => Math.max(0, current - 1));
       } catch (notificationError) {
         setError(socialErrorMessage(notificationError));
@@ -190,6 +207,51 @@ export default function FriendsPage() {
       "notifications-read-all",
       (accessToken) => markAllNotificationsRead(accessToken),
       "All notifications marked as read.",
+    );
+  }
+
+  let panelContent = (
+    <NotificationsPanel
+      notifications={safeNotifications}
+      onMarkAll={handleMarkAllRead}
+      onOpen={openNotification}
+      pendingAction={pendingAction}
+      unreadCount={unreadCount}
+    />
+  );
+  if (loading) {
+    panelContent = <EmptyState title="Loading friends…" text="Syncing your social list with the server." />;
+  } else if (panel === "friends") {
+    panelContent = (
+      <FriendsPanel
+        friends={safeFriends}
+        onUnfriend={handleUnfriend}
+        pendingAction={pendingAction}
+        showFind={() => setPanel("find")}
+      />
+    );
+  } else if (panel === "requests") {
+    panelContent = (
+      <RequestsPanel
+        incoming={incomingRequests}
+        outgoing={outgoingRequests}
+        pendingAction={pendingAction}
+        runAction={runAction}
+      />
+    );
+  } else if (panel === "find") {
+    panelContent = (
+      <FindPanel
+        handleSearch={handleSearch}
+        onSend={handleSendRequest}
+        pendingAction={pendingAction}
+        query={query}
+        results={safeResults}
+        searched={searched}
+        searching={searching}
+        setPanel={setPanel}
+        setQuery={setQuery}
+      />
     );
   }
 
@@ -211,7 +273,7 @@ export default function FriendsPage() {
             <span>Find players and bring your group into the next room.</span>
           </div>
           <div className={styles.summary}>
-            <span><strong>{friends.length}</strong> friends</span>
+            <span><strong>{safeFriends.length}</strong> friends</span>
             <span><strong>{incomingRequests.length}</strong> requests</span>
             <span><strong>{unreadCount}</strong> unread</span>
           </div>
@@ -238,55 +300,19 @@ export default function FriendsPage() {
         {notice && <p className={styles.notice} role="status">{notice}</p>}
 
         <section className={styles.panel} aria-live="polite">
-          {loading ? (
-            <EmptyState title="Loading friends…" text="Syncing your social list with the server." />
-          ) : panel === "friends" ? (
-            <FriendsPanel
-              friends={friends}
-              onUnfriend={handleUnfriend}
-              pendingAction={pendingAction}
-              showFind={() => setPanel("find")}
-            />
-          ) : panel === "requests" ? (
-            <RequestsPanel
-              incoming={incomingRequests}
-              outgoing={outgoingRequests}
-              pendingAction={pendingAction}
-              runAction={runAction}
-            />
-          ) : panel === "find" ? (
-            <FindPanel
-              handleSearch={handleSearch}
-              onSend={handleSendRequest}
-              pendingAction={pendingAction}
-              query={query}
-              results={results}
-              searched={searched}
-              searching={searching}
-              setPanel={setPanel}
-              setQuery={setQuery}
-            />
-          ) : (
-            <NotificationsPanel
-              notifications={notifications}
-              onMarkAll={handleMarkAllRead}
-              onOpen={openNotification}
-              pendingAction={pendingAction}
-              unreadCount={unreadCount}
-            />
-          )}
+          {panelContent}
         </section>
       </div>
     </main>
   );
 }
 
-function Tab({ active, count = 0, label, onClick }: {
+function Tab({ active, count = 0, label, onClick }: Readonly<{
   active: boolean;
   count?: number;
   label: string;
   onClick: () => void;
-}) {
+}>) {
   return (
     <button className={active ? styles.activeTab : ""} onClick={onClick} type="button">
       {label}
@@ -295,12 +321,12 @@ function Tab({ active, count = 0, label, onClick }: {
   );
 }
 
-function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: {
+function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: Readonly<{
   friends: Friend[];
   onUnfriend: (friend: Friend) => void;
   pendingAction: string;
   showFind: () => void;
-}) {
+}>) {
   if (friends.length === 0) {
     return <EmptyState action="Find players" onAction={showFind} title="No friends yet" text="Search by username and send your first request." />;
   }
@@ -316,7 +342,7 @@ function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: {
           <button
             className={styles.dangerButton}
             disabled={Boolean(pendingAction)}
-            onClick={() => void onUnfriend(friend)}
+            onClick={() => onUnfriend(friend)}
             type="button"
           >
             {pendingAction === `unfriend-${friend.id}` ? "Removing…" : "Unfriend"}
@@ -327,12 +353,12 @@ function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: {
   );
 }
 
-function RequestsPanel({ incoming, outgoing, pendingAction, runAction }: {
+function RequestsPanel({ incoming, outgoing, pendingAction, runAction }: Readonly<{
   incoming: FriendRequest[];
   outgoing: FriendRequest[];
   pendingAction: string;
   runAction: (key: string, action: (accessToken: string) => Promise<unknown>, success: string) => Promise<boolean>;
-}) {
+}>) {
   if (incoming.length === 0 && outgoing.length === 0) {
     return <EmptyState title="No pending requests" text="New friend requests will appear here." />;
   }
@@ -421,7 +447,7 @@ function FindPanel({
   searching,
   setPanel,
   setQuery,
-}: {
+}: Readonly<{
   handleSearch: (event: SubmitEvent<HTMLFormElement>) => void;
   onSend: (user: SocialUser) => void;
   pendingAction: string;
@@ -431,7 +457,29 @@ function FindPanel({
   searching: boolean;
   setPanel: (panel: Panel) => void;
   setQuery: (query: string) => void;
-}) {
+}>) {
+  function renderRelationshipAction(user: SocialUser) {
+    if (user.relationship === "NONE") {
+      return (
+        <button
+          disabled={Boolean(pendingAction)}
+          onClick={() => onSend(user)}
+          type="button"
+        >
+          {pendingAction === `send-${user.id}` ? "Sending…" : "Add friend"}
+        </button>
+      );
+    }
+    if (user.relationship === "INCOMING_REQUEST") {
+      return (
+        <button className={styles.secondaryButton} onClick={() => setPanel("requests")} type="button">
+          View request
+        </button>
+      );
+    }
+    return <span className={styles.relationshipTag}>{relationshipLabel(user.relationship)}</span>;
+  }
+
   return (
     <div>
       <form className={styles.search} onSubmit={handleSearch}>
@@ -456,19 +504,7 @@ function FindPanel({
                 <strong>{user.username}</strong>
                 <span>{relationshipLabel(user.relationship)}</span>
               </div>
-              {user.relationship === "NONE" ? (
-                <button
-                  disabled={Boolean(pendingAction)}
-                  onClick={() => void onSend(user)}
-                  type="button"
-                >
-                  {pendingAction === `send-${user.id}` ? "Sending…" : "Add friend"}
-                </button>
-              ) : user.relationship === "INCOMING_REQUEST" ? (
-                <button className={styles.secondaryButton} onClick={() => setPanel("requests")} type="button">View request</button>
-              ) : (
-                <span className={styles.relationshipTag}>{relationshipLabel(user.relationship)}</span>
-              )}
+              {renderRelationshipAction(user)}
             </article>
           ))}
         </div>
@@ -477,13 +513,13 @@ function FindPanel({
   );
 }
 
-function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, unreadCount }: {
+function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, unreadCount }: Readonly<{
   notifications: FriendNotification[];
   onMarkAll: () => void;
   onOpen: (notification: FriendNotification) => void;
   pendingAction: string;
   unreadCount: number;
-}) {
+}>) {
   if (notifications.length === 0) {
     return <EmptyState title="No notifications" text="Friend activity will appear here." />;
   }
@@ -521,16 +557,16 @@ function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, u
   );
 }
 
-function Avatar({ name }: { name: string }) {
+function Avatar({ name }: Readonly<{ name: string }>) {
   return <span className={styles.avatar} aria-hidden="true">{name.trim().charAt(0).toUpperCase() || "?"}</span>;
 }
 
-function EmptyState({ action, onAction, text, title }: {
+function EmptyState({ action, onAction, text, title }: Readonly<{
   action?: string;
   onAction?: () => void;
   text: string;
   title: string;
-}) {
+}>) {
   return (
     <div className={styles.empty}>
       <span aria-hidden="true">+</span>

@@ -40,6 +40,7 @@ export default function DashboardPage() {
 
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openRooms = rooms.filter((room) => room.status === "waiting").length;
+  const safeFriends = Array.isArray(friends) ? friends : [];
 
   useEffect(() => {
     let active = true;
@@ -85,7 +86,7 @@ export default function DashboardPage() {
           countUnreadNotifications(activeSession.access_token, { trackActivity: false }),
         ]);
         if (!active) return;
-        setFriends(friendData);
+        setFriends(Array.isArray(friendData) ? friendData : []);
         setUnreadNotifications(unreadData.count);
         setFriendsLoaded(true);
       } catch {
@@ -217,7 +218,7 @@ export default function DashboardPage() {
               </div>
 
               <div className={styles.friendList}>
-                {friends.slice(0, 5).map((friend, index) => (
+                {safeFriends.slice(0, 5).map((friend, index) => (
                   <Link
                     className={styles.friend}
                     href="/friends"
@@ -233,7 +234,7 @@ export default function DashboardPage() {
                     <span className={styles.chatIcon} aria-hidden="true">→</span>
                   </Link>
                 ))}
-                {friendsLoaded && friends.length === 0 && (
+                {friendsLoaded && safeFriends.length === 0 && (
                   <Link className={styles.emptyFriendList} href="/friends">+ Find your first friend</Link>
                 )}
               </div>
