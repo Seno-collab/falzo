@@ -274,7 +274,9 @@ Both workflows explicitly start `k3s.service` and wait for the local K3s API to
 be ready before running cluster commands. Therefore, `127.0.0.1:6443 refused`
 means the K3s server on the VPS is stopped or failed to start; it does not mean
 port 6443 should be exposed publicly. When readiness fails, the workflow prints
-the K3s service status and recent journal entries for diagnosis.
+the K3s service status, port 6443 listener, and recent journal entries for
+diagnosis. It also waits for the bundled Traefik deployment instead of treating
+an initial `No resources found` response as a completed ingress setup.
 
 The cluster must already contain `falzo-secrets` and `falzo-tls`. Application
 database/JWT/Redis secrets remain cluster-managed and are not copied into GitHub

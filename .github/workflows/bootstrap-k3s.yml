@@ -122,6 +122,34 @@ jobs:
             exit 1
           fi
 
+          diagnose_k3s() {
+            if run_root systemctl is-active --quiet k3s \
+              && run_root k3s kubectl \
+                --kubeconfig /etc/rancher/k3s/k3s.yaml \
+                get --raw=/readyz \
+                >/dev/null 2>&1; then
+              echo "K3s service and API are still healthy; the failure happened after cluster startup."
+              return
+            fi
+            echo "K3s diagnostics after bootstrap failure:"
+            run_root systemctl status k3s --no-pager -l || true
+            if command -v ss >/dev/null 2>&1; then
+              run_root ss -lntp | grep ':6443' || true
+            fi
+            run_root journalctl -u k3s --since "10 minutes ago" -n 200 --no-pager || true
+          }
+
+          finish() {
+            exit_code=$?
+            trap - EXIT
+            if [ "$exit_code" -ne 0 ]; then
+              diagnose_k3s
+            fi
+            cleanup || true
+            exit "$exit_code"
+          }
+          trap finish EXIT
+
           case "$(uname -m)" in
             x86_64|amd64) ;;
             *)
@@ -153,8 +181,6 @@ jobs:
           # A previous install can leave the binary present while the server is
           # stopped. Start the service before asking kubectl to use localhost:6443.
           if ! run_root systemctl enable --now k3s; then
-            run_root systemctl status k3s --no-pager || true
-            run_root journalctl -u k3s -n 100 --no-pager || true
             exit 1
           fi
 
@@ -164,23 +190,67 @@ jobs:
               "$@"
           }
 
-          api_ready=false
-          for attempt in $(seq 1 60); do
-            if kube get --raw=/readyz >/dev/null 2>&1; then
-              api_ready=true
-              break
-            fi
-            sleep 2
-          done
-
-          if [ "$api_ready" != true ]; then
+          wait_for_api() {
+            for attempt in $(seq 1 60); do
+              if run_root systemctl is-active --quiet k3s \
+                && kube get --raw=/readyz >/dev/null 2>&1; then
+                return 0
+              fi
+              sleep 2
+            done
             echo "K3s API did not become ready on 127.0.0.1:6443."
-            run_root systemctl status k3s --no-pager || true
-            run_root journalctl -u k3s -n 100 --no-pager || true
+            return 1
+          }
+
+          wait_for_traefik() {
+            for attempt in $(seq 1 90); do
+              if ! run_root systemctl is-active --quiet k3s \
+                || ! kube get --raw=/readyz >/dev/null 2>&1; then
+                # systemd normally restarts K3s automatically. Keep waiting
+                # through a transient restart instead of failing immediately.
+                run_root systemctl start k3s >/dev/null 2>&1 || true
+                sleep 2
+                continue
+              fi
+
+              traefik_deployments="$(
+                kube get deployment \
+                  -n kube-system \
+                  -l app.kubernetes.io/name=traefik \
+                  -o name \
+                  2>/dev/null || true
+              )"
+              if kube get ingressclass traefik >/dev/null 2>&1 \
+                && [ -n "$traefik_deployments" ] \
+                && kube wait \
+                  --for=condition=Available \
+                  deployment \
+                  -n kube-system \
+                  -l app.kubernetes.io/name=traefik \
+                  --timeout=5s \
+                  >/dev/null 2>&1; then
+                return 0
+              fi
+              sleep 2
+            done
+
+            echo "K3s and Traefik did not stabilize within 180 seconds."
+            kube get pods,deploy -n kube-system || true
+            return 1
+          }
+
+          wait_for_api
+          kube wait --for=condition=Ready node --all --timeout=180s
+          wait_for_traefik
+
+          # Re-check the API after the bundled add-ons have settled. This catches
+          # a K3s process that starts briefly and then exits during bootstrap.
+          if ! run_root systemctl is-active --quiet k3s \
+            || ! kube get --raw=/readyz >/dev/null 2>&1; then
+            echo "K3s became unavailable after Traefik initialization."
             exit 1
           fi
 
-          kube wait --for=condition=Ready node --all --timeout=180s
           kube get pods -n kube-system -l app.kubernetes.io/name=traefik
           kube get ingressclass traefik
           kube get storageclass local-path

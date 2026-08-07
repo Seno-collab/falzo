@@ -246,6 +246,34 @@ jobs:
             exit 1
           fi
 
+          diagnose_k3s() {
+            if run_root systemctl is-active --quiet k3s \
+              && run_root k3s kubectl \
+                --kubeconfig /etc/rancher/k3s/k3s.yaml \
+                get --raw=/readyz \
+                >/dev/null 2>&1; then
+              echo "K3s service and API are still healthy; the failure is in the application deployment."
+              return
+            fi
+            echo "K3s diagnostics after deployment failure:"
+            run_root systemctl status k3s --no-pager -l || true
+            if command -v ss >/dev/null 2>&1; then
+              run_root ss -lntp | grep ':6443' || true
+            fi
+            run_root journalctl -u k3s --since "10 minutes ago" -n 200 --no-pager || true
+          }
+
+          finish() {
+            exit_code=$?
+            trap - EXIT
+            if [ "$exit_code" -ne 0 ]; then
+              diagnose_k3s
+            fi
+            cleanup || true
+            exit "$exit_code"
+          }
+          trap finish EXIT
+
           if ! command -v systemctl >/dev/null 2>&1; then
             echo "Falzo deployment requires a systemd-based K3s VPS."
             exit 1
@@ -259,8 +287,6 @@ jobs:
 
           # Recover a stopped K3s server before kubectl connects to localhost:6443.
           if ! run_root systemctl enable --now k3s; then
-            run_root systemctl status k3s --no-pager || true
-            run_root journalctl -u k3s -n 100 --no-pager || true
             exit 1
           fi
 
@@ -272,7 +298,8 @@ jobs:
 
           api_ready=false
           for attempt in $(seq 1 60); do
-            if kube get --raw=/readyz >/dev/null 2>&1; then
+            if run_root systemctl is-active --quiet k3s \
+              && kube get --raw=/readyz >/dev/null 2>&1; then
               api_ready=true
               break
             fi
@@ -281,12 +308,49 @@ jobs:
 
           if [ "$api_ready" != true ]; then
             echo "K3s API did not become ready on 127.0.0.1:6443."
-            run_root systemctl status k3s --no-pager || true
-            run_root journalctl -u k3s -n 100 --no-pager || true
             exit 1
           fi
 
           kube get nodes
+
+          traefik_ready=false
+          for attempt in $(seq 1 90); do
+            if ! run_root systemctl is-active --quiet k3s \
+              || ! kube get --raw=/readyz >/dev/null 2>&1; then
+              # Allow a transient K3s restart to recover before failing deploy.
+              run_root systemctl start k3s >/dev/null 2>&1 || true
+              sleep 2
+              continue
+            fi
+
+            traefik_deployments="$(
+              kube get deployment \
+                -n kube-system \
+                -l app.kubernetes.io/name=traefik \
+                -o name \
+                2>/dev/null || true
+            )"
+            if kube get ingressclass traefik >/dev/null 2>&1 \
+              && [ -n "$traefik_deployments" ] \
+              && kube wait \
+                --for=condition=Available \
+                deployment \
+                -n kube-system \
+                -l app.kubernetes.io/name=traefik \
+                --timeout=5s \
+                >/dev/null 2>&1; then
+              traefik_ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$traefik_ready" != true ]; then
+            echo "K3s and Traefik did not stabilize within 180 seconds."
+            kube get pods,deploy -n kube-system || true
+            exit 1
+          fi
+
           kube get ingressclass traefik
           kube get storageclass
           kube get namespace "$KUBE_NAMESPACE"
