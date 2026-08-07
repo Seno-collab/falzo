@@ -238,11 +238,51 @@ jobs:
           fi
 
           if [ "$(id -u)" -eq 0 ]; then
-            kube() { k3s kubectl "$@"; }
-          elif sudo -n k3s kubectl version >/dev/null 2>&1; then
-            kube() { sudo -n k3s kubectl "$@"; }
+            run_root() { "$@"; }
+          elif sudo -n true; then
+            run_root() { sudo -n "$@"; }
           else
-            echo "The VPS user needs passwordless sudo access to k3s kubectl."
+            echo "The VPS user needs passwordless sudo access to manage K3s."
+            exit 1
+          fi
+
+          if ! command -v systemctl >/dev/null 2>&1; then
+            echo "Falzo deployment requires a systemd-based K3s VPS."
+            exit 1
+          fi
+
+          if ! run_root systemctl list-unit-files k3s.service --no-legend 2>/dev/null \
+            | grep -q '^k3s.service'; then
+            echo "k3s.service is missing. Run the Bootstrap Falzo K3s VPS workflow first."
+            exit 1
+          fi
+
+          # Recover a stopped K3s server before kubectl connects to localhost:6443.
+          if ! run_root systemctl enable --now k3s; then
+            run_root systemctl status k3s --no-pager || true
+            run_root journalctl -u k3s -n 100 --no-pager || true
+            exit 1
+          fi
+
+          kube() {
+            run_root k3s kubectl \
+              --kubeconfig /etc/rancher/k3s/k3s.yaml \
+              "$@"
+          }
+
+          api_ready=false
+          for attempt in $(seq 1 60); do
+            if kube get --raw=/readyz >/dev/null 2>&1; then
+              api_ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$api_ready" != true ]; then
+            echo "K3s API did not become ready on 127.0.0.1:6443."
+            run_root systemctl status k3s --no-pager || true
+            run_root journalctl -u k3s -n 100 --no-pager || true
             exit 1
           fi
 

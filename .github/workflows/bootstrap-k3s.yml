@@ -1,11 +1,6 @@
 name: Bootstrap Falzo K3s VPS
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/bootstrap-k3s.yml"
   workflow_dispatch:
 
 concurrency:
@@ -135,14 +130,55 @@ jobs:
               ;;
           esac
 
-          if ! command -v k3s >/dev/null 2>&1; then
+          if ! command -v systemctl >/dev/null 2>&1; then
+            echo "K3s bootstrap requires a systemd-based VPS."
+            exit 1
+          fi
+
+          if ! command -v k3s >/dev/null 2>&1 \
+            || ! run_root systemctl list-unit-files k3s.service --no-legend 2>/dev/null \
+              | grep -q '^k3s.service'; then
             command -v curl >/dev/null 2>&1
             curl -sfL https://get.k3s.io -o /tmp/falzo-install-k3s.sh
             run_root sh /tmp/falzo-install-k3s.sh
             rm -f /tmp/falzo-install-k3s.sh
           fi
 
-          kube() { run_root k3s kubectl "$@"; }
+          if ! run_root systemctl list-unit-files k3s.service --no-legend 2>/dev/null \
+            | grep -q '^k3s.service'; then
+            echo "K3s installation finished without creating k3s.service."
+            exit 1
+          fi
+
+          # A previous install can leave the binary present while the server is
+          # stopped. Start the service before asking kubectl to use localhost:6443.
+          if ! run_root systemctl enable --now k3s; then
+            run_root systemctl status k3s --no-pager || true
+            run_root journalctl -u k3s -n 100 --no-pager || true
+            exit 1
+          fi
+
+          kube() {
+            run_root k3s kubectl \
+              --kubeconfig /etc/rancher/k3s/k3s.yaml \
+              "$@"
+          }
+
+          api_ready=false
+          for attempt in $(seq 1 60); do
+            if kube get --raw=/readyz >/dev/null 2>&1; then
+              api_ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$api_ready" != true ]; then
+            echo "K3s API did not become ready on 127.0.0.1:6443."
+            run_root systemctl status k3s --no-pager || true
+            run_root journalctl -u k3s -n 100 --no-pager || true
+            exit 1
+          fi
 
           kube wait --for=condition=Ready node --all --timeout=180s
           kube get pods -n kube-system -l app.kubernetes.io/name=traefik
