@@ -1,5 +1,8 @@
 # Falzo on Kubernetes
 
+> Archived deployment option. Production now uses Docker Compose through
+> `.github/workflows/deploy-docker.yml`; these manifests are not run by CI/CD.
+
 This directory deploys Falzo in three explicit phases:
 
 1. `platform`: namespace, configuration, PostgreSQL and Redis.
@@ -221,76 +224,8 @@ kubectl kustomize deploy/k8s/app >/dev/null
 kubectl diff -k deploy/k8s/app
 ```
 
-## GitHub Actions deployment
+## Deployment status
 
-The workflow in `.github/workflows/deploy-k8s.yml` runs automatically for a
-relevant push to `main`, and can also be started manually with
-`workflow_dispatch`. It performs these steps:
-
-1. Builds backend, migration and frontend images in parallel.
-2. Pushes immutable commit-SHA tags to GHCR.
-3. Applies the platform resources and waits for PostgreSQL and Redis.
-4. Runs the migration Job and stops immediately if it fails.
-5. Applies the application manifests and waits for both rolling updates.
-
-The workflow targets `linux/amd64`, matching standard GitHub-hosted runners and
-most Linux VPS clusters without QEMU emulation. For an ARM cluster, use a native
-ARM64 runner and change the workflow platform to `linux/arm64`.
-
-Create a GitHub Environment named `production`. Add deployment protection rules
-or required reviewers there if production should require manual approval.
-
-Add these Environment secrets:
-
-- `VPS_HOST`: public IP address or DNS name used for SSH.
-- `VPS_USER`: SSH deployment user.
-- `VPS_PORT`: SSH port; use `22` when no custom port is configured.
-- `VPS_SSH_KEY`: private key accepted by the VPS deployment user.
-- `VPS_APP_DIR`: absolute writable directory used for temporary deployment
-  manifests, for example `/opt/falzo`.
-- `GHCR_PULL_USERNAME`: GitHub account that owns the package read token.
-- `GHCR_PULL_TOKEN`: a classic PAT with `read:packages`, used by Kubernetes to
-  pull private GHCR images.
-
-Add the repository variable `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. It is a public OAuth
-client identifier embedded into the frontend image and injected into the backend
-ConfigMap during deployment, so it does not need to be a secret.
-
-The deploy job runs on a GitHub-hosted runner and connects to the VPS over SSH.
-It renders immutable manifests locally, uploads them under `VPS_APP_DIR`, then
-runs `k3s kubectl` on the server. Kubernetes port 6443 does not need to be
-exposed publicly. The SSH user must be `root` or have passwordless `sudo` access
-to `k3s kubectl`.
-
-Before the first deployment, manually run the `Bootstrap Falzo K3s VPS` workflow.
-It installs a default single-node K3s cluster when needed, verifies Traefik and
-the `local-path` StorageClass, creates the `falzo` namespace, and generates the
-database, Redis and JWT credentials when `falzo-secrets` does not already exist.
-The bootstrap creates a temporary 30-day self-signed `falzo-tls` certificate only
-when that Secret is absent. Replace it with a trusted certificate after the
-`falzo.life` DNS record points to the VPS.
-
-Both workflows explicitly start `k3s.service` and wait for the local K3s API to
-be ready before running cluster commands. Therefore, `127.0.0.1:6443 refused`
-means the K3s server on the VPS is stopped or failed to start; it does not mean
-port 6443 should be exposed publicly. When readiness fails, the workflow prints
-the K3s service status, port 6443 listener, and recent journal entries for
-diagnosis. It also waits for the bundled Traefik deployment instead of treating
-an initial `No resources found` response as a completed ingress setup.
-
-The cluster must already contain `falzo-secrets` and `falzo-tls`. Application
-database/JWT/Redis secrets remain cluster-managed and are not copied into GitHub
-Actions. For cloud-hosted Kubernetes, prefer the provider's GitHub OIDC login
-instead of storing a long-lived kubeconfig.
-
-To bootstrap the namespace manually instead of using the workflow:
-
-```bash
-kubectl apply -f deploy/k8s/platform/namespace.yaml
-kubectl apply -f deploy/k8s/ci/rbac.yaml
-```
-
-The namespace is intentionally excluded from the platform Kustomization because
-it must exist before the workflow creates the GHCR pull Secret. The SSH deployment
-runs Kubernetes commands locally on the VPS; only TCP 22 (or the configured SSH
-port), 80 and 443 need to be reachable externally.
+These manifests are retained as a manual Kubernetes reference only. GitHub
+Actions no longer applies them. Production deployment now uses Docker Compose;
+see `deploy/docker/README.md` and `.github/workflows/deploy-docker.yml`.
