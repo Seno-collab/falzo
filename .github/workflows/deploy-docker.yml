@@ -116,10 +116,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          test -n "$VPS_HOST"
-          test -n "$VPS_USER"
-          test -n "$VPS_SSH_KEY"
-          test -n "$VPS_APP_DIR"
+          require_secret() {
+            secret_name="$1"
+            secret_value="$2"
+            if [ -z "$secret_value" ]; then
+              echo "::error title=Missing production secret::$secret_name is not configured."
+              exit 1
+            fi
+          }
+
+          require_secret "VPS_HOST" "$VPS_HOST"
+          require_secret "VPS_USER" "$VPS_USER"
+          require_secret "VPS_SSH_KEY" "$VPS_SSH_KEY"
+          require_secret "VPS_APP_DIR" "$VPS_APP_DIR"
           [[ "$VPS_APP_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]
 
           VPS_PORT="${VPS_PORT:-22}"
@@ -165,9 +174,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          test -n "$GOOGLE_CLIENT_ID"
-          test -n "$GHCR_PULL_USERNAME"
-          test -n "$GHCR_PULL_TOKEN"
+          require_value() {
+            value_name="$1"
+            value="$2"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing deployment configuration::$value_name is not configured for the production deployment."
+              exit 1
+            fi
+          }
+
+          require_value "Repository variable NEXT_PUBLIC_GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
+          require_value "Environment secret GHCR_PULL_USERNAME" "$GHCR_PULL_USERNAME"
+          require_value "Environment secret GHCR_PULL_TOKEN" "$GHCR_PULL_TOKEN"
           [[ "$GOOGLE_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "$GHCR_PULL_USERNAME" =~ ^[A-Za-z0-9._-]+$ ]]
 
@@ -340,10 +358,46 @@ jobs:
               "$@"
           }
 
+          show_compose_diagnostics() {
+            compose ps -a || true
+            compose logs --no-color --tail 200 || true
+          }
+
           compose config --quiet
           compose --profile tools pull postgres redis migration backend frontend caddy
-          compose up -d --wait --wait-timeout 180 postgres redis
-          compose --profile tools run --rm migration
-          compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend caddy
+          if ! compose up -d --wait --wait-timeout 180 postgres redis; then
+            show_compose_diagnostics
+            exit 1
+          fi
+          if ! compose --profile tools run --rm migration; then
+            show_compose_diagnostics
+            exit 1
+          fi
+          if ! compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend caddy; then
+            show_compose_diagnostics
+            exit 1
+          fi
           compose ps
           EOF
+
+      - name: Verify public API health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 24); do
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --max-time 10 \
+              https://falzo.life/health/ready; then
+              echo
+              echo "Falzo public API is ready."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "::error title=Public API unavailable::Check falzo.life DNS records, VPS ports 80/443, and Caddy logs."
+          exit 1

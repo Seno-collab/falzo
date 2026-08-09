@@ -1,6 +1,10 @@
 falzo.life {
 	encode zstd gzip
 
+	handle /health/* {
+		reverse_proxy backend:8080
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8080
 	}
