@@ -27,6 +27,7 @@ const (
 
 type RealtimeHandler struct {
 	getRoom        *roomapp.GetRoomUseCase
+	eventRoom      domainroom.EventRoom
 	hub            *realtime.Hub
 	originPatterns []string
 	logger         *slog.Logger

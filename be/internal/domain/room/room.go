@@ -14,11 +14,20 @@ const (
 
 type Status string
 type LanguageCode string
+type EventRoom string
 
 const (
 	StatusWaiting Status = "waiting"
 	StatusPlaying Status = "playing"
 	StatusClosed  Status = "closed"
+)
+
+const (
+	EventRoomCreated      EventRoom = "room.created"
+	EventRoomUpdated      EventRoom = "room.updated"
+	EventRoomDeleted      EventRoom = "room.deleted"
+	EventRoomMemberJoined EventRoom = "room.member.joined"
+	EventRoomMemberLeft   EventRoom = "room.member.left"
 )
 
 const (
