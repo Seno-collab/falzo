@@ -21,7 +21,7 @@ metadata:
     app.kubernetes.io/name: falzo-frontend
     app.kubernetes.io/part-of: falzo
 spec:
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
@@ -84,11 +84,11 @@ spec:
                 - ALL
           resources:
             requests:
-              cpu: 100m
+              cpu: 75m
               memory: 128Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 400m
+              memory: 384Mi
           volumeMounts:
             - name: next-cache
               mountPath: /app/.next/cache

@@ -1,16 +1,52 @@
 # Falzo on Kubernetes
 
-> Archived deployment option. Production now uses Docker Compose through
-> `.github/workflows/deploy-docker.yml`; these manifests are not run by CI/CD.
+Production deploys to a single-node K3s VPS through
+`.github/workflows/deploy-k3s.yml`. The workflow builds immutable images in
+GHCR, runs the migration Job and only then rolls out the application.
 
 This directory deploys Falzo in three explicit phases:
 
 1. `platform`: namespace, configuration, PostgreSQL and Redis.
 2. `migration`: one-shot database migration Job.
-3. `app`: two backend Pods, two frontend Pods, Services and Ingress.
+3. `app`: one backend Pod, one frontend Pod, Services and Ingress.
 
 The staged flow prevents a new application release from serving traffic before
 its database migration has completed.
+
+## GitHub Actions configuration
+
+Create a GitHub Environment named `production`. Configure an approval rule for
+it when the repository plan supports protected environments. Add these
+environment secrets:
+
+- `VPS_HOST`
+- `VPS_USER`
+- `VPS_PORT` (optional; defaults to `22`)
+- `VPS_SSH_KEY`
+- `VPS_APP_DIR`, for example `/opt/falzo`
+- `GHCR_PULL_USERNAME`
+- `GHCR_PULL_TOKEN` with `read:packages`
+
+Add the repository variable `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. The frontend build
+embeds this public OAuth client ID, while the deployment also writes it into the
+backend ConfigMap in the immutable release bundle.
+
+The deploy user must be able to write to `VPS_APP_DIR` and run `k3s kubectl`
+either as root or through passwordless `sudo`. The workflow deliberately uses
+the Kubernetes API locally over SSH, so port `6443` does not need to be exposed
+to GitHub-hosted runners.
+
+Before the first automated deployment, create the `falzo-secrets` Secret in
+namespace `falzo`, and install the `falzo-tls` certificate described below. The
+workflow checks the application Secret before changing the platform and safely
+creates or rotates `ghcr-pull` from the GitHub Environment credentials. It
+never uploads production database, Redis or JWT credentials from GitHub.
+
+Pushes to `main` that touch the backend, frontend, K3s manifests or the K3s
+workflow build and deploy all three images under the Git commit SHA. Manual
+runs are available through `workflow_dispatch`. The legacy Docker workflow is
+manual-only and requires typing `DEPLOY_DOCKER` because running it stops K3s and
+claims ports 80 and 443 for Caddy.
 
 ## Prerequisites
 
@@ -23,6 +59,16 @@ its database migration has completed.
 For production, prefer managed PostgreSQL and Redis. The bundled single-replica
 StatefulSets are appropriate for development, staging, or a small self-hosted
 cluster, but they are not a highly available data tier.
+
+### Small VPS profile
+
+The checked-in resource profile targets a small single-node K3s VPS with 2
+vCPUs and 4 GiB RAM. It runs one backend Pod and one frontend Pod so Kubernetes,
+Traefik, PostgreSQL and Redis retain enough memory headroom. This profile is not
+highly available: losing the VPS takes down every replica and its local
+persistent volumes. Increase the replica counts only after moving to a larger
+node or a multi-node cluster and verifying the realtime Redis backplane across
+backend replicas.
 
 ## 1. Build and push Linux images
 
@@ -195,8 +241,9 @@ kubectl get pods,svc,ingress -n falzo
 ```
 
 Ingress sends `/api` traffic, including WebSocket upgrades, directly to the Go
-backend. All other paths go to Next.js. The backend's Redis backplane lets both
-backend replicas share room events and online presence.
+backend. All other paths go to Next.js. The backend's Redis backplane supports
+sharing room events and online presence when the backend is scaled above one
+replica.
 
 ## Health checks and diagnostics
 
@@ -226,6 +273,6 @@ kubectl diff -k deploy/k8s/app
 
 ## Deployment status
 
-These manifests are retained as a manual Kubernetes reference only. GitHub
-Actions no longer applies them. Production deployment now uses Docker Compose;
-see `deploy/docker/README.md` and `.github/workflows/deploy-docker.yml`.
+`.github/workflows/deploy-k3s.yml` is the active production deployment. The
+manual commands in this guide remain useful for first-time bootstrap,
+diagnostics and recovery when GitHub Actions is unavailable.

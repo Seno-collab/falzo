@@ -1,6 +1,10 @@
 # Falzo on Docker Compose
 
-Production runs as one Docker Compose project on the VPS:
+> Legacy manual rollback option. Production uses K3s through
+> `.github/workflows/deploy-k3s.yml`. Running the Docker workflow stops K3s and
+> transfers ports 80 and 443 to Caddy.
+
+The legacy stack runs as one Docker Compose project on the VPS:
 
 1. PostgreSQL and Redis start and pass health checks.
 2. The one-shot migration container completes successfully.

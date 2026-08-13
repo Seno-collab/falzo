@@ -1,15 +1,12 @@
-name: Deploy Falzo with Docker Compose
+name: Legacy manual Docker Compose deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/deploy-docker.yml"
-      - "be/**"
-      - "fe/**"
-      - "deploy/docker/**"
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY_DOCKER to stop K3s and deploy the legacy Docker stack
+        required: true
+        type: string
 
 concurrency:
   group: falzo-production
@@ -22,6 +19,7 @@ env:
 jobs:
   prepare:
     name: Prepare image names
+    if: ${{ inputs.confirmation == 'DEPLOY_DOCKER' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

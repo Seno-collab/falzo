@@ -1,0 +1,373 @@
+name: Deploy Falzo to K3s
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-k3s.yml"
+      - "be/**"
+      - "fe/**"
+      - "deploy/k8s/**"
+  workflow_dispatch:
+
+concurrency:
+  group: falzo-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_TAG: ${{ github.sha }}
+  PUBLIC_HOST: falzo.life
+
+jobs:
+  prepare:
+    name: Prepare image names
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      registry_namespace: ${{ steps.names.outputs.registry_namespace }}
+    steps:
+      - name: Normalize GHCR namespace
+        id: names
+        shell: bash
+        run: echo "registry_namespace=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }} image
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./be
+            dockerfile: be/Dockerfile
+            image: falzo-backend
+            build_args: ""
+          - name: migration
+            context: ./be
+            dockerfile: be/Dockerfile.migrate
+            image: falzo-migrate
+            build_args: ""
+          - name: frontend
+            context: ./fe
+            dockerfile: fe/Dockerfile
+            image: falzo-frontend
+            build_args: |
+              BACKEND_URL=http://falzo-backend:8080
+              NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.registry_namespace }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    name: Migrate and deploy production
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://${{ env.PUBLIC_HOST }}
+    permissions:
+      contents: read
+    env:
+      REGISTRY_NAMESPACE: ${{ needs.prepare.outputs.registry_namespace }}
+      GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+      GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          require_value() {
+            value_name="$1"
+            value="$2"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing production configuration::$value_name is not configured."
+              exit 1
+            fi
+          }
+
+          require_value "VPS_HOST" "$VPS_HOST"
+          require_value "VPS_USER" "$VPS_USER"
+          require_value "VPS_SSH_KEY" "$VPS_SSH_KEY"
+          require_value "VPS_APP_DIR" "$VPS_APP_DIR"
+          require_value "Repository variable NEXT_PUBLIC_GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
+          require_value "GHCR_PULL_USERNAME" "$GHCR_PULL_USERNAME"
+          require_value "GHCR_PULL_TOKEN" "$GHCR_PULL_TOKEN"
+
+          [[ "$VPS_APP_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$GOOGLE_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]
+          [[ "$GHCR_PULL_USERNAME" =~ ^[A-Za-z0-9._-]+$ ]]
+          VPS_PORT="${VPS_PORT:-22}"
+          [[ "$VPS_PORT" =~ ^[0-9]+$ ]]
+          echo "VPS_PORT=$VPS_PORT" >> "$GITHUB_ENV"
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          key_path="$HOME/.ssh/falzo-deploy"
+          key_content="$VPS_SSH_KEY"
+
+          if [[ "$key_content" != *$'\n'* && "$key_content" == *'\n'* ]]; then
+            key_content="${key_content//\\n/$'\n'}"
+          fi
+
+          printf '%s\n' "$key_content" | tr -d '\r' > "$key_path"
+          if ! grep -Eq '^-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----$' "$key_path"; then
+            decoded_key="$RUNNER_TEMP/falzo-deploy.decoded"
+            if printf '%s' "$VPS_SSH_KEY" | tr -d '\r\n ' | base64 --decode > "$decoded_key" 2>/dev/null \
+              && grep -Eq '^-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----$' "$decoded_key"; then
+              mv "$decoded_key" "$key_path"
+            fi
+          fi
+
+          chmod 600 "$key_path"
+          if ! ssh-keygen -y -P '' -f "$key_path" > /dev/null 2>&1; then
+            echo "::error title=Invalid VPS SSH key::VPS_SSH_KEY must be an unencrypted private key."
+            exit 1
+          fi
+
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -i "$key_path" \
+            -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "printf 'SSH access verified\\n'"
+
+      - name: Prepare immutable manifest bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bundle_root="$RUNNER_TEMP/falzo-k3s-bundle"
+          install -m 700 -d "$bundle_root"
+          cp -R deploy/k8s "$bundle_root/k8s"
+
+          backend_repository="$REGISTRY/$REGISTRY_NAMESPACE/falzo-backend"
+          migration_repository="$REGISTRY/$REGISTRY_NAMESPACE/falzo-migrate"
+          frontend_repository="$REGISTRY/$REGISTRY_NAMESPACE/falzo-frontend"
+
+          sed -i \
+            -e "s|newName: ghcr.io/your-org/falzo-backend|newName: $backend_repository|" \
+            -e "s|newName: ghcr.io/your-org/falzo-frontend|newName: $frontend_repository|" \
+            -e "s|newTag: replace-me|newTag: $IMAGE_TAG|g" \
+            "$bundle_root/k8s/app/kustomization.yaml"
+          sed -i \
+            -e "s|newName: ghcr.io/your-org/falzo-migrate|newName: $migration_repository|" \
+            -e "s|newTag: replace-me|newTag: $IMAGE_TAG|g" \
+            "$bundle_root/k8s/migration/kustomization.yaml"
+          sed -i \
+            -e "s|GOOGLE_CLIENT_ID: replace-me.apps.googleusercontent.com|GOOGLE_CLIENT_ID: $GOOGLE_CLIENT_ID|" \
+            "$bundle_root/k8s/platform/configmap.yaml"
+
+          if grep -Eq 'ghcr.io/your-org|newTag: replace-me|GOOGLE_CLIENT_ID: replace-me' \
+            "$bundle_root/k8s/app/kustomization.yaml" \
+            "$bundle_root/k8s/migration/kustomization.yaml" \
+            "$bundle_root/k8s/platform/configmap.yaml"; then
+            echo "::error title=Unresolved manifest placeholder::The K3s release bundle still contains placeholder values."
+            exit 1
+          fi
+
+          archive="$RUNNER_TEMP/falzo-k3s-$IMAGE_TAG.tar.gz"
+          tar -C "$bundle_root" -czf "$archive" k8s
+          token_file="$RUNNER_TEMP/ghcr-token"
+          umask 077
+          printf '%s' "$GHCR_PULL_TOKEN" > "$token_file"
+          echo "DEPLOY_ARCHIVE=$archive" >> "$GITHUB_ENV"
+          echo "GHCR_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
+
+      - name: Upload release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_dir="$VPS_APP_DIR/upload/$IMAGE_TAG"
+          remote_archive="$remote_dir/falzo-k3s.tar.gz"
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$remote_dir'"
+          scp -i ~/.ssh/falzo-deploy -P "$VPS_PORT" \
+            "$DEPLOY_ARCHIVE" \
+            "$VPS_USER@$VPS_HOST:$remote_archive"
+          scp -i ~/.ssh/falzo-deploy -P "$VPS_PORT" \
+            "$GHCR_TOKEN_FILE" \
+            "$VPS_USER@$VPS_HOST:$remote_dir/ghcr-token"
+          echo "REMOTE_DIR=$remote_dir" >> "$GITHUB_ENV"
+          echo "REMOTE_ARCHIVE=$remote_archive" >> "$GITHUB_ENV"
+
+      - name: Deploy through local K3s API
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "REMOTE_DIR='$REMOTE_DIR' REMOTE_ARCHIVE='$REMOTE_ARCHIVE' VPS_APP_DIR='$VPS_APP_DIR' IMAGE_TAG='$IMAGE_TAG' GHCR_PULL_USERNAME='$GHCR_PULL_USERNAME' bash -s" <<'EOF'
+          set -euo pipefail
+
+          case "$REMOTE_DIR" in
+            "$VPS_APP_DIR"/upload/*) ;;
+            *)
+              echo "Refusing unexpected upload path: $REMOTE_DIR"
+              exit 1
+              ;;
+          esac
+
+          cleanup() {
+            exit_code=$?
+            trap - EXIT
+            rm -rf -- "$REMOTE_DIR"
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          if ! command -v k3s >/dev/null 2>&1; then
+            echo "K3s is not installed on the VPS. Complete the one-time cluster bootstrap first."
+            exit 1
+          fi
+          if command -v systemctl >/dev/null 2>&1 && ! systemctl is-active --quiet k3s; then
+            echo "k3s.service is not active."
+            exit 1
+          fi
+          case "$(uname -m)" in
+            x86_64|amd64) ;;
+            *)
+              echo "The release images target linux/amd64, but this VPS is $(uname -m)."
+              exit 1
+              ;;
+          esac
+
+          if [ "$(id -u)" -eq 0 ]; then
+            kube() { k3s kubectl "$@"; }
+          elif sudo -n k3s kubectl version --client >/dev/null 2>&1; then
+            kube() { sudo -n k3s kubectl "$@"; }
+          else
+            echo "The deploy user needs passwordless access to 'k3s kubectl'."
+            exit 1
+          fi
+
+          release_dir="$VPS_APP_DIR/k3s/releases/$IMAGE_TAG"
+          install -d "$release_dir"
+          tar -xzf "$REMOTE_ARCHIVE" -C "$release_dir"
+          manifest_dir="$release_dir/k8s"
+
+          kube apply -f "$manifest_dir/platform/namespace.yaml"
+          if ! kube get secret falzo-secrets -n falzo >/dev/null 2>&1; then
+            echo "Required Kubernetes Secret 'falzo-secrets' is missing from namespace falzo."
+            exit 1
+          fi
+          chmod 600 "$REMOTE_DIR/ghcr-token"
+          kube create secret docker-registry ghcr-pull \
+            --namespace falzo \
+            --docker-server=ghcr.io \
+            --docker-username="$GHCR_PULL_USERNAME" \
+            --docker-password="$(cat "$REMOTE_DIR/ghcr-token")" \
+            --dry-run=client \
+            -o yaml \
+            | kube apply -f -
+
+          kube kustomize "$manifest_dir/platform" >/dev/null
+          kube kustomize "$manifest_dir/migration" >/dev/null
+          kube kustomize "$manifest_dir/app" >/dev/null
+
+          show_diagnostics() {
+            kube get pods,svc,ingress -n falzo -o wide || true
+            kube get events -n falzo --sort-by=.lastTimestamp | tail -n 50 || true
+          }
+
+          kube apply -k "$manifest_dir/platform"
+          if ! kube rollout status statefulset/falzo-postgres -n falzo --timeout=180s \
+            || ! kube rollout status statefulset/falzo-redis -n falzo --timeout=180s; then
+            show_diagnostics
+            exit 1
+          fi
+
+          kube delete job falzo-migrate -n falzo --ignore-not-found
+          kube apply -k "$manifest_dir/migration"
+          if ! kube wait --for=condition=complete job/falzo-migrate -n falzo --timeout=300s; then
+            kube logs job/falzo-migrate -n falzo --all-containers=true || true
+            kube describe job falzo-migrate -n falzo || true
+            exit 1
+          fi
+
+          kube apply -k "$manifest_dir/app"
+          if ! kube rollout status deployment/falzo-backend -n falzo --timeout=180s \
+            || ! kube rollout status deployment/falzo-frontend -n falzo --timeout=180s; then
+            show_diagnostics
+            kube logs deployment/falzo-backend -n falzo --all-containers=true --tail=100 || true
+            kube logs deployment/falzo-frontend -n falzo --all-containers=true --tail=100 || true
+            exit 1
+          fi
+
+          install -d "$VPS_APP_DIR/k3s"
+          ln -sfn "$release_dir" "$VPS_APP_DIR/k3s/current"
+          kube get pods,svc,ingress -n falzo
+          EOF
+
+      - name: Verify public readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 24); do
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --max-time 10 \
+              "https://$PUBLIC_HOST/health/ready"; then
+              echo
+              echo "Falzo K3s deployment is ready."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "::error title=Public API unavailable::Check DNS, Traefik, TLS and the falzo namespace logs."
+          exit 1
