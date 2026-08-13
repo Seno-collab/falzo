@@ -7,6 +7,8 @@ import { restoreSession } from "@/lib/auth";
 const reconnectMaxDelay = 15_000;
 const reconnectBaseDelay = 800;
 const maxVisibleMessages = 200;
+const maxRememberedEventIds = 512;
+const connectionReplacedCode = 4009;
 
 export type RealtimeStatus = "connecting" | "connected" | "reconnecting" | "offline";
 
@@ -16,11 +18,21 @@ export type RealtimePlayer = {
   seat_number: number;
   host: boolean;
   online: boolean;
+  eliminated: boolean;
 };
 
 export type RoundStartedEvent = {
   round: number;
   dealt_at: string;
+  phase: string;
+  phase_deadline_at: string;
+};
+
+export type VoteUpdatedEvent = {
+  round: number;
+  votes_cast: number;
+  eligible_voters: number;
+  completed: boolean;
 };
 
 type PresencePayload = { players: RealtimePlayer[] };
@@ -31,20 +43,32 @@ type ChatPayload = {
   text: string;
   sent_at: string;
 };
-type ServerEvent = { type: string; payload?: unknown };
+type ServerEvent = {
+  event_id?: string;
+  type: string;
+  request_id?: string;
+  occurred_at?: string;
+  payload?: unknown;
+};
 
 export function useRoomRealtime(roomId: string, currentUsername: string) {
   const [status, setStatus] = useState<RealtimeStatus>("connecting");
   const [players, setPlayers] = useState<RealtimePlayer[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [roundStarted, setRoundStarted] = useState<RoundStartedEvent | null>(null);
+  const [roomRevision, setRoomRevision] = useState(0);
+  const [voteUpdated, setVoteUpdated] = useState<VoteUpdatedEvent | null>(null);
   const [error, setError] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
+  const seenEventIdsRef = useRef(new Set<string>());
+  const eventOrderRef = useRef<string[]>([]);
 
   useEffect(() => {
     let active = true;
     let reconnectTimer: number | null = null;
     let attempt = 0;
+    seenEventIdsRef.current.clear();
+    eventOrderRef.current = [];
 
     async function connect() {
       setStatus(attempt === 0 ? "connecting" : "reconnecting");
@@ -66,12 +90,22 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
         attempt = 0;
         setError("");
         setStatus("connected");
+        socket.send(JSON.stringify({
+          type: "state.sync",
+          request_id: createRequestId(),
+          payload: {},
+        }));
       };
 
       socket.onmessage = ({ data }) => {
-        if (!active || typeof data !== "string") return;
+        if (!active || socketRef.current !== socket || typeof data !== "string") return;
         const event = parseServerEvent(data);
         if (!event) return;
+        if (event.event_id && isDuplicateServerEvent(
+          event.event_id,
+          seenEventIdsRef.current,
+          eventOrderRef.current,
+        )) return;
 
         switch (event.type) {
           case "presence.snapshot": {
@@ -99,6 +133,19 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
             if (typeof payload?.round === "number") setRoundStarted(payload);
             break;
           }
+          case "room.updated": {
+            setRoomRevision((current) => current + 1);
+            break;
+          }
+          case "game.state.updated": {
+            setRoomRevision((current) => current + 1);
+            break;
+          }
+          case "game.vote.updated": {
+            const payload = event.payload as VoteUpdatedEvent;
+            if (typeof payload?.round === "number") setVoteUpdated(payload);
+            break;
+          }
           case "error": {
             const payload = event.payload as { message?: unknown };
             if (typeof payload?.message === "string") setError(payload.message);
@@ -111,9 +158,14 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
         if (active && socketRef.current === socket) setError("Realtime connection interrupted");
       };
 
-      socket.onclose = () => {
+      socket.onclose = ({ code }) => {
         if (!active || socketRef.current !== socket) return;
         socketRef.current = null;
+        if (code === connectionReplacedCode) {
+          setError("Phòng này đã được mở bằng một kết nối mới hơn.");
+          setStatus("offline");
+          return;
+        }
         setStatus("reconnecting");
         const delay = Math.min(reconnectBaseDelay * 2 ** attempt, reconnectMaxDelay)
           + Math.floor(Math.random() * 250);
@@ -135,7 +187,11 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
   const sendChat = useCallback((text: string) => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-    socket.send(JSON.stringify({ type: "chat.send", payload: { text } }));
+    socket.send(JSON.stringify({
+      type: "chat.send",
+      request_id: createRequestId(),
+      payload: { text },
+    }));
     return true;
   }, []);
 
@@ -145,8 +201,10 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
     messages,
     players,
     roundStarted,
+    roomRevision,
     sendChat,
     status,
+    voteUpdated,
   };
 }
 
@@ -163,10 +221,32 @@ function roomWebSocketURL(roomId: string) {
 function parseServerEvent(raw: string): ServerEvent | null {
   try {
     const event = JSON.parse(raw) as Partial<ServerEvent>;
-    return typeof event.type === "string" ? { type: event.type, payload: event.payload } : null;
+    return typeof event.type === "string" ? {
+      event_id: typeof event.event_id === "string" ? event.event_id : undefined,
+      type: event.type,
+      request_id: typeof event.request_id === "string" ? event.request_id : undefined,
+      occurred_at: typeof event.occurred_at === "string" ? event.occurred_at : undefined,
+      payload: event.payload,
+    } : null;
   } catch {
     return null;
   }
+}
+
+function createRequestId() {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isDuplicateServerEvent(eventId: string, seen: Set<string>, order: string[]) {
+  if (seen.has(eventId)) return true;
+  seen.add(eventId);
+  order.push(eventId);
+  if (order.length > maxRememberedEventIds) {
+    const oldest = order.shift();
+    if (oldest) seen.delete(oldest);
+  }
+  return false;
 }
 
 function formatMessageTime(value: string) {

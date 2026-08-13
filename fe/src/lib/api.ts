@@ -4,7 +4,12 @@ import type {
   AuthTokens,
   GoogleLoginResult,
 } from "@/types/auth";
-import type { RoomLanguage, RoomResponse, RoundCardResponse } from "@/types/room";
+import type {
+  RoomLanguage,
+  RoomResponse,
+  RoundCardResponse,
+  RoundStateResponse,
+} from "@/types/room";
 import type {
   Friend,
   FriendNotification,
@@ -128,7 +133,7 @@ export function getRoom(accessToken: string, roomId: string, options?: RequestOp
 
 export function createRoom(
   accessToken: string,
-  input: { name: string; maxPlayers: number; languageCode: RoomLanguage },
+  input: { name: string; maxPlayers: number; languageCode: RoomLanguage; mrWhiteEnabled: boolean },
 ) {
   return authenticatedRequest<RoomResponse>(accessToken, "/v1/rooms", {
     method: "POST",
@@ -136,6 +141,7 @@ export function createRoom(
       name: input.name,
       max_players: input.maxPlayers,
       language_code: input.languageCode,
+      mr_white_enabled: input.mrWhiteEnabled,
     }),
   });
 }
@@ -165,6 +171,69 @@ export function getCurrentRoomCard(
     `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/card`,
     { method: "GET" },
     options,
+  );
+}
+
+export function updateRoomDiscussion(
+  accessToken: string,
+  roomId: string,
+  discussionSeconds: number,
+) {
+  return authenticatedRequest<RoomResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/settings/discussion`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ discussion_seconds: discussionSeconds }),
+    },
+  );
+}
+
+export function getCurrentRoundState(
+  accessToken: string,
+  roomId: string,
+  options?: RequestOptions,
+) {
+  return authenticatedRequest<RoundStateResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current`,
+    { method: "GET" },
+    options,
+  );
+}
+
+export function castRoomVote(accessToken: string, roomId: string, targetPlayerId: number) {
+  return authenticatedRequest<RoundStateResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/votes`,
+    {
+      method: "POST",
+      body: JSON.stringify({ target_player_id: targetPlayerId }),
+    },
+  );
+}
+
+export function confirmRoomRole(accessToken: string, roomId: string) {
+  return authenticatedRequest<RoundStateResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/ready`,
+    { method: "POST" },
+  );
+}
+
+export function finishRoomTurn(accessToken: string, roomId: string) {
+  return authenticatedRequest<RoundStateResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/turn/finish`,
+    { method: "POST" },
+  );
+}
+
+export function submitMrWhiteGuess(accessToken: string, roomId: string, guess: string) {
+  return authenticatedRequest<RoundStateResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/mr-white/guess`,
+    { method: "POST", body: JSON.stringify({ guess }) },
   );
 }
 

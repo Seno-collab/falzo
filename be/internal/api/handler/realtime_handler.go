@@ -20,13 +20,19 @@ import (
 )
 
 const (
-	webSocketReadLimit = 4 * 1024
-	webSocketWriteWait = 5 * time.Second
-	webSocketPingEvery = 25 * time.Second
+	webSocketReadLimit                           = 4 * 1024
+	webSocketWriteWait                           = 5 * time.Second
+	webSocketPingEvery                           = 25 * time.Second
+	webSocketCleanupWait                         = time.Second
+	webSocketReplacedStatus websocket.StatusCode = 4009
 )
 
 type RealtimeHandler struct {
 	getRoom        *roomapp.GetRoomUseCase
+	getRoundState  *roomapp.GetRoundStateUseCase
+	playerReady    *roomapp.PlayerReadyUseCase
+	finishTurn     *roomapp.FinishTurnUseCase
+	mrWhiteGuess   *roomapp.MrWhiteGuessUseCase
 	eventRoom      domainroom.EventRoom
 	hub            *realtime.Hub
 	originPatterns []string
@@ -35,6 +41,10 @@ type RealtimeHandler struct {
 
 func NewRealtimeHandler(
 	getRoom *roomapp.GetRoomUseCase,
+	getRoundState *roomapp.GetRoundStateUseCase,
+	playerReady *roomapp.PlayerReadyUseCase,
+	finishTurn *roomapp.FinishTurnUseCase,
+	mrWhiteGuess *roomapp.MrWhiteGuessUseCase,
 	hub *realtime.Hub,
 	originPatterns []string,
 	logger *slog.Logger,
@@ -44,6 +54,10 @@ func NewRealtimeHandler(
 	}
 	return &RealtimeHandler{
 		getRoom:        getRoom,
+		getRoundState:  getRoundState,
+		playerReady:    playerReady,
+		finishTurn:     finishTurn,
+		mrWhiteGuess:   mrWhiteGuess,
 		hub:            hub,
 		originPatterns: originPatterns,
 		logger:         logger,
@@ -51,12 +65,17 @@ func NewRealtimeHandler(
 }
 
 type clientRealtimeEvent struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+	Type      string          `json:"type"`
+	RequestID string          `json:"request_id"`
+	Payload   json.RawMessage `json:"payload"`
 }
 
 type sendChatPayload struct {
 	Text string `json:"text"`
+}
+
+type mrWhiteRealtimeGuessPayload struct {
+	Guess string `json:"guess"`
 }
 
 func (h *RealtimeHandler) ConnectRoom(w http.ResponseWriter, r *http.Request) {
@@ -111,12 +130,25 @@ func (h *RealtimeHandler) ConnectRoom(w http.ResponseWriter, r *http.Request) {
 
 	connectionErr := <-errCh
 	cancel()
-	_ = conn.CloseNow()
+	if errors.Is(connectionErr, realtime.ErrConnectionReplaced) {
+		_ = conn.Close(webSocketReplacedStatus, "Connection replaced by a newer session")
+	} else {
+		_ = conn.CloseNow()
+	}
+	select {
+	case <-errCh:
+	case <-time.After(webSocketCleanupWait):
+		h.logger.WarnContext(r.Context(), "websocket loop cleanup timed out",
+			slog.String("room_id", room.ID),
+			slog.Int64("user_id", principal.UserID),
+		)
+	}
 
 	status := websocket.CloseStatus(connectionErr)
 	level := slog.LevelWarn
 	if status == websocket.StatusNormalClosure ||
 		status == websocket.StatusGoingAway ||
+		status == webSocketReplacedStatus ||
 		errors.Is(connectionErr, context.Canceled) ||
 		errors.Is(connectionErr, realtime.ErrHubClosed) {
 		level = slog.LevelInfo
@@ -140,25 +172,140 @@ func (h *RealtimeHandler) readLoop(ctx context.Context, conn *websocket.Conn, cl
 		case "chat.send":
 			var payload sendChatPayload
 			if err := json.Unmarshal(event.Payload, &payload); err != nil {
-				h.hub.SendError(client, "INVALID_PAYLOAD", "Chat payload is invalid")
+				h.hub.SendRequestError(client, event.RequestID, "INVALID_PAYLOAD", "Chat payload is invalid")
 				continue
 			}
-			if err := h.hub.PublishChat(client, payload.Text); err != nil {
+			if !h.claimRequest(client, event.RequestID) {
+				continue
+			}
+			state, stateErr := h.getRoundState.Execute(ctx, roomapp.GetRoundStateInput{
+				RoomID: client.RoomID(), UserID: client.UserID(),
+			})
+			if stateErr == nil && state.Phase != domainroom.RoundPhaseGameFinished &&
+				(state.Phase != domainroom.RoundPhaseDescribing || state.CurrentTurnPlayerID == nil || *state.CurrentTurnPlayerID != client.UserID()) {
+				h.hub.SendRequestError(client, event.RequestID, "NOT_CURRENT_TURN", "Chỉ người đang đến lượt mới có thể mô tả")
+				continue
+			}
+			if stateErr != nil && !errors.Is(stateErr, domainroom.ErrRoundCardNotFound) {
+				return stateErr
+			}
+			if err := h.hub.PublishChatForRequest(client, event.RequestID, payload.Text); err != nil {
 				switch {
 				case errors.Is(err, realtime.ErrEmptyMessage):
-					h.hub.SendError(client, "EMPTY_MESSAGE", "Chat message is required")
+					h.hub.SendRequestError(client, event.RequestID, "EMPTY_MESSAGE", "Chat message is required")
 				case errors.Is(err, realtime.ErrMessageTooLong):
-					h.hub.SendError(client, "MESSAGE_TOO_LONG", "Chat message must be at most 500 characters")
+					h.hub.SendRequestError(client, event.RequestID, "MESSAGE_TOO_LONG", "Chat message must be at most 500 characters")
 				case errors.Is(err, realtime.ErrRateLimited):
-					h.hub.SendError(client, "RATE_LIMITED", "Send at most 10 messages every 5 seconds")
+					h.hub.SendRequestError(client, event.RequestID, "RATE_LIMITED", "Send at most 10 messages every 5 seconds")
+				case errors.Is(err, realtime.ErrSpectator):
+					h.hub.SendRequestError(client, event.RequestID, "SPECTATOR_READ_ONLY", "Eliminated players can watch but cannot chat")
 				default:
 					return err
 				}
 			}
+		case "player.ready":
+			if !h.claimRequest(client, event.RequestID) {
+				continue
+			}
+			state, err := h.playerReady.Execute(ctx, roomapp.GetRoundStateInput{
+				RoomID: client.RoomID(), UserID: client.UserID(),
+			})
+			if err != nil {
+				h.sendGameError(client, event.RequestID, err)
+				continue
+			}
+			h.publishState(state, event.RequestID)
+		case "turn.finish":
+			if !h.claimRequest(client, event.RequestID) {
+				continue
+			}
+			state, err := h.finishTurn.Execute(ctx, roomapp.GetRoundStateInput{
+				RoomID: client.RoomID(), UserID: client.UserID(),
+			})
+			if err != nil {
+				h.sendGameError(client, event.RequestID, err)
+				continue
+			}
+			h.publishState(state, event.RequestID)
+		case "mr_white.guess":
+			var payload mrWhiteRealtimeGuessPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				h.hub.SendRequestError(client, event.RequestID, "INVALID_PAYLOAD", "Mr. White guess payload is invalid")
+				continue
+			}
+			if !h.claimRequest(client, event.RequestID) {
+				continue
+			}
+			state, err := h.mrWhiteGuess.Execute(ctx, roomapp.MrWhiteGuessInput{
+				RoomID: client.RoomID(), UserID: client.UserID(), Guess: payload.Guess,
+			})
+			if err != nil {
+				h.sendGameError(client, event.RequestID, err)
+				continue
+			}
+			h.publishState(state, event.RequestID)
+		case "state.sync":
+			if !h.claimRequest(client, event.RequestID) {
+				continue
+			}
+			state, err := h.getRoundState.Execute(ctx, roomapp.GetRoundStateInput{
+				RoomID: client.RoomID(), UserID: client.UserID(),
+			})
+			if errors.Is(err, domainroom.ErrRoundCardNotFound) {
+				h.hub.Send(client, realtime.EventStateUpdated, event.RequestID, map[string]string{"status": "waiting"})
+				continue
+			}
+			if err != nil {
+				h.sendGameError(client, event.RequestID, err)
+				continue
+			}
+			h.sendState(client, state, event.RequestID)
 		default:
-			h.hub.SendError(client, "UNSUPPORTED_EVENT", "Unsupported realtime event")
+			h.hub.SendRequestError(client, event.RequestID, "UNSUPPORTED_EVENT", "Unsupported realtime event")
 		}
 	}
+}
+
+func (h *RealtimeHandler) publishState(state *domainroom.RoundState, requestID string) {
+	h.hub.PublishForRequest(state.RoomID, realtime.EventStateUpdated, requestID, realtime.StateUpdated{
+		Round:             state.RoundNumber,
+		Cycle:             state.CycleNumber,
+		Phase:             state.Phase,
+		CurrentTurnUserID: state.CurrentTurnPlayerID,
+		PhaseDeadlineAt:   state.PhaseDeadlineAt,
+	})
+}
+
+func (h *RealtimeHandler) sendState(client *realtime.Client, state *domainroom.RoundState, requestID string) {
+	h.hub.Send(client, realtime.EventStateUpdated, requestID, realtime.StateUpdated{
+		Round:             state.RoundNumber,
+		Cycle:             state.CycleNumber,
+		Phase:             state.Phase,
+		CurrentTurnUserID: state.CurrentTurnPlayerID,
+		PhaseDeadlineAt:   state.PhaseDeadlineAt,
+	})
+}
+
+func (h *RealtimeHandler) claimRequest(client *realtime.Client, requestID string) bool {
+	err := h.hub.ClaimRequest(client, requestID)
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, realtime.ErrRequestIDRequired):
+		h.hub.SendRequestError(client, requestID, "REQUEST_ID_REQUIRED", "A request_id is required for socket commands")
+	case errors.Is(err, realtime.ErrDuplicateEvent):
+		h.hub.SendRequestError(client, requestID, "DUPLICATE_EVENT", "This socket command was already processed")
+	case errors.Is(err, realtime.ErrConnectionReplaced), errors.Is(err, realtime.ErrClientNotFound):
+		return false
+	default:
+		h.hub.SendRequestError(client, requestID, "SOCKET_DEDUPE_UNAVAILABLE", "Could not verify socket command uniqueness")
+	}
+	return false
+}
+
+func (h *RealtimeHandler) sendGameError(client *realtime.Client, requestID string, err error) {
+	mapped := apperror.FromError(mapRoomError(err))
+	h.hub.SendRequestError(client, requestID, string(mapped.Code), mapped.Message)
 }
 
 func (h *RealtimeHandler) writeLoop(ctx context.Context, conn *websocket.Conn, client *realtime.Client) error {
@@ -175,7 +322,9 @@ func (h *RealtimeHandler) writeLoop(ctx context.Context, conn *websocket.Conn, c
 				return err
 			}
 		case <-ticker.C:
-			h.hub.Heartbeat(client)
+			if err := h.hub.Heartbeat(client); err != nil {
+				return err
+			}
 			pingCtx, cancel := context.WithTimeout(ctx, webSocketWriteWait)
 			err := conn.Ping(pingCtx)
 			cancel()
@@ -183,7 +332,7 @@ func (h *RealtimeHandler) writeLoop(ctx context.Context, conn *websocket.Conn, c
 				return err
 			}
 		case <-client.Done():
-			return realtime.ErrHubClosed
+			return client.CloseReason()
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -207,6 +356,7 @@ func mapRealtimeMembers(room *domainroom.Room) []realtime.Member {
 			Name:       member.UserName,
 			SeatNumber: member.SeatNumber,
 			Host:       member.IsHost,
+			Eliminated: member.Eliminated,
 		})
 	}
 	return members

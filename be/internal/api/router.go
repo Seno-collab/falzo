@@ -45,6 +45,12 @@ func NewRouter(
 			r.Get("/rooms/{roomID}", roomHandler.Get)
 			r.Post("/rooms/{roomID}/rounds", roomHandler.DealRound)
 			r.Get("/rooms/{roomID}/rounds/current/card", roomHandler.GetCurrentCard)
+			r.Patch("/rooms/{roomID}/settings/discussion", roomHandler.UpdateDiscussion)
+			r.Get("/rooms/{roomID}/rounds/current", roomHandler.GetRoundState)
+			r.Post("/rooms/{roomID}/rounds/current/ready", roomHandler.PlayerReady)
+			r.Post("/rooms/{roomID}/rounds/current/turn/finish", roomHandler.FinishTurn)
+			r.Post("/rooms/{roomID}/rounds/current/votes", roomHandler.CastVote)
+			r.Post("/rooms/{roomID}/rounds/current/mr-white/guess", roomHandler.MrWhiteGuess)
 
 			r.Get("/users/search", socialHandler.SearchUsers)
 			r.Post("/friend-requests", socialHandler.SendFriendRequest)

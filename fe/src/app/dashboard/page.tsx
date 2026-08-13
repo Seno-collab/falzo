@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const [roomName, setRoomName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(8);
   const [roomLanguage, setRoomLanguage] = useState<RoomLanguage>("vi");
+  const [mrWhiteEnabled, setMrWhiteEnabled] = useState(true);
   const [inviteCode, setInviteCode] = useState("");
   const [actionError, setActionError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -133,6 +134,7 @@ export default function DashboardPage() {
         name,
         maxPlayers,
         languageCode: roomLanguage,
+        mrWhiteEnabled,
       });
       router.push(`/rooms/${response.id}`);
     } catch (error) {
@@ -327,6 +329,16 @@ export default function DashboardPage() {
                     >
                       <option value="vi">Tiếng Việt</option>
                       <option value="en">English</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Mr. White</span>
+                    <select
+                      onChange={(event) => setMrWhiteEnabled(event.target.value === "yes")}
+                      value={mrWhiteEnabled ? "yes" : "no"}
+                    >
+                      <option value="yes">Có Mr. White</option>
+                      <option value="no">Không có Mr. White</option>
                     </select>
                   </label>
                   <button disabled={submitting} type="submit">

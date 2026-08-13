@@ -11,10 +11,11 @@ import (
 )
 
 type CreateRoomInput struct {
-	HostUserID   int64
-	Name         string
-	LanguageCode domainroom.LanguageCode
-	MaxPlayers   int
+	HostUserID     int64
+	Name           string
+	LanguageCode   domainroom.LanguageCode
+	MaxPlayers     int
+	MrWhiteEnabled bool
 }
 
 type CreateRoomUseCase struct {
@@ -53,7 +54,6 @@ func (uc *CreateRoomUseCase) Execute(ctx context.Context, input CreateRoomInput)
 		if err != nil {
 			return nil, err
 		}
-
 		room, err := domainroom.New(
 			input.Name,
 			inviteCode,
@@ -66,6 +66,7 @@ func (uc *CreateRoomUseCase) Execute(ctx context.Context, input CreateRoomInput)
 		if err != nil {
 			return nil, err
 		}
+		room.MrWhiteEnabled = input.MrWhiteEnabled
 
 		created, err := uc.rooms.CreateWithHost(ctx, room)
 		if errors.Is(err, domainroom.ErrInviteCodeConflict) {

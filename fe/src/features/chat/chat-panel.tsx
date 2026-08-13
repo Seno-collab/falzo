@@ -23,6 +23,7 @@ type ChatPanelProps = {
   presence?: "online" | "offline" | "room";
   contextLabel?: string;
   inputPlaceholder?: string;
+  disabledPlaceholder?: string;
   className?: string;
   onClose?: () => void;
 };
@@ -38,6 +39,7 @@ export function ChatPanel({
   presence = "online",
   contextLabel,
   inputPlaceholder = "Write a message…",
+  disabledPlaceholder = "Reconnecting…",
   className,
   onClose,
 }: ChatPanelProps) {
@@ -131,7 +133,7 @@ export function ChatPanel({
           id={inputId}
           maxLength={500}
           onChange={(event) => setDraftMessage(event.target.value)}
-          placeholder={connected ? inputPlaceholder : "Reconnecting…"}
+          placeholder={connected ? inputPlaceholder : disabledPlaceholder}
           type="text"
           value={draftMessage}
         />

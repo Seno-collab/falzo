@@ -58,20 +58,86 @@ func (b *RealtimeBackplane) Subscribe(ctx context.Context) (<-chan realtime.Back
 	return messages, nil
 }
 
-func (b *RealtimeBackplane) Publish(ctx context.Context, roomID, eventType string, payload any) error {
-	payloadJSON, err := json.Marshal(payload)
+func (b *RealtimeBackplane) Publish(ctx context.Context, roomID string, event realtime.Event) error {
+	payloadJSON, err := json.Marshal(event.Payload)
 	if err != nil {
 		return fmt.Errorf("marshal realtime payload: %w", err)
 	}
 	messageJSON, err := json.Marshal(realtime.BackplaneMessage{
-		RoomID:  roomID,
-		Type:    eventType,
-		Payload: payloadJSON,
+		EventID:    event.EventID,
+		RoomID:     roomID,
+		Type:       event.Type,
+		RequestID:  event.RequestID,
+		OccurredAt: event.OccurredAt,
+		Payload:    payloadJSON,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal realtime message: %w", err)
 	}
 	return b.client.Publish(ctx, b.channel(), messageJSON).Err()
+}
+
+func (b *RealtimeBackplane) ClaimConnection(
+	ctx context.Context,
+	roomID string,
+	userID int64,
+	connectionID string,
+	expiresAt time.Time,
+) (string, error) {
+	ttl := time.Until(expiresAt)
+	if ttl <= 0 {
+		ttl = time.Second
+	}
+	result, err := b.client.SetArgs(ctx, b.connectionKey(roomID, userID), connectionID, goredis.SetArgs{
+		TTL: ttl,
+		Get: true,
+	}).Result()
+	if err == goredis.Nil {
+		return "", nil
+	}
+	return result, err
+}
+
+func (b *RealtimeBackplane) RefreshConnection(
+	ctx context.Context,
+	roomID string,
+	userID int64,
+	connectionID string,
+	expiresAt time.Time,
+) (bool, error) {
+	ttl := time.Until(expiresAt)
+	if ttl <= 0 {
+		ttl = time.Second
+	}
+	result, err := b.client.Eval(ctx, `
+		if redis.call('GET', KEYS[1]) == ARGV[1] then
+			return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+		end
+		return 0`, []string{b.connectionKey(roomID, userID)}, connectionID, ttl.Milliseconds()).Int()
+	return result == 1, err
+}
+
+func (b *RealtimeBackplane) ReleaseConnection(
+	ctx context.Context,
+	roomID string,
+	userID int64,
+	connectionID string,
+) error {
+	return b.compareAndDelete(ctx, b.connectionKey(roomID, userID), connectionID)
+}
+
+func (b *RealtimeBackplane) ClaimRequest(
+	ctx context.Context,
+	roomID string,
+	userID int64,
+	requestID string,
+	expiresAt time.Time,
+) (bool, error) {
+	ttl := time.Until(expiresAt)
+	if ttl <= 0 {
+		ttl = time.Second
+	}
+	return b.client.SetNX(ctx, b.requestKey(roomID, userID, requestID), "1", ttl).Result()
 }
 
 func (b *RealtimeBackplane) TouchPresence(
@@ -137,6 +203,15 @@ func (b *RealtimeBackplane) Close() error {
 	return nil
 }
 
+func (b *RealtimeBackplane) compareAndDelete(ctx context.Context, key, expected string) error {
+	_, err := b.client.Eval(ctx, `
+		if redis.call('GET', KEYS[1]) == ARGV[1] then
+			return redis.call('DEL', KEYS[1])
+		end
+		return 0`, []string{key}, expected).Result()
+	return err
+}
+
 func (b *RealtimeBackplane) consume(
 	ctx context.Context,
 	source <-chan *goredis.Message,
@@ -171,6 +246,14 @@ func (b *RealtimeBackplane) channel() string {
 
 func (b *RealtimeBackplane) presenceKey(roomID string) string {
 	return b.prefix + ":realtime:presence:" + roomID
+}
+
+func (b *RealtimeBackplane) connectionKey(roomID string, userID int64) string {
+	return b.prefix + ":realtime:connection:" + roomID + ":" + strconv.FormatInt(userID, 10)
+}
+
+func (b *RealtimeBackplane) requestKey(roomID string, userID int64, requestID string) string {
+	return b.prefix + ":realtime:request:" + roomID + ":" + strconv.FormatInt(userID, 10) + ":" + requestID
 }
 
 func presenceMember(connectionID string, userID int64) string {

@@ -11,6 +11,7 @@ export type RoomPlayer = {
   host?: boolean;
   current?: boolean;
   online?: boolean;
+  eliminated?: boolean;
 };
 
 export type GameRoom = {
@@ -21,13 +22,15 @@ export type GameRoom = {
   status: RoomStatus;
   round: number;
   maxPlayers: number;
+  discussionSeconds: number;
+  mrWhiteEnabled: boolean;
   version: number;
   players: RoomPlayer[];
 };
 
 export type PlayerCard = {
   playerId: string;
-  role: "Civilian" | "Undercover";
+  role: "Civilian" | "Undercover" | "Mr. White";
   word: string;
 };
 
@@ -49,6 +52,8 @@ export function mapRoomResponse(room: RoomResponse): GameRoom {
     status: room.status,
     round: Math.max(room.current_round, 1),
     maxPlayers: room.max_players,
+    discussionSeconds: room.discussion_seconds,
+    mrWhiteEnabled: room.mr_white_enabled,
     version: room.version,
     players: [...room.players]
       .sort((left, right) => left.seat_number - right.seat_number)
@@ -60,6 +65,7 @@ export function mapRoomResponse(room: RoomResponse): GameRoom {
         host: player.host,
         current: player.current,
         online: false,
+        eliminated: player.eliminated,
       })),
   };
 }
@@ -67,7 +73,9 @@ export function mapRoomResponse(room: RoomResponse): GameRoom {
 export function mapRoundCardResponse(card: RoundCardResponse): PlayerCard {
   return {
     playerId: String(card.player_id),
-    role: card.role === "undercover" ? "Undercover" : "Civilian",
+    role: card.role === "undercover"
+      ? "Undercover"
+      : card.role === "mr_white" ? "Mr. White" : "Civilian",
     word: card.word,
   };
 }

@@ -166,6 +166,57 @@
   gap: 7px;
 }
 
+.discussionSetting {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.discussionSetting > label {
+  color: #d9f275;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.discussionSetting > div {
+  display: flex;
+  gap: 6px;
+}
+
+.discussionSetting select,
+.discussionSetting button {
+  min-height: 34px;
+  border: 1px solid #465149;
+  border-radius: 9px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.discussionSetting select {
+  padding: 0 28px 0 10px;
+  background: #1c241f;
+  color: #e9ece7;
+}
+
+.discussionSetting button {
+  padding: 0 12px;
+  background: #d9f275;
+  color: #172019;
+  cursor: pointer;
+}
+
+.discussionSetting button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.discussionSetting > small {
+  color: #768179;
+  font-size: 8px;
+}
+
 .dealButton {
   display: inline-flex;
   min-height: 42px;
@@ -283,6 +334,203 @@
   height: 670px;
   grid-template-rows: minmax(0, 1fr) 170px;
   gap: 14px;
+}
+
+.rightRail:has(.votePanel) {
+  height: 850px;
+  grid-template-rows: auto minmax(0, 1fr) 170px;
+}
+
+.votePanel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #435047;
+  border-radius: 18px 18px 18px 5px;
+  background: #1b231e;
+}
+
+.votePanelHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.votePanelHeading small,
+.voteResult small {
+  color: #d9f275;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.votePanelHeading h2 {
+  margin: 4px 0 0;
+  color: #f4f2e9;
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.roundTimer {
+  color: #d9f275;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 24px;
+}
+
+.voteHelp,
+.voteForm > p,
+.voteWaiting p,
+.voteResult p {
+  margin: 0;
+  color: #929d95;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.voteForm {
+  display: grid;
+  gap: 11px;
+}
+
+.voteForm > input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #435047;
+  border-radius: 10px;
+  outline: none;
+  background: #151c18;
+  color: #f4f2e9;
+  font: inherit;
+}
+
+.voteForm > input:focus {
+  border-color: #d9f275;
+}
+
+.voteChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.voteChoices label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid #3c473f;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.voteChoices label:has(input:checked) {
+  border-color: #d9f275;
+  background: rgb(217 242 117 / 7%);
+}
+
+.voteChoices input {
+  position: absolute;
+  opacity: 0;
+}
+
+.voteAvatar {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  place-items: center;
+  border-radius: 50%;
+  color: #172019;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.voteChoices strong {
+  overflow: hidden;
+  color: #e7ebe7;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voteForm > button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #d9f275;
+  color: #172019;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.voteForm > button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.voteWaiting,
+.voteResult {
+  display: grid;
+  gap: 5px;
+  padding: 11px;
+  border: 1px solid #435047;
+  border-radius: 11px;
+  background: #202923;
+}
+
+.voteWaiting strong,
+.voteResult strong {
+  color: #f0f1e9;
+  font-size: 11px;
+}
+
+.voteWaiting button,
+.confirmRoleButton {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #d9f275;
+  color: #172019;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.voteWaiting button:disabled,
+.confirmRoleButton:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.voteProgress {
+  display: grid;
+  gap: 6px;
+  color: #abb5ad;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.voteProgress > div {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #333d36;
+}
+
+.voteProgress > div > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #d9f275;
+  transition: width .2s ease;
+}
+
+.voteCaught {
+  border-color: #d9f275;
 }
 
 .roomChat {
@@ -541,6 +789,13 @@ button.playerCard {
   box-shadow: none;
 }
 
+.spectatorCard {
+  border-color: #4a514c;
+  background: #252b27;
+  color: #7f8982;
+  filter: saturate(.3);
+}
+
 .dealtCard {
   animation: deal-card .48s cubic-bezier(.2, .85, .35, 1.2) both;
 }
@@ -626,7 +881,7 @@ button.playerCard {
     radial-gradient(circle at 50% 46%, rgb(217 242 117 / 15%), transparent 30%),
     rgb(7 13 9 / 91%);
   backdrop-filter: blur(10px);
-  cursor: pointer;
+  cursor: default;
   animation: card-reveal-overlay-in .2s ease-out both;
 }
 
@@ -653,7 +908,7 @@ button.playerCard {
   background: #fffdf4;
   color: #172019;
   box-shadow: 0 42px 90px rgb(0 0 0 / 50%);
-  cursor: pointer;
+  cursor: default;
   animation: revealed-secret-card-in .38s cubic-bezier(.2, .85, .3, 1.12) both;
 }
 
@@ -767,6 +1022,14 @@ button.playerCard {
   font-size: 9px;
   font-weight: 750;
   letter-spacing: .06em;
+}
+
+.confirmRoleButton {
+  position: relative;
+  z-index: 1;
+  min-width: 180px;
+  min-height: 44px;
+  font-size: 11px;
 }
 
 .dealOverlay::before,
@@ -1359,6 +1622,11 @@ button.playerCard {
     grid-template-rows: 500px 170px;
   }
 
+  .rightRail:has(.votePanel) {
+    height: auto;
+    grid-template-rows: auto 500px 170px;
+  }
+
   .seatRow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1401,6 +1669,10 @@ button.playerCard {
     justify-items: start;
   }
 
+  .discussionSetting {
+    justify-items: start;
+  }
+
   .roundConfirm {
     right: auto;
     left: 0;
@@ -1427,6 +1699,10 @@ button.playerCard {
 
   .rightRail {
     grid-template-rows: 450px auto;
+  }
+
+  .rightRail:has(.votePanel) {
+    grid-template-rows: auto 450px auto;
   }
 
   .myAccount {

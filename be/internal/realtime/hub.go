@@ -1,10 +1,12 @@
 package realtime
 
 import (
+	domainroom "be/internal/domain/room"
 	"be/internal/shared/clock"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -18,10 +20,14 @@ import (
 const (
 	Subprotocol = "falzo.v1"
 
-	EventPresenceSnapshot = "presence.snapshot"
-	EventChatMessage      = "chat.message"
-	EventRoundStarted     = "game.round.started"
-	EventError            = "error"
+	EventPresenceSnapshot   = "presence.snapshot"
+	EventChatMessage        = "chat.message"
+	EventRoomUpdated        = "room.updated"
+	EventRoundStarted       = "game.round.started"
+	EventVoteUpdated        = "game.vote.updated"
+	EventStateUpdated       = "game.state.updated"
+	EventError              = "error"
+	eventConnectionReplaced = "socket.connection.replaced"
 
 	MaxChatMessageRunes = 500
 	outboundQueueSize   = 64
@@ -30,19 +36,30 @@ const (
 	backplaneTimeout    = 2 * time.Second
 	chatRateLimitWindow = 5 * time.Second
 	chatRateLimitCount  = 10
+	requestDedupeTTL    = 2 * time.Minute
+	eventDedupeTTL      = 2 * time.Minute
+	connectionLeaseTTL  = 45 * time.Second
+	maxRequestIDLength  = 128
 )
 
 var (
-	ErrHubClosed      = errors.New("realtime hub is closed")
-	ErrClientNotFound = errors.New("realtime client is not registered")
-	ErrEmptyMessage   = errors.New("chat message is required")
-	ErrMessageTooLong = errors.New("chat message is too long")
-	ErrRateLimited    = errors.New("chat message rate limit exceeded")
+	ErrHubClosed          = errors.New("realtime hub is closed")
+	ErrClientNotFound     = errors.New("realtime client is not registered")
+	ErrEmptyMessage       = errors.New("chat message is required")
+	ErrMessageTooLong     = errors.New("chat message is too long")
+	ErrRateLimited        = errors.New("chat message rate limit exceeded")
+	ErrSpectator          = errors.New("eliminated players cannot send chat messages")
+	ErrConnectionReplaced = errors.New("connection was replaced by a newer connection")
+	ErrRequestIDRequired  = errors.New("request id is required")
+	ErrDuplicateEvent     = errors.New("duplicate socket event")
 )
 
 type Event struct {
-	Type    string `json:"type"`
-	Payload any    `json:"payload"`
+	EventID    string    `json:"event_id"`
+	Type       string    `json:"type"`
+	RequestID  string    `json:"request_id,omitempty"`
+	OccurredAt time.Time `json:"occurred_at"`
+	Payload    any       `json:"payload"`
 }
 
 type Member struct {
@@ -50,6 +67,7 @@ type Member struct {
 	Name       string `json:"name"`
 	SeatNumber int    `json:"seat_number"`
 	Host       bool   `json:"host"`
+	Eliminated bool   `json:"eliminated"`
 }
 
 type PresencePlayer struct {
@@ -70,13 +88,41 @@ type ChatMessage struct {
 }
 
 type RoundStarted struct {
-	Round   int       `json:"round"`
-	DealtAt time.Time `json:"dealt_at"`
+	Round           int                   `json:"round"`
+	DealtAt         time.Time             `json:"dealt_at"`
+	Phase           domainroom.RoundPhase `json:"phase"`
+	PhaseDeadlineAt time.Time             `json:"phase_deadline_at"`
+}
+
+type RoomUpdated struct {
+	Version int64  `json:"version"`
+	Reason  string `json:"reason"`
+}
+
+type VoteUpdated struct {
+	Round          int  `json:"round"`
+	VotesCast      int  `json:"votes_cast"`
+	EligibleVoters int  `json:"eligible_voters"`
+	Completed      bool `json:"completed"`
+}
+
+type StateUpdated struct {
+	Round             int                   `json:"round"`
+	Cycle             int                   `json:"cycle"`
+	Phase             domainroom.RoundPhase `json:"phase"`
+	CurrentTurnUserID *int64                `json:"current_turn_player_id,omitempty"`
+	PhaseDeadlineAt   *time.Time            `json:"phase_deadline_at,omitempty"`
 }
 
 type ErrorPayload struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+type connectionReplaced struct {
+	UserID               int64  `json:"user_id"`
+	PreviousConnectionID string `json:"previous_connection_id"`
+	NewConnectionID      string `json:"new_connection_id"`
 }
 
 type Client struct {
@@ -88,6 +134,8 @@ type Client struct {
 	done     chan struct{}
 	windowAt time.Time
 	windowN  int
+	stopOnce sync.Once
+	stopErr  error
 }
 
 func (c *Client) Events() <-chan Event  { return c.events }
@@ -95,23 +143,39 @@ func (c *Client) Done() <-chan struct{} { return c.done }
 func (c *Client) RoomID() string        { return c.roomID }
 func (c *Client) UserID() int64         { return c.userID }
 func (c *Client) UserName() string      { return c.userName }
+func (c *Client) CloseReason() error {
+	if c.stopErr != nil {
+		return c.stopErr
+	}
+	return ErrClientNotFound
+}
+
+func (c *Client) stop(err error) {
+	c.stopOnce.Do(func() {
+		c.stopErr = err
+		close(c.done)
+	})
+}
 
 type roomState struct {
-	members     map[int64]Member
-	clients     map[string]*Client
-	connections map[int64]int
+	members      map[int64]Member
+	clients      map[string]*Client
+	activeByUser map[int64]*Client
+	connections  map[int64]int
+	seenEvents   map[string]time.Time
 }
 
 type Hub struct {
-	mu        sync.Mutex
-	clock     clock.Clock
-	backplane Backplane
-	logger    *slog.Logger
-	rooms     map[string]*roomState
-	closed    bool
-	started   bool
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	mu             sync.Mutex
+	clock          clock.Clock
+	backplane      Backplane
+	logger         *slog.Logger
+	rooms          map[string]*roomState
+	closed         bool
+	started        bool
+	cancel         context.CancelFunc
+	wg             sync.WaitGroup
+	recentRequests map[string]time.Time
 }
 
 type HubOption func(*Hub)
@@ -125,7 +189,12 @@ func WithLogger(logger *slog.Logger) HubOption {
 }
 
 func NewHub(c clock.Clock, options ...HubOption) *Hub {
-	hub := &Hub{clock: c, logger: slog.Default(), rooms: make(map[string]*roomState)}
+	hub := &Hub{
+		clock:          c,
+		logger:         slog.Default(),
+		rooms:          make(map[string]*roomState),
+		recentRequests: make(map[string]time.Time),
+	}
 	for _, option := range options {
 		option(hub)
 	}
@@ -177,9 +246,11 @@ func (h *Hub) Register(roomID string, userID int64, userName string, members []M
 	room := h.rooms[roomID]
 	if room == nil {
 		room = &roomState{
-			members:     make(map[int64]Member),
-			clients:     make(map[string]*Client),
-			connections: make(map[int64]int),
+			members:      make(map[int64]Member),
+			clients:      make(map[string]*Client),
+			activeByUser: make(map[int64]*Client),
+			connections:  make(map[int64]int),
+			seenEvents:   make(map[string]time.Time),
 		}
 		h.rooms[roomID] = room
 	}
@@ -193,8 +264,15 @@ func (h *Hub) Register(roomID string, userID int64, userName string, members []M
 		events:   make(chan Event, outboundQueueSize),
 		done:     make(chan struct{}),
 	}
+	replaced := room.activeByUser[userID]
+	if replaced != nil {
+		delete(room.clients, replaced.id)
+		delete(room.connections, replaced.userID)
+		replaced.stop(ErrConnectionReplaced)
+	}
 	room.clients[client.id] = client
-	room.connections[userID]++
+	room.activeByUser[userID] = client
+	room.connections[userID] = 1
 	if h.backplane == nil {
 		h.broadcastPresenceLocked(room)
 	}
@@ -202,6 +280,16 @@ func (h *Hub) Register(roomID string, userID int64, userName string, members []M
 	h.mu.Unlock()
 
 	if h.backplane != nil {
+		if replaced != nil {
+			h.removePresence(replaced)
+		}
+		previousID, err := h.claimConnection(client)
+		if err != nil {
+			h.Unregister(client)
+			return nil, fmt.Errorf("claim active socket connection: %w", err)
+		} else if previousID != "" && previousID != client.id {
+			h.publishConnectionReplaced(roomID, userID, previousID, client.id)
+		}
 		if err := h.touchPresence(client); err != nil {
 			h.logger.Warn("redis presence touch failed", slog.Any("error", err))
 			h.broadcastLocalPresence(roomID)
@@ -221,17 +309,22 @@ func (h *Hub) Unregister(client *Client) {
 	h.mu.Lock()
 
 	room := h.rooms[client.roomID]
-	if room == nil || room.clients[client.id] != client {
+	registered := room != nil && room.clients[client.id] == client
+	if !registered {
 		h.mu.Unlock()
+		if h.backplane != nil {
+			h.removePresence(client)
+			h.releaseConnection(client)
+		}
 		return
 	}
 
 	delete(room.clients, client.id)
-	room.connections[client.userID]--
-	if room.connections[client.userID] <= 0 {
-		delete(room.connections, client.userID)
+	if room.activeByUser[client.userID] == client {
+		delete(room.activeByUser, client.userID)
 	}
-	close(client.done)
+	delete(room.connections, client.userID)
+	client.stop(ErrClientNotFound)
 
 	if len(room.clients) == 0 {
 		delete(h.rooms, client.roomID)
@@ -241,12 +334,8 @@ func (h *Hub) Unregister(client *Client) {
 	h.mu.Unlock()
 
 	if h.backplane != nil {
-		ctx, cancel := h.backplaneContext()
-		err := h.backplane.RemovePresence(ctx, client.roomID, client.id, client.userID)
-		cancel()
-		if err != nil {
-			h.logger.Warn("redis presence remove failed", slog.Any("error", err))
-		}
+		h.removePresence(client)
+		h.releaseConnection(client)
 		if err := h.publishPresenceSync(client.roomID, nil); err != nil {
 			h.logger.Warn("redis presence sync publish failed", slog.Any("error", err))
 			h.broadcastLocalPresence(client.roomID)
@@ -276,6 +365,10 @@ func (h *Hub) UpdateMembers(roomID string, members []Member) {
 }
 
 func (h *Hub) PublishChat(client *Client, text string) error {
+	return h.PublishChatForRequest(client, "", text)
+}
+
+func (h *Hub) PublishChatForRequest(client *Client, requestID, text string) error {
 	text = strings.TrimSpace(text)
 	switch {
 	case text == "":
@@ -290,6 +383,10 @@ func (h *Hub) PublishChat(client *Client, text string) error {
 	if room == nil || room.clients[client.id] != client {
 		h.mu.Unlock()
 		return ErrClientNotFound
+	}
+	if member, exists := room.members[client.userID]; !exists || member.Eliminated {
+		h.mu.Unlock()
+		return ErrSpectator
 	}
 	now := h.clock.Now()
 	if client.windowAt.IsZero() || now.Sub(client.windowAt) >= chatRateLimitWindow {
@@ -309,39 +406,58 @@ func (h *Hub) PublishChat(client *Client, text string) error {
 		SentAt:   now.UTC(),
 	}
 	if h.backplane == nil {
-		h.broadcastLocked(room, Event{Type: EventChatMessage, Payload: message})
+		h.broadcastLocked(room, h.newEvent(EventChatMessage, requestID, message))
 		h.mu.Unlock()
 		return nil
 	}
 	h.mu.Unlock()
-	if err := h.publish(client.roomID, EventChatMessage, message); err != nil {
+	event := h.newEvent(EventChatMessage, requestID, message)
+	if err := h.publish(client.roomID, event); err != nil {
 		h.logger.Warn("redis chat publish failed", slog.Any("error", err))
-		h.broadcastEvent(client.roomID, Event{Type: EventChatMessage, Payload: message})
+		h.broadcastEvent(client.roomID, event)
 	}
 	return nil
 }
 
 func (h *Hub) Publish(roomID, eventType string, payload any) {
+	h.PublishForRequest(roomID, eventType, "", payload)
+}
+
+func (h *Hub) PublishForRequest(roomID, eventType, requestID string, payload any) {
+	event := h.newEvent(eventType, requestID, payload)
 	if h.backplane != nil {
-		if err := h.publish(roomID, eventType, payload); err == nil {
+		if err := h.publish(roomID, event); err == nil {
 			return
 		} else {
 			h.logger.Warn("redis realtime publish failed", slog.Any("error", err))
 		}
 	}
-	h.broadcastEvent(roomID, Event{Type: eventType, Payload: payload})
+	h.broadcastEvent(roomID, event)
 }
 
-func (h *Hub) Heartbeat(client *Client) {
+func (h *Hub) Heartbeat(client *Client) error {
 	if h.backplane == nil || client == nil {
-		return
+		return nil
+	}
+	owner, err := h.refreshConnection(client)
+	if err != nil {
+		return err
+	}
+	if !owner {
+		client.stop(ErrConnectionReplaced)
+		return ErrConnectionReplaced
 	}
 	if err := h.touchPresence(client); err != nil {
 		h.logger.Warn("redis presence heartbeat failed", slog.Any("error", err))
 	}
+	return nil
 }
 
 func (h *Hub) SendError(client *Client, code, message string) {
+	h.SendRequestError(client, "", code, message)
+}
+
+func (h *Hub) SendRequestError(client *Client, requestID, code, message string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -349,7 +465,64 @@ func (h *Hub) SendError(client *Client, code, message string) {
 	if room == nil || room.clients[client.id] != client {
 		return
 	}
-	enqueue(client, Event{Type: EventError, Payload: ErrorPayload{Code: code, Message: message}})
+	enqueue(client, h.newEvent(EventError, requestID, ErrorPayload{Code: code, Message: message}))
+}
+
+func (h *Hub) Send(client *Client, eventType, requestID string, payload any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	room := h.rooms[client.roomID]
+	if room == nil || room.clients[client.id] != client {
+		return
+	}
+	enqueue(client, h.newEvent(eventType, requestID, payload))
+}
+
+func (h *Hub) ClaimRequest(client *Client, requestID string) error {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" || len(requestID) > maxRequestIDLength {
+		return ErrRequestIDRequired
+	}
+	now := h.clock.Now()
+	key := client.roomID + ":" + fmt.Sprintf("%d", client.userID) + ":" + requestID
+
+	h.mu.Lock()
+	room := h.rooms[client.roomID]
+	if room == nil || room.clients[client.id] != client {
+		h.mu.Unlock()
+		return ErrClientNotFound
+	}
+	pruneDedupeMap(h.recentRequests, now)
+	if expiresAt, exists := h.recentRequests[key]; exists && expiresAt.After(now) {
+		h.mu.Unlock()
+		return ErrDuplicateEvent
+	}
+	h.mu.Unlock()
+
+	if h.backplane != nil {
+		owner, err := h.refreshConnection(client)
+		if err != nil {
+			return err
+		}
+		if !owner {
+			client.stop(ErrConnectionReplaced)
+			return ErrConnectionReplaced
+		}
+		ctx, cancel := h.backplaneContext()
+		claimed, err := h.backplane.ClaimRequest(ctx, client.roomID, client.userID, requestID, now.Add(requestDedupeTTL))
+		cancel()
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			return ErrDuplicateEvent
+		}
+	}
+
+	h.mu.Lock()
+	h.recentRequests[key] = now.Add(requestDedupeTTL)
+	h.mu.Unlock()
+	return nil
 }
 
 func (h *Hub) Close() {
@@ -366,7 +539,7 @@ func (h *Hub) Close() {
 	roomIDs := make(map[string]struct{})
 	for _, room := range h.rooms {
 		for _, client := range room.clients {
-			close(client.done)
+			client.stop(ErrHubClosed)
 			clients = append(clients, client)
 			roomIDs[client.roomID] = struct{}{}
 		}
@@ -375,9 +548,8 @@ func (h *Hub) Close() {
 	h.mu.Unlock()
 	if h.backplane != nil {
 		for _, client := range clients {
-			ctx, cancel := h.backplaneContext()
-			_ = h.backplane.RemovePresence(ctx, client.roomID, client.id, client.userID)
-			cancel()
+			h.removePresence(client)
+			h.releaseConnection(client)
 		}
 		for roomID := range roomIDs {
 			_ = h.publishPresenceSync(roomID, nil)
@@ -403,6 +575,27 @@ func (h *Hub) consumeBackplane(ctx context.Context, messages <-chan BackplaneMes
 }
 
 func (h *Hub) handleBackplaneMessage(message BackplaneMessage) {
+	if message.Type == eventConnectionReplaced {
+		var payload connectionReplaced
+		if err := json.Unmarshal(message.Payload, &payload); err != nil {
+			h.logger.Warn("invalid connection replacement payload", slog.Any("error", err))
+			return
+		}
+		h.mu.Lock()
+		var replaced *Client
+		if room := h.rooms[message.RoomID]; room != nil {
+			candidate := room.activeByUser[payload.UserID]
+			if candidate != nil && candidate.id == payload.PreviousConnectionID && candidate.id != payload.NewConnectionID {
+				replaced = candidate
+				candidate.stop(ErrConnectionReplaced)
+			}
+		}
+		h.mu.Unlock()
+		if replaced != nil {
+			h.Unregister(replaced)
+		}
+		return
+	}
 	if message.Type == EventPresenceSync {
 		var payload PresenceSync
 		if err := json.Unmarshal(message.Payload, &payload); err != nil {
@@ -417,7 +610,13 @@ func (h *Hub) handleBackplaneMessage(message BackplaneMessage) {
 		h.refreshPresence(message.RoomID)
 		return
 	}
-	h.broadcastEvent(message.RoomID, Event{Type: message.Type, Payload: message.Payload})
+	h.broadcastEvent(message.RoomID, Event{
+		EventID:    message.EventID,
+		Type:       message.Type,
+		RequestID:  message.RequestID,
+		OccurredAt: message.OccurredAt,
+		Payload:    message.Payload,
+	})
 }
 
 func (h *Hub) sweepPresence(ctx context.Context) {
@@ -454,14 +653,59 @@ func (h *Hub) touchPresence(client *Client) error {
 	)
 }
 
-func (h *Hub) publish(roomID, eventType string, payload any) error {
+func (h *Hub) claimConnection(client *Client) (string, error) {
 	ctx, cancel := h.backplaneContext()
 	defer cancel()
-	return h.backplane.Publish(ctx, roomID, eventType, payload)
+	return h.backplane.ClaimConnection(
+		ctx, client.roomID, client.userID, client.id, h.clock.Now().Add(connectionLeaseTTL),
+	)
+}
+
+func (h *Hub) refreshConnection(client *Client) (bool, error) {
+	ctx, cancel := h.backplaneContext()
+	defer cancel()
+	return h.backplane.RefreshConnection(
+		ctx, client.roomID, client.userID, client.id, h.clock.Now().Add(connectionLeaseTTL),
+	)
+}
+
+func (h *Hub) releaseConnection(client *Client) {
+	ctx, cancel := h.backplaneContext()
+	err := h.backplane.ReleaseConnection(ctx, client.roomID, client.userID, client.id)
+	cancel()
+	if err != nil {
+		h.logger.Warn("redis connection release failed", slog.Any("error", err))
+	}
+}
+
+func (h *Hub) removePresence(client *Client) {
+	ctx, cancel := h.backplaneContext()
+	err := h.backplane.RemovePresence(ctx, client.roomID, client.id, client.userID)
+	cancel()
+	if err != nil {
+		h.logger.Warn("redis presence remove failed", slog.Any("error", err))
+	}
+}
+
+func (h *Hub) publishConnectionReplaced(roomID string, userID int64, previousID, newID string) {
+	event := h.newEvent(eventConnectionReplaced, "", connectionReplaced{
+		UserID:               userID,
+		PreviousConnectionID: previousID,
+		NewConnectionID:      newID,
+	})
+	if err := h.publish(roomID, event); err != nil {
+		h.logger.Warn("redis connection replacement publish failed", slog.Any("error", err))
+	}
+}
+
+func (h *Hub) publish(roomID string, event Event) error {
+	ctx, cancel := h.backplaneContext()
+	defer cancel()
+	return h.backplane.Publish(ctx, roomID, event)
 }
 
 func (h *Hub) publishPresenceSync(roomID string, members []Member) error {
-	return h.publish(roomID, EventPresenceSync, PresenceSync{Members: members})
+	return h.publish(roomID, h.newEvent(EventPresenceSync, "", PresenceSync{Members: members}))
 }
 
 func (h *Hub) refreshPresence(roomID string) {
@@ -533,10 +777,7 @@ func (h *Hub) broadcastPresenceWithOnlineLocked(room *roomState, onlineUsers map
 	sort.Slice(players, func(i, j int) bool {
 		return players[i].SeatNumber < players[j].SeatNumber
 	})
-	h.broadcastLocked(room, Event{
-		Type:    EventPresenceSnapshot,
-		Payload: PresenceSnapshot{Players: players},
-	})
+	h.broadcastLocked(room, h.newEvent(EventPresenceSnapshot, "", PresenceSnapshot{Players: players}))
 }
 
 func membersForRoom(room *roomState) []Member {
@@ -551,8 +792,34 @@ func membersForRoom(room *roomState) []Member {
 }
 
 func (h *Hub) broadcastLocked(room *roomState, event Event) {
+	if event.EventID != "" {
+		now := h.clock.Now()
+		pruneDedupeMap(room.seenEvents, now)
+		if expiresAt, exists := room.seenEvents[event.EventID]; exists && expiresAt.After(now) {
+			return
+		}
+		room.seenEvents[event.EventID] = now.Add(eventDedupeTTL)
+	}
 	for _, client := range room.clients {
 		enqueue(client, event)
+	}
+}
+
+func (h *Hub) newEvent(eventType, requestID string, payload any) Event {
+	return Event{
+		EventID:    uuid.NewString(),
+		Type:       eventType,
+		RequestID:  requestID,
+		OccurredAt: h.clock.Now().UTC(),
+		Payload:    payload,
+	}
+}
+
+func pruneDedupeMap(entries map[string]time.Time, now time.Time) {
+	for key, expiresAt := range entries {
+		if !expiresAt.After(now) {
+			delete(entries, key)
+		}
 	}
 }
 

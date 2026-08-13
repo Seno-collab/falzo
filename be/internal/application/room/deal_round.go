@@ -3,11 +3,11 @@ package roomapp
 import (
 	roomports "be/internal/application/ports/room"
 	domainroom "be/internal/domain/room"
+	gameengine "be/internal/game"
 	"be/internal/shared/clock"
 	"context"
-	"crypto/rand"
-	"math/big"
 	"strings"
+	"time"
 )
 
 type DealRoundInput struct {
@@ -37,7 +37,10 @@ func (uc *DealRoundUseCase) Execute(ctx context.Context, input DealRoundInput) (
 	if input.HostUserID != room.HostUserID {
 		return nil, domainroom.ErrNotRoomHost
 	}
-	if len(room.Members) < 2 {
+	// A new game reuses the whole room roster, including spectators from the
+	// previous finished game. StartRound resets their eliminated state atomically.
+	activeMembers := append([]domainroom.Member(nil), room.Members...)
+	if len(activeMembers) < domainroom.MinPlayersPerRoom {
 		return nil, domainroom.ErrNotEnoughPlayers
 	}
 
@@ -45,25 +48,52 @@ func (uc *DealRoundUseCase) Execute(ctx context.Context, input DealRoundInput) (
 	if err != nil {
 		return nil, err
 	}
-	undercoverIndex, err := secureRandomIndex(len(room.Members))
+	playerIDs := make([]int64, 0, len(activeMembers))
+	for _, member := range activeMembers {
+		playerIDs = append(playerIDs, member.UserID)
+	}
+	assignments, err := gameengine.AssignClassicRoles(playerIDs, room.MrWhiteEnabled, gameengine.SecureIndex)
 	if err != nil {
 		return nil, err
 	}
+	var undercoverPlayerID int64
+	var mrWhitePlayerID *int64
+	for _, assignment := range assignments {
+		switch assignment.Role {
+		case domainroom.CardRoleUndercover:
+			undercoverPlayerID = assignment.PlayerID
+		case domainroom.CardRoleMrWhite:
+			playerID := assignment.PlayerID
+			mrWhitePlayerID = &playerID
+		}
+	}
+	turnOrder, err := shufflePlayerIDs(playerIDs)
+	if err != nil {
+		return nil, err
+	}
+	now := uc.clock.Now()
 	return uc.rooms.StartRound(ctx, roomports.StartRoundInput{
 		RoomID:             room.ID,
 		HostUserID:         input.HostUserID,
 		WordPairID:         pair.ID,
 		CommonWord:         pair.CommonWord,
 		DifferentWord:      pair.DifferentWord,
-		UndercoverPlayerID: room.Members[undercoverIndex].UserID,
-		DealtAt:            uc.clock.Now(),
+		UndercoverPlayerID: undercoverPlayerID,
+		MrWhitePlayerID:    mrWhitePlayerID,
+		TurnOrder:          turnOrder,
+		DealtAt:            now,
+		RoleRevealEndsAt:   now.Add(time.Duration(domainroom.RoleRevealDurationSeconds) * time.Second),
 	})
 }
 
-func secureRandomIndex(size int) (int, error) {
-	value, err := rand.Int(rand.Reader, big.NewInt(int64(size)))
-	if err != nil {
-		return 0, err
+func shufflePlayerIDs(playerIDs []int64) ([]int64, error) {
+	shuffled := append([]int64(nil), playerIDs...)
+	for index := len(shuffled) - 1; index > 0; index-- {
+		other, err := gameengine.SecureIndex(index + 1)
+		if err != nil {
+			return nil, err
+		}
+		shuffled[index], shuffled[other] = shuffled[other], shuffled[index]
 	}
-	return int(value.Int64()), nil
+	return shuffled, nil
 }

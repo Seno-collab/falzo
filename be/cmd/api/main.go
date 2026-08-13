@@ -90,6 +90,12 @@ func run() error {
 	joinRoom := roomapp.NewJoinRoomUseCase(rooms)
 	dealRound := roomapp.NewDealRoundUseCase(rooms, c)
 	getCurrentCard := roomapp.NewGetCurrentCardUseCase(rooms)
+	updateDiscussion := roomapp.NewUpdateDiscussionUseCase(rooms)
+	getRoundState := roomapp.NewGetRoundStateUseCase(rooms, c)
+	castVote := roomapp.NewCastVoteUseCase(rooms, c)
+	playerReady := roomapp.NewPlayerReadyUseCase(rooms, c)
+	finishTurn := roomapp.NewFinishTurnUseCase(rooms, c)
+	mrWhiteGuess := roomapp.NewMrWhiteGuessUseCase(rooms, c)
 	realtimeBackplane := redisinfra.NewRealtimeBackplane(redisClient, cfg.Redis.KeyPrefix, appLogger)
 	realtimeHub := realtime.NewHub(
 		c,
@@ -107,11 +113,21 @@ func run() error {
 		joinRoom,
 		dealRound,
 		getCurrentCard,
+		updateDiscussion,
+		getRoundState,
+		castVote,
+		playerReady,
+		finishTurn,
+		mrWhiteGuess,
 		realtimeHub,
 		appLogger,
 	)
 	realtimeHandler := handler.NewRealtimeHandler(
 		getRoom,
+		getRoundState,
+		playerReady,
+		finishTurn,
+		mrWhiteGuess,
 		realtimeHub,
 		cfg.Server.WebSocketOriginPatterns,
 		appLogger,
