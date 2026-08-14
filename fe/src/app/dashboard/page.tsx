@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [actionError, setActionError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
+  const [quickJoinError, setQuickJoinError] = useState("");
 
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openRooms = rooms.filter((room) => room.status === "waiting").length;
@@ -166,6 +168,27 @@ export default function DashboardPage() {
       setActionError(roomApiErrorMessage(error));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleQuickJoin(room: GameRoom) {
+    if (joiningRoomId) return;
+
+    setJoiningRoomId(room.id);
+    setQuickJoinError("");
+    try {
+      const activeSession = await restoreSession();
+      if (!activeSession) {
+        router.replace("/login");
+        return;
+      }
+      const response = await joinRoom(activeSession.access_token, room.code);
+      router.push(`/rooms/${response.id}`);
+    } catch (error) {
+      setQuickJoinError(roomApiErrorMessage(error));
+      setRoomsReloadToken((current) => current + 1);
+    } finally {
+      setJoiningRoomId(null);
     }
   }
 
@@ -390,9 +413,20 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {quickJoinError && (
+            <div className={styles.quickJoinError} role="alert">
+              <span aria-hidden="true">!</span>
+              <p>{quickJoinError}</p>
+              <button onClick={() => setQuickJoinError("")} type="button" aria-label="Dismiss join error">×</button>
+            </div>
+          )}
+
           {rooms.length > 0 ? <div className={styles.roomGrid}>
             {rooms.map((room) => {
               const isFull = room.players.length >= room.maxPlayers;
+              const isCurrentMember = room.players.some((player) => player.current);
+              const canJoin = room.status === "waiting" && !isFull && !isCurrentMember;
+              const isJoining = joiningRoomId === room.id;
               return (
                 <article className={styles.roomCard} key={room.id}>
                   <div className={styles.roomTopline}>
@@ -436,9 +470,20 @@ export default function DashboardPage() {
                     <span className={!isFull ? styles.openSeats : undefined}>
                       {isFull ? "Room full" : `${room.maxPlayers - room.players.length} seats open`}
                     </span>
-                    <Link className={styles.viewRoomButton} href={`/rooms/${room.id}`}>
-                      View room <span aria-hidden="true">→</span>
-                    </Link>
+                    {canJoin ? (
+                      <button
+                        className={styles.viewRoomButton}
+                        disabled={joiningRoomId !== null}
+                        onClick={() => void handleQuickJoin(room)}
+                        type="button"
+                      >
+                        {isJoining ? "Joining…" : "Join room"} <span aria-hidden="true">→</span>
+                      </button>
+                    ) : (
+                      <Link className={styles.viewRoomButton} href={`/rooms/${room.id}`}>
+                        View room <span aria-hidden="true">→</span>
+                      </Link>
+                    )}
                   </div>
                 </article>
               );

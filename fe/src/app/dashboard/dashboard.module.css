@@ -909,6 +909,8 @@
   border-radius: 10px;
   background: #d9f275;
   color: #18221b;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 10px;
   font-weight: 850;
   text-decoration: none;
@@ -921,6 +923,12 @@
   transform: translateX(2px);
 }
 
+.viewRoomButton:disabled {
+  cursor: wait;
+  opacity: .58;
+  transform: none;
+}
+
 .viewRoomButton:focus-visible {
   outline: 2px solid #f4f2e8;
   outline-offset: 3px;
@@ -929,6 +937,45 @@
 .viewRoomButton span {
   color: currentColor;
   font-size: 15px;
+}
+
+.quickJoinError {
+  display: flex;
+  max-width: 1120px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 16px;
+  padding: 12px 14px;
+  border: 1px solid rgb(239 118 95 / 38%);
+  border-radius: 12px;
+  background: rgb(239 118 95 / 10%);
+  color: #f4b0a3;
+  font-size: 12px;
+}
+
+.quickJoinError > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: #ef765f;
+  color: #18221b;
+  font-weight: 900;
+}
+
+.quickJoinError p {
+  flex: 1;
+  margin: 0;
+}
+
+.quickJoinError button {
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  font-size: 18px;
 }
 
 .loading {

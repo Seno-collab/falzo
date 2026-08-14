@@ -102,7 +102,8 @@ func (r *SocialRepository) CreateFriendRequest(
 	if err := tx.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT 1 FROM friendships
-			WHERE user_id_low = LEAST($1, $2) AND user_id_high = GREATEST($1, $2)
+			WHERE user_id_low = LEAST($1::bigint, $2::bigint)
+			  AND user_id_high = GREATEST($1::bigint, $2::bigint)
 		)`, senderID, receiverID).Scan(&alreadyFriends); err != nil {
 		return nil, err
 	}
@@ -210,7 +211,7 @@ func (r *SocialRepository) RespondFriendRequest(
 		nextStatus = domainsocial.FriendRequestAccepted
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO friendships (user_id_low, user_id_high, created_at)
-			VALUES (LEAST($1, $2), GREATEST($1, $2), $3)
+			VALUES (LEAST($1::bigint, $2::bigint), GREATEST($1::bigint, $2::bigint), $3)
 			ON CONFLICT (user_id_low, user_id_high) DO NOTHING`, senderID, receiverID, now); err != nil {
 			return nil, err
 		}
@@ -330,7 +331,8 @@ func (r *SocialRepository) ListFriends(ctx context.Context, userID int64) ([]dom
 func (r *SocialRepository) Unfriend(ctx context.Context, userID, friendUserID int64) error {
 	command, err := r.db.Exec(ctx, `
 		DELETE FROM friendships
-		WHERE user_id_low = LEAST($1, $2) AND user_id_high = GREATEST($1, $2)`, userID, friendUserID)
+		WHERE user_id_low = LEAST($1::bigint, $2::bigint)
+		  AND user_id_high = GREATEST($1::bigint, $2::bigint)`, userID, friendUserID)
 	if err != nil {
 		return err
 	}
