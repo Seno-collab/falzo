@@ -1,16 +1,21 @@
 package main
 
 import (
+	"be/internal/alerting"
 	"be/internal/api"
 	"be/internal/api/handler"
 	apimiddleware "be/internal/api/middleware"
 	authapp "be/internal/application/auth"
+	chatapp "be/internal/application/chat"
 	roomapp "be/internal/application/room"
 	socialapp "be/internal/application/social"
 	"be/internal/config"
+	domainroom "be/internal/domain/room"
+	natsinfra "be/internal/insfrastructure/nats"
 	"be/internal/insfrastructure/persistence/postgres"
 	redisinfra "be/internal/insfrastructure/redis"
 	"be/internal/insfrastructure/security"
+	"be/internal/observability"
 	"be/internal/realtime"
 	"be/internal/shared/clock"
 	loggerx "be/internal/shared/logger"
@@ -23,6 +28,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -35,7 +42,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (runErr error) {
 	cfg, err := config.Load(".env")
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -49,6 +56,38 @@ func run() error {
 	slog.Info("api starting", slog.String("address", ":"+cfg.Server.Port))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	metrics := observability.NewMetrics(nil)
+	if cfg.NATS.Enabled {
+		alertPublisher, alertErr := natsinfra.NewAlertPublisher(
+			cfg.NATS.URL,
+			cfg.NATS.Stream,
+			cfg.NATS.Subject,
+			metrics,
+		)
+		if alertErr != nil {
+			appLogger.Warn("NATS error notifications disabled", slog.Any("error", alertErr))
+		} else {
+			appLogger = slog.New(alerting.NewSlogHandler(
+				appLogger.Handler(),
+				alertPublisher,
+				"falzo-api",
+				cfg.Server.Env,
+			))
+			slog.SetDefault(appLogger)
+			defer func() {
+				closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := alertPublisher.Close(closeCtx); err != nil {
+					appLogger.Warn("close NATS alert publisher", slog.Any("error", err))
+				}
+			}()
+			defer func() {
+				if runErr != nil {
+					appLogger.Error("api stopped", slog.Any("error", runErr))
+				}
+			}()
+		}
+	}
 	db, err := postgres.NewPool(ctx, cfg.Database)
 	if err != nil {
 		return fmt.Errorf("connect postgres: %w", err)
@@ -96,11 +135,15 @@ func run() error {
 	playerReady := roomapp.NewPlayerReadyUseCase(rooms, c)
 	finishTurn := roomapp.NewFinishTurnUseCase(rooms, c)
 	mrWhiteGuess := roomapp.NewMrWhiteGuessUseCase(rooms, c)
-	realtimeBackplane := redisinfra.NewRealtimeBackplane(redisClient, cfg.Redis.KeyPrefix, appLogger)
+	chatRepository := postgres.NewChatRepository(db)
+	chatService := chatapp.NewService(chatRepository)
+	realtimeBackplane := redisinfra.NewRealtimeBackplane(redisClient, cfg.Redis.KeyPrefix, appLogger, metrics)
 	realtimeHub := realtime.NewHub(
 		c,
 		realtime.WithBackplane(realtimeBackplane),
 		realtime.WithLogger(appLogger),
+		realtime.WithMetrics(metrics),
+		realtime.WithChatStore(chatService),
 	)
 	if err := realtimeHub.Start(ctx); err != nil {
 		return fmt.Errorf("start realtime hub: %w", err)
@@ -125,23 +168,45 @@ func run() error {
 	realtimeHandler := handler.NewRealtimeHandler(
 		getRoom,
 		getRoundState,
-		playerReady,
-		finishTurn,
-		mrWhiteGuess,
 		realtimeHub,
 		cfg.Server.WebSocketOriginPatterns,
 		appLogger,
+		metrics,
 	)
+	chatHandler := handler.NewChatHandler(chatService, getRoom, appLogger)
+	phaseScheduler := roomapp.NewPhaseScheduler(rooms, c, metrics, appLogger, func(ctx context.Context, transition domainroom.PhaseTransition) {
+		realtimeHub.Publish(transition.RoomID, realtime.EventStateUpdated, realtime.StateUpdated{
+			Round:             transition.RoundNumber,
+			Cycle:             transition.CycleNumber,
+			Phase:             transition.To,
+			CurrentTurnUserID: transition.CurrentTurnPlayerID,
+			PhaseDeadlineAt:   transition.PhaseDeadlineAt,
+		})
+		if !transition.MembersChanged {
+			return
+		}
+		room, err := getRoom.Execute(ctx, transition.RoomID)
+		if err != nil {
+			appLogger.WarnContext(ctx, "refresh scheduled room members", slog.Any("error", err))
+			return
+		}
+		realtimeHub.UpdateMembers(room.ID, realtimeMembers(room))
+		realtimeHub.Publish(room.ID, realtime.EventRoomUpdated, realtime.RoomUpdated{
+			Version: room.Version,
+			Reason:  "phase_transition",
+		})
+	})
+	phaseScheduler.Start(ctx)
 	socialRepository := postgres.NewSocialRepository(db)
 	socialService := socialapp.NewService(socialRepository, c)
-	socialHandler := handler.NewSocialHandler(socialService, appLogger)
+	socialHandler := handler.NewSocialHandler(socialService, appLogger, realtimeHub)
 	healthHandler := handler.NewHealthHandler(
 		func(ctx context.Context) error { return db.Ping(ctx) },
 		func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
 	)
 	authenticator := apimiddleware.NewAuthenticator(tokens)
 
-	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(healthHandler, authHandler, roomHandler, realtimeHandler, socialHandler, authenticator, appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: ":" + cfg.Server.Port, Handler: api.NewRouter(healthHandler, authHandler, roomHandler, realtimeHandler, chatHandler, socialHandler, authenticator, promhttp.Handler(), appLogger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- server.ListenAndServe() }()
 	slog.Info("api listening", slog.String("address", server.Addr))
@@ -158,4 +223,15 @@ func run() error {
 		return server.Shutdown(shutdownCtx)
 	}
 	return nil
+}
+
+func realtimeMembers(room *domainroom.Room) []realtime.Member {
+	members := make([]realtime.Member, 0, len(room.Members))
+	for _, member := range room.Members {
+		members = append(members, realtime.Member{
+			ID: member.UserID, Name: member.UserName, SeatNumber: member.SeatNumber,
+			Host: member.IsHost, Eliminated: member.Eliminated,
+		})
+	}
+	return members
 }

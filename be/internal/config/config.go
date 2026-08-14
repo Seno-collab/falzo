@@ -14,6 +14,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
+	NATS     NATSConfig
 	JWT      JWTConfig
 	Auth     AuthConfig
 	Google   GoogleConfig
@@ -46,6 +47,13 @@ type RedisConfig struct {
 	DialTimeoutSeconds  int
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int
+}
+
+type NATSConfig struct {
+	Enabled bool
+	URL     string
+	Stream  string
+	Subject string
 }
 
 type JWTConfig struct {
@@ -120,6 +128,12 @@ func Load(envPath string) (*Config, error) {
 			ReadTimeoutSeconds:  v.GetInt("REDIS_READ_TIMEOUT_SECONDS"),
 			WriteTimeoutSeconds: v.GetInt("REDIS_WRITE_TIMEOUT_SECONDS"),
 		},
+		NATS: NATSConfig{
+			Enabled: v.GetBool("NATS_ENABLED"),
+			URL:     v.GetString("NATS_URL"),
+			Stream:  v.GetString("NATS_ALERT_STREAM"),
+			Subject: v.GetString("NATS_ALERT_SUBJECT"),
+		},
 		JWT: JWTConfig{
 			Secret:              v.GetString("JWT_SECRET"),
 			ExpiredMinutes:      v.GetInt("JWT_EXPIRED_MINUTES"),
@@ -159,6 +173,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("REDIS_DIAL_TIMEOUT_SECONDS", 5)
 	v.SetDefault("REDIS_READ_TIMEOUT_SECONDS", 3)
 	v.SetDefault("REDIS_WRITE_TIMEOUT_SECONDS", 3)
+	v.SetDefault("NATS_ENABLED", true)
+	v.SetDefault("NATS_URL", "nats://localhost:4222")
+	v.SetDefault("NATS_ALERT_STREAM", "FALZO_ALERTS")
+	v.SetDefault("NATS_ALERT_SUBJECT", "falzo.alerts.error")
 
 	v.SetDefault("JWT_EXPIRED_MINUTES", 60)
 	v.SetDefault("JWT_REFRESH_EXPIRED_HOURS", 168)
@@ -202,6 +220,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Redis.DialTimeoutSeconds <= 0 || c.Redis.ReadTimeoutSeconds <= 0 || c.Redis.WriteTimeoutSeconds <= 0 {
 		return fmt.Errorf("redis timeouts must be positive")
+	}
+	if c.NATS.Enabled && (c.NATS.URL == "" || c.NATS.Stream == "" || c.NATS.Subject == "") {
+		return fmt.Errorf("NATS_URL, NATS_ALERT_STREAM and NATS_ALERT_SUBJECT are required when NATS is enabled")
 	}
 	if c.Google.ClientID == "" {
 		return fmt.Errorf("GOOGLE_CLIENT_ID is required")

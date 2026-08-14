@@ -27,6 +27,7 @@ import type {
   SocialUser,
 } from "@/types/social";
 import styles from "./friends.module.css";
+import { useUserRealtime } from "@/features/social/use-user-realtime";
 
 type Panel = "friends" | "requests" | "find" | "notifications";
 
@@ -38,6 +39,7 @@ function asArray<T>(value: T[] | null | undefined): T[] {
 export default function FriendsPage() {
   const router = useRouter();
   const session = useSession();
+  const socialRealtime = useUserRealtime();
   const [panel, setPanel] = useState<Panel>("friends");
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -97,7 +99,7 @@ export default function FriendsPage() {
     return () => {
       active = false;
     };
-  }, [loadSocialData]);
+  }, [loadSocialData, socialRealtime.revision]);
 
   useEffect(() => {
     if (window.location.hash === "#notifications") setPanel("notifications");

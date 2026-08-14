@@ -439,23 +439,126 @@ func (r *RoomRepository) FindCurrentRoundState(
 	userID int64,
 	now time.Time,
 ) (*domainroom.RoundState, error) {
+	return loadCurrentRoundState(ctx, r.db, roomID, userID, now)
+}
+
+func (r *RoomRepository) CountExpiredRounds(ctx context.Context, now time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM rooms r
+		JOIN room_rounds rr ON rr.room_id = r.id AND rr.round_number = r.current_round
+		WHERE r.status = $1
+		  AND r.expires_at > $2
+		  AND rr.phase <> $3
+		  AND rr.phase_deadline_at IS NOT NULL
+		  AND rr.phase_deadline_at <= $2`,
+		domainroom.StatusPlaying, now, domainroom.RoundPhaseGameFinished,
+	).Scan(&count)
+	return count, err
+}
+
+func (r *RoomRepository) AdvanceExpiredRounds(
+	ctx context.Context,
+	now time.Time,
+	limit int,
+) ([]domainroom.PhaseTransition, error) {
+	if limit <= 0 {
+		limit = 100
+	}
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	changed, err := advanceGameState(ctx, tx, roomID, now)
+
+	type dueRound struct {
+		roomID      string
+		roundNumber int
+		cycleNumber int
+		phase       domainroom.RoundPhase
+		deadline    time.Time
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT r.id::text, r.current_round, rr.cycle_number, rr.phase, rr.phase_deadline_at
+		FROM rooms r
+		JOIN room_rounds rr ON rr.room_id = r.id AND rr.round_number = r.current_round
+		WHERE r.status = $1
+		  AND r.expires_at > $2
+		  AND rr.phase <> $3
+		  AND rr.phase_deadline_at IS NOT NULL
+		  AND rr.phase_deadline_at <= $2
+		ORDER BY rr.phase_deadline_at, r.id
+		LIMIT $4
+		FOR UPDATE OF rr SKIP LOCKED`,
+		domainroom.StatusPlaying, now, domainroom.RoundPhaseGameFinished, limit,
+	)
 	if err != nil {
 		return nil, err
+	}
+	due := make([]dueRound, 0, limit)
+	for rows.Next() {
+		var item dueRound
+		if err := rows.Scan(&item.roomID, &item.roundNumber, &item.cycleNumber, &item.phase, &item.deadline); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		due = append(due, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	transitions := make([]domainroom.PhaseTransition, 0, len(due))
+	for _, item := range due {
+		changed, err := advanceGameState(ctx, tx, item.roomID, now)
+		if err != nil {
+			return nil, err
+		}
+		if !changed {
+			continue
+		}
+		transition := domainroom.PhaseTransition{
+			RoomID:             item.roomID,
+			RoundNumber:        item.roundNumber,
+			CycleNumber:        item.cycleNumber,
+			From:               item.phase,
+			PreviousDeadlineAt: item.deadline,
+			TransitionedAt:     now,
+			MembersChanged:     item.phase == domainroom.RoundPhaseVoting,
+		}
+		var deadline pgtype.Timestamptz
+		var currentPlayer pgtype.Int8
+		err = tx.QueryRow(ctx, `
+			SELECT rr.cycle_number, rr.phase, rr.phase_deadline_at,
+				(SELECT user_id FROM room_round_turns
+				 WHERE room_id = rr.room_id AND round_number = rr.round_number
+				   AND cycle_number = rr.cycle_number
+				   AND started_at IS NOT NULL AND finished_at IS NULL
+				 ORDER BY turn_number LIMIT 1)
+			FROM room_rounds rr
+			WHERE rr.room_id = $1 AND rr.round_number = $2`,
+			item.roomID, item.roundNumber,
+		).Scan(&transition.CycleNumber, &transition.To, &deadline, &currentPlayer)
+		if err != nil {
+			return nil, err
+		}
+		if deadline.Valid {
+			value := deadline.Time
+			transition.PhaseDeadlineAt = &value
+		}
+		if currentPlayer.Valid {
+			value := currentPlayer.Int64
+			transition.CurrentTurnPlayerID = &value
+		}
+		transitions = append(transitions, transition)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	state, err := loadCurrentRoundState(ctx, r.db, roomID, userID, now)
-	if state != nil {
-		state.FinalizedNow = changed
-	}
-	return state, err
+	return transitions, nil
 }
 
 func (r *RoomRepository) MarkPlayerReady(ctx context.Context, input roomports.PlayerActionInput) (*domainroom.RoundState, error) {

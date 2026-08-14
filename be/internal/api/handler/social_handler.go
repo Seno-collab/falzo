@@ -6,6 +6,7 @@ import (
 	apimiddleware "be/internal/api/middleware"
 	socialapp "be/internal/application/social"
 	domainsocial "be/internal/domain/social"
+	"be/internal/realtime"
 	"be/internal/shared/apperror"
 	"errors"
 	"log/slog"
@@ -17,15 +18,16 @@ import (
 )
 
 type SocialHandler struct {
-	service *socialapp.Service
-	logger  *slog.Logger
+	service  *socialapp.Service
+	logger   *slog.Logger
+	realtime *realtime.Hub
 }
 
-func NewSocialHandler(service *socialapp.Service, logger *slog.Logger) *SocialHandler {
+func NewSocialHandler(service *socialapp.Service, logger *slog.Logger, realtimeHub *realtime.Hub) *SocialHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &SocialHandler{service: service, logger: logger}
+	return &SocialHandler{service: service, logger: logger, realtime: realtimeHub}
 }
 
 type sendFriendRequestBody struct {
@@ -107,6 +109,7 @@ func (h *SocialHandler) SendFriendRequest(w http.ResponseWriter, r *http.Request
 		h.writeError(w, r, "send_friend_request", err)
 		return
 	}
+	h.publishSocialUpdated(friendRequest.ReceiverID, "friend_request_received")
 	response.Created(w, mapFriendRequest(friendRequest))
 }
 
@@ -158,6 +161,12 @@ func (h *SocialHandler) respondFriendRequest(w http.ResponseWriter, r *http.Requ
 		h.writeError(w, r, operation, err)
 		return
 	}
+	reason := "friend_request_rejected"
+	if accept {
+		reason = "friend_request_accepted"
+	}
+	h.publishSocialUpdated(friendRequest.SenderID, reason)
+	h.publishSocialUpdated(friendRequest.ReceiverID, reason)
 	response.OK(w, mapFriendRequest(friendRequest))
 }
 
@@ -213,6 +222,7 @@ func (h *SocialHandler) Unfriend(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, "unfriend", err)
 		return
 	}
+	h.publishSocialUpdated(friendUserID, "friend_removed")
 	response.NoContent(w)
 }
 
@@ -277,6 +287,7 @@ func (h *SocialHandler) MarkNotificationRead(w http.ResponseWriter, r *http.Requ
 		h.writeError(w, r, "mark_notification_read", err)
 		return
 	}
+	h.publishSocialUpdated(principal.UserID, "notification_read")
 	response.NoContent(w)
 }
 
@@ -290,9 +301,16 @@ func (h *SocialHandler) MarkAllNotificationsRead(w http.ResponseWriter, r *http.
 		h.writeError(w, r, "mark_all_notifications_read", err)
 		return
 	}
+	h.publishSocialUpdated(principal.UserID, "notifications_read_all")
 	response.OK(w, struct {
 		Updated int64 `json:"updated"`
 	}{Updated: count})
+}
+
+func (h *SocialHandler) publishSocialUpdated(userID int64, reason string) {
+	if h.realtime != nil {
+		h.realtime.PublishUser(userID, realtime.EventSocialUpdated, map[string]string{"reason": reason})
+	}
 }
 
 func (h *SocialHandler) writeError(w http.ResponseWriter, r *http.Request, operation string, err error) {

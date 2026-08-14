@@ -313,12 +313,6 @@ func (h *RoomHandler) GetRoundState(w http.ResponseWriter, r *http.Request) {
 		h.writeRoomError(w, r, "get_round_state", err)
 		return
 	}
-	if state.FinalizedNow {
-		h.publishStateUpdated(state)
-		if state.EliminatedPlayerID != nil {
-			h.syncEliminatedMembers(r, state.RoomID)
-		}
-	}
 	response.OK(w, mapRoundStateResponse(state))
 }
 
@@ -412,18 +406,6 @@ func (h *RoomHandler) CastVote(w http.ResponseWriter, r *http.Request) {
 	}
 	h.publishStateUpdated(state)
 	response.Created(w, mapRoundStateResponse(state))
-}
-
-func (h *RoomHandler) publishVotingCompleted(r *http.Request, state *domainroom.RoundState) {
-	h.syncEliminatedMembers(r, state.RoomID)
-	if h.realtime != nil {
-		h.realtime.Publish(state.RoomID, realtime.EventVoteUpdated, realtime.VoteUpdated{
-			Round:          state.RoundNumber,
-			VotesCast:      state.VotesCast,
-			EligibleVoters: state.EligibleVoters,
-			Completed:      true,
-		})
-	}
 }
 
 func (h *RoomHandler) publishStateUpdated(state *domainroom.RoundState) {

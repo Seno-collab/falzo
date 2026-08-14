@@ -114,6 +114,21 @@ type RoundState struct {
 	FinalizedNow        bool
 }
 
+// PhaseTransition is the public, non-player-specific result of a scheduler
+// transition. Private card and role data must never be added here.
+type PhaseTransition struct {
+	RoomID              string
+	RoundNumber         int
+	CycleNumber         int
+	From                RoundPhase
+	To                  RoundPhase
+	CurrentTurnPlayerID *int64
+	PhaseDeadlineAt     *time.Time
+	PreviousDeadlineAt  time.Time
+	TransitionedAt      time.Time
+	MembersChanged      bool
+}
+
 type WordPair struct {
 	ID            int64
 	CommonWord    string

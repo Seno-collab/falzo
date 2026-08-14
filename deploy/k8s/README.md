@@ -6,9 +6,9 @@ GHCR, runs the migration Job and only then rolls out the application.
 
 This directory deploys Falzo in three explicit phases:
 
-1. `platform`: namespace, configuration, PostgreSQL and Redis.
+1. `platform`: namespace, configuration, PostgreSQL, Redis and NATS JetStream.
 2. `migration`: one-shot database migration Job.
-3. `app`: one backend Pod, one frontend Pod, Services and Ingress.
+3. `app`: backend, Telegram alert bot, frontend, Services and Ingress.
 
 The staged flow prevents a new application release from serving traffic before
 its database migration has completed.
@@ -40,7 +40,9 @@ Before the first automated deployment, create the `falzo-secrets` Secret in
 namespace `falzo`, and install the `falzo-tls` certificate described below. The
 workflow checks the application Secret before changing the platform and safely
 creates or rotates `ghcr-pull` from the GitHub Environment credentials. It
-never uploads production database, Redis or JWT credentials from GitHub.
+never uploads production database, Redis, JWT or Telegram credentials from
+GitHub. The Secret must contain `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in
+addition to the keys shown in `secret.example.yaml`.
 
 Pushes to `main` that touch the backend, frontend, K3s manifests or the K3s
 workflow build and deploy all three images under the Git commit SHA. Manual
@@ -56,7 +58,7 @@ claims ports 80 and 443 for Caddy.
 - A container registry reachable by the cluster.
 - A TLS Secret or cert-manager certificate named `falzo-tls`.
 
-For production, prefer managed PostgreSQL and Redis. The bundled single-replica
+For production, prefer managed PostgreSQL, Redis and NATS. The bundled single-replica
 StatefulSets are appropriate for development, staging, or a small self-hosted
 cluster, but they are not a highly available data tier.
 
@@ -190,6 +192,7 @@ If the registry is private, create an image pull Secret and add
 kubectl apply -k deploy/k8s/platform
 kubectl rollout status statefulset/falzo-postgres -n falzo --timeout=180s
 kubectl rollout status statefulset/falzo-redis -n falzo --timeout=180s
+kubectl rollout status statefulset/falzo-nats -n falzo --timeout=180s
 ```
 
 PostgreSQL 18 persists its versioned `PGDATA` under the mounted
@@ -231,12 +234,13 @@ kubectl create secret tls falzo-tls \
   -n falzo
 ```
 
-Then deploy and wait for both rollouts:
+Then deploy and wait for all application rollouts:
 
 ```bash
 kubectl apply -k deploy/k8s/app
 kubectl rollout status deployment/falzo-backend -n falzo --timeout=180s
 kubectl rollout status deployment/falzo-frontend -n falzo --timeout=180s
+kubectl rollout status deployment/falzo-telegram-bot -n falzo --timeout=180s
 kubectl get pods,svc,ingress -n falzo
 ```
 
@@ -257,6 +261,7 @@ Useful commands:
 ```bash
 kubectl logs -f deployment/falzo-backend -n falzo
 kubectl logs -f deployment/falzo-frontend -n falzo
+kubectl logs -f deployment/falzo-telegram-bot -n falzo
 kubectl describe ingress falzo -n falzo
 kubectl port-forward service/falzo-frontend 3000:3000 -n falzo
 kubectl port-forward service/falzo-backend 8080:8080 -n falzo

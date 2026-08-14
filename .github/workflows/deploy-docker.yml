@@ -105,6 +105,8 @@ jobs:
       VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
       GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
       GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -184,6 +186,8 @@ jobs:
           require_value "Repository variable NEXT_PUBLIC_GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
           require_value "Environment secret GHCR_PULL_USERNAME" "$GHCR_PULL_USERNAME"
           require_value "Environment secret GHCR_PULL_TOKEN" "$GHCR_PULL_TOKEN"
+          require_value "Environment secret TELEGRAM_BOT_TOKEN" "$TELEGRAM_BOT_TOKEN"
+          require_value "Environment secret TELEGRAM_CHAT_ID" "$TELEGRAM_CHAT_ID"
           [[ "$GOOGLE_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "$GHCR_PULL_USERNAME" =~ ^[A-Za-z0-9._-]+$ ]]
 
@@ -203,6 +207,8 @@ jobs:
             printf 'FRONTEND_IMAGE=%s\n' "$frontend_image"
             printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
             printf 'GHCR_PULL_USERNAME=%s\n' "$GHCR_PULL_USERNAME"
+            printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
+            printf 'TELEGRAM_CHAT_ID=%s\n' "$TELEGRAM_CHAT_ID"
           } > "$bundle_dir/release.env"
           printf '%s' "$GHCR_PULL_TOKEN" > "$bundle_dir/ghcr-token"
 
@@ -362,8 +368,8 @@ jobs:
           }
 
           compose config --quiet
-          compose --profile tools pull postgres redis migration backend frontend caddy
-          if ! compose up -d --wait --wait-timeout 180 postgres redis; then
+          compose --profile tools pull postgres redis nats migration backend telegram-bot frontend caddy
+          if ! compose up -d --wait --wait-timeout 180 postgres redis nats; then
             show_compose_diagnostics
             exit 1
           fi
@@ -371,7 +377,7 @@ jobs:
             show_compose_diagnostics
             exit 1
           fi
-          if ! compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend caddy; then
+          if ! compose up -d --remove-orphans --wait --wait-timeout 180 backend telegram-bot frontend caddy; then
             show_compose_diagnostics
             exit 1
           fi

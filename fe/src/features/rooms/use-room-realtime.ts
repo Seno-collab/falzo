@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/features/chat/chat-panel";
 import { restoreSession } from "@/lib/auth";
+import { listRoomMessages } from "@/lib/api";
 
 const reconnectMaxDelay = 15_000;
 const reconnectBaseDelay = 800;
@@ -57,6 +58,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [roundStarted, setRoundStarted] = useState<RoundStartedEvent | null>(null);
   const [roomRevision, setRoomRevision] = useState(0);
+  const [gameStateRevision, setGameStateRevision] = useState(0);
   const [voteUpdated, setVoteUpdated] = useState<VoteUpdatedEvent | null>(null);
   const [error, setError] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
@@ -87,14 +89,28 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
 
       socket.onopen = () => {
         if (!active || socketRef.current !== socket) return;
+        const connectionMode = attempt === 0 ? "initial" : "reconnect";
         attempt = 0;
         setError("");
         setStatus("connected");
         socket.send(JSON.stringify({
           type: "state.sync",
           request_id: createRequestId(),
-          payload: {},
+          payload: { connection_mode: connectionMode },
         }));
+        void listRoomMessages(session.access_token, roomId, { trackActivity: false })
+          .then((history) => {
+            if (!active || socketRef.current !== socket) return;
+            setMessages((current) => mergeMessages(
+              current,
+              history.map((message) => mapChatMessage(message, currentUsername)),
+            ));
+          })
+          .catch(() => {
+            if (active && socketRef.current === socket) {
+              setError("Could not restore room chat history");
+            }
+          });
       };
 
       socket.onmessage = ({ data }) => {
@@ -116,16 +132,8 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
           case "chat.message": {
             const payload = event.payload as ChatPayload;
             if (!payload?.id || typeof payload.text !== "string") return;
-            const message: ChatMessage = {
-              id: payload.id,
-              sender: payload.username,
-              text: payload.text,
-              time: formatMessageTime(payload.sent_at),
-              own: payload.username === currentUsername,
-            };
-            setMessages((current) => current.some(({ id }) => id === message.id)
-              ? current
-              : [...current, message].slice(-maxVisibleMessages));
+            const message = mapChatMessage(payload, currentUsername);
+            setMessages((current) => mergeMessages(current, [message]));
             break;
           }
           case "game.round.started": {
@@ -138,7 +146,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
             break;
           }
           case "game.state.updated": {
-            setRoomRevision((current) => current + 1);
+            setGameStateRevision((current) => current + 1);
             break;
           }
           case "game.vote.updated": {
@@ -199,6 +207,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
     connected: status === "connected",
     error,
     messages,
+    gameStateRevision,
     players,
     roundStarted,
     roomRevision,
@@ -253,4 +262,23 @@ function formatMessageTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Now";
   return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function mapChatMessage(payload: ChatPayload, currentUsername: string): ChatMessage {
+  return {
+    id: payload.id,
+    sender: payload.username,
+    text: payload.text,
+    time: formatMessageTime(payload.sent_at),
+    sentAt: payload.sent_at,
+    own: payload.username === currentUsername,
+  };
+}
+
+function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]) {
+  const messages = new Map(current.map((message) => [message.id, message]));
+  for (const message of incoming) messages.set(message.id, message);
+  return [...messages.values()]
+    .sort((left, right) => (left.sentAt ?? "").localeCompare(right.sentAt ?? ""))
+    .slice(-maxVisibleMessages);
 }

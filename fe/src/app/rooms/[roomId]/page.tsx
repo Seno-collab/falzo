@@ -1,6 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ApiLoading } from "@/components/api-loading";
@@ -8,6 +8,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { useSession } from "@/components/session-guard";
 import { ErrorScreen } from "@/components/error-screen";
 import { ChatPanel } from "@/features/chat/chat-panel";
+import { RoomPhasePanel } from "./room-phase-panel";
 import {
   colorForPlayer,
   mapRoomResponse,
@@ -17,20 +18,16 @@ import {
   type RoomPlayer,
 } from "@/features/rooms/data";
 import { useRoomRealtime } from "@/features/rooms/use-room-realtime";
+import { useRoomGameState } from "@/features/rooms/use-room-game-state";
+import { useRoomGameCommands } from "@/features/rooms/use-room-game-commands";
 import {
   ApiError,
-  castRoomVote,
-  confirmRoomRole,
   dealRoomRound,
-  finishRoomTurn,
   getCurrentRoomCard,
-  getCurrentRoundState,
   getRoom,
-  submitMrWhiteGuess,
   updateRoomDiscussion,
 } from "@/lib/api";
 import { restoreSession } from "@/lib/auth";
-import type { RoundStateResponse } from "@/types/room";
 import styles from "./room.module.css";
 
 type DealPhase = "waiting" | "dealing" | "ready";
@@ -56,17 +53,25 @@ export default function RoomDetailPage() {
   const [discussionDraft, setDiscussionDraft] = useState(30);
   const [settingsPending, setSettingsPending] = useState(false);
   const [settingsError, setSettingsError] = useState("");
-  const [roundState, setRoundState] = useState<RoundStateResponse | null>(null);
-  const [roundStateError, setRoundStateError] = useState("");
   const [selectedVote, setSelectedVote] = useState("");
-  const [votePending, setVotePending] = useState(false);
-  const [roleReadyPending, setRoleReadyPending] = useState(false);
-  const [turnPending, setTurnPending] = useState(false);
   const [mrWhiteGuess, setMrWhiteGuess] = useState("");
-  const [mrWhiteGuessPending, setMrWhiteGuessPending] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const dealTimersRef = useRef<number[]>([]);
   const realtime = useRoomRealtime(params.roomId, username);
+  const gameState = useRoomGameState({
+    roomId: room?.id,
+    playing: room?.status === "playing",
+    roomRound: room?.round,
+    realtimeRevision: realtime.gameStateRevision,
+    roundStarted: realtime.roundStarted?.round,
+    votesCast: realtime.voteUpdated?.votes_cast,
+  });
+  const { state: roundState, setState: setRoundState, error: roundStateError, setError: setRoundStateError } = gameState;
+  const gameCommands = useRoomGameCommands(room?.id, setRoundState, setRoundStateError);
+  const votePending = gameCommands.pending === "vote";
+  const roleReadyPending = gameCommands.pending === "ready";
+  const turnPending = gameCommands.pending === "finish";
+  const mrWhiteGuessPending = gameCommands.pending === "guess";
 
   const rankedPlayers = useMemo(
     () => room
@@ -179,41 +184,6 @@ export default function RoomDetailPage() {
   }, [room?.status]);
 
   useEffect(() => {
-    if (!room || room.status !== "playing") {
-      setRoundState(null);
-      return;
-    }
-    const activeRoomID = room.id;
-    let active = true;
-
-    async function loadRoundState() {
-      try {
-        const activeSession = await restoreSession();
-        if (!activeSession) {
-          router.replace("/login");
-          return;
-        }
-        const response = await getCurrentRoundState(activeSession.access_token, activeRoomID, {
-          trackActivity: false,
-        });
-        if (!active) return;
-        setRoundState(response);
-        setRoundStateError("");
-      } catch (error) {
-        if (!active || (error instanceof ApiError && error.status === 404)) return;
-        setRoundStateError(error instanceof Error ? error.message : "Could not load voting state");
-      }
-    }
-
-    void loadRoundState();
-    const pollTimer = window.setInterval(() => void loadRoundState(), 1_000);
-    return () => {
-      active = false;
-      window.clearInterval(pollTimer);
-    };
-  }, [realtime.roundStarted, realtime.voteUpdated, room?.id, room?.round, room?.status, router]);
-
-  useEffect(() => {
     if (rosterKey) {
       dealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       dealTimersRef.current = [];
@@ -229,11 +199,7 @@ export default function RoomDetailPage() {
       setRoundState(null);
       setRoundStateError("");
       setSelectedVote("");
-      setVotePending(false);
-      setRoleReadyPending(false);
-      setTurnPending(false);
       setMrWhiteGuess("");
-      setMrWhiteGuessPending(false);
     }
 
     return () => {
@@ -345,25 +311,11 @@ export default function RoomDetailPage() {
   const currentCardDealt = Boolean(
     currentPlayer && dealtPlayerIds.includes(currentPlayer.id),
   );
-  const voteTargets = room.players.filter((player) => !player.current);
-  const activeVoteTargets = voteTargets.filter((player) => !player.eliminated);
   const remainingPhaseSeconds = roundState?.phase_deadline_at
     ? Math.max(0, Math.ceil(
       (new Date(roundState.phase_deadline_at).getTime() - clockNow) / 1_000,
     ))
     : 0;
-  const undercoverPlayer = roundState?.undercover_player_id
-    ? room.players.find((player) => player.id === String(roundState.undercover_player_id))
-    : undefined;
-  const mrWhitePlayer = roundState?.mr_white_player_id
-    ? room.players.find((player) => player.id === String(roundState.mr_white_player_id))
-    : undefined;
-  const eliminatedPlayer = roundState?.eliminated_player_id
-    ? room.players.find((player) => player.id === String(roundState.eliminated_player_id))
-    : undefined;
-  const caughtUndercover = Boolean(
-    roundState?.eliminated_role === "undercover",
-  );
   const currentTurnPlayer = roundState?.current_turn_player_id
     ? room.players.find((player) => player.id === String(roundState.current_turn_player_id))
     : undefined;
@@ -496,85 +448,26 @@ export default function RoomDetailPage() {
     }
   }
 
-  async function submitVote(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitVote() {
     if (!room || !selectedVote || votePending || roundState?.phase !== "VOTING") return;
-    setVotePending(true);
-    setRoundStateError("");
-    try {
-      const activeSession = await restoreSession();
-      if (!activeSession) {
-        router.replace("/login");
-        return;
-      }
-      const response = await castRoomVote(
-        activeSession.access_token,
-        room.id,
-        Number(selectedVote),
-      );
-      setRoundState(response);
-    } catch (error) {
-      setRoundStateError(error instanceof Error ? error.message : "Could not submit your vote");
-    } finally {
-      setVotePending(false);
-    }
+    await gameCommands.castVote(Number(selectedVote));
   }
 
   async function confirmRoleCard() {
     if (!room || roleReadyPending || roundState?.current_user_ready) return;
-    setRoleReadyPending(true);
-    setRoundStateError("");
-    try {
-      const activeSession = await restoreSession();
-      if (!activeSession) {
-        router.replace("/login");
-        return;
-      }
-      const response = await confirmRoomRole(activeSession.access_token, room.id);
-      setRoundState(response);
+    if (await gameCommands.confirmRole()) {
       setCardOverlay("hidden");
-    } catch (error) {
-      setRoundStateError(error instanceof Error ? error.message : "Không thể xác nhận thẻ vai trò");
-    } finally {
-      setRoleReadyPending(false);
     }
   }
 
   async function finishCurrentTurn() {
     if (!room || !isCurrentTurn || turnPending || roundState?.phase !== "DESCRIBING") return;
-    setTurnPending(true);
-    setRoundStateError("");
-    try {
-      const activeSession = await restoreSession();
-      if (!activeSession) {
-        router.replace("/login");
-        return;
-      }
-      setRoundState(await finishRoomTurn(activeSession.access_token, room.id));
-    } catch (error) {
-      setRoundStateError(error instanceof Error ? error.message : "Không thể kết thúc lượt");
-    } finally {
-      setTurnPending(false);
-    }
+    await gameCommands.finishTurn();
   }
 
-  async function submitWhiteGuess(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitWhiteGuess() {
     if (!room || !mrWhiteGuess.trim() || mrWhiteGuessPending) return;
-    setMrWhiteGuessPending(true);
-    setRoundStateError("");
-    try {
-      const activeSession = await restoreSession();
-      if (!activeSession) {
-        router.replace("/login");
-        return;
-      }
-      setRoundState(await submitMrWhiteGuess(activeSession.access_token, room.id, mrWhiteGuess));
-    } catch (error) {
-      setRoundStateError(error instanceof Error ? error.message : "Không thể gửi đáp án");
-    } finally {
-      setMrWhiteGuessPending(false);
-    }
+    await gameCommands.submitGuess(mrWhiteGuess);
   }
 
   return (
@@ -860,149 +753,24 @@ export default function RoomDetailPage() {
 
           <div className={styles.rightRail}>
             {room.status === "playing" && (
-              <section className={styles.votePanel} aria-labelledby="round-flow-title">
-                <div className={styles.votePanelHeading}>
-                  <div>
-                    <small>VÁN {room.round} · VÒNG {roundState?.cycle ?? 1}</small>
-                    <h2 id="round-flow-title">{phaseTitle(roundState?.phase)}</h2>
-                  </div>
-                  {roundState?.phase_deadline_at && roundState.phase !== "GAME_FINISHED" && (
-                    <strong className={styles.roundTimer}>
-                      {formatCountdown(remainingPhaseSeconds)}
-                    </strong>
-                  )}
-                </div>
-
-                {!roundState && <p className={styles.voteHelp}>Đang đồng bộ trạng thái ván…</p>}
-
-                {roundState?.phase === "REVEALING_ROLE" && (
-                  <div className={styles.voteWaiting}>
-                    <strong>{roundState.ready_players}/{roundState.eligible_players} người đã hiểu vai trò</strong>
-                    <p>{roundState.current_user_ready
-                      ? "Đang chờ những người còn lại."
-                      : "Mở thẻ bí mật và bấm “Đã hiểu” để sẵn sàng."}</p>
-                    {!roundState.current_user_ready && currentCard && (
-                      <button onClick={revealCurrentCard} type="button">Xem thẻ của tôi</button>
-                    )}
-                  </div>
-                )}
-
-                {roundState?.phase === "DESCRIBING" && (
-                  <div className={styles.voteWaiting}>
-                    <strong>
-                      Lượt {roundState.turn_number}/{roundState.total_turns}: {currentTurnPlayer?.name ?? "Đang chuyển lượt"}
-                    </strong>
-                    <p>{isCurrentTurn
-                      ? "Hãy mô tả từ của bạn nhưng không nói thẳng từ khóa."
-                      : `Đang nghe ${currentTurnPlayer?.name ?? "người chơi"} mô tả.`}</p>
-                    {isCurrentTurn && (
-                      <button disabled={turnPending} onClick={finishCurrentTurn} type="button">
-                        {turnPending ? "Đang chuyển lượt…" : "Kết thúc lượt sớm"}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {roundState?.phase === "VOTING"
-                  && roundState.current_user_vote_id === null
-                  && !currentPlayer?.eliminated && (
-                  <form className={styles.voteForm} onSubmit={submitVote}>
-                    <p>Chọn người đáng nghi. Nếu không chọn, lượt vote sẽ được bỏ qua khi hết giờ.</p>
-                    <div className={styles.voteChoices}>
-                      {activeVoteTargets.map((player) => (
-                        <label key={player.id}>
-                          <input
-                            checked={selectedVote === player.id}
-                            name="vote-target"
-                            onChange={() => setSelectedVote(player.id)}
-                            type="radio"
-                            value={player.id}
-                          />
-                          <span className={`${styles.voteAvatar} ${styles[player.color]}`} aria-hidden="true">
-                            {player.name.charAt(0).toUpperCase()}
-                          </span>
-                          <strong>{player.name}</strong>
-                        </label>
-                      ))}
-                    </div>
-                    <button disabled={!selectedVote || votePending} type="submit">
-                      {votePending ? "Đang gửi…" : "Chốt phiếu"}
-                    </button>
-                  </form>
-                )}
-
-                {roundState?.phase === "VOTING" && currentPlayer?.eliminated && (
-                  <div className={styles.voteWaiting}>
-                    <strong>Spectator mode</strong>
-                    <p>You can follow the vote, but eliminated players cannot vote or chat.</p>
-                  </div>
-                )}
-
-                {roundState?.phase === "VOTING" && roundState.current_user_vote_id !== null && (
-                  <div className={styles.voteWaiting}>
-                    <strong>Vote locked</strong>
-                    <p>Waiting for the remaining players.</p>
-                  </div>
-                )}
-
-                {roundState?.phase === "VOTING" && (
-                  <div className={styles.voteProgress}>
-                    <span>{roundState.votes_cast}/{roundState.eligible_voters} votes</span>
-                    <div aria-hidden="true">
-                      <span style={{ width: `${Math.min(100, roundState.votes_cast / Math.max(1, roundState.eligible_voters) * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-
-                {roundState?.phase === "REVEALING_RESULT" && (
-                  <div className={`${styles.voteResult} ${caughtUndercover ? styles.voteCaught : ""}`}>
-                    <small>{roundState.eliminated_role
-                      ? `ĐÃ LỘ VAI TRÒ: ${roleLabel(roundState.eliminated_role)}`
-                      : "HÒA PHIẾU"}</small>
-                    <strong>
-                      {eliminatedPlayer
-                        ? `${eliminatedPlayer.name} đã bị loại.`
-                        : "Không ai bị loại ở vòng này."}
-                    </strong>
-                    <p>Kết quả được công bố trước khi hệ thống kiểm tra điều kiện thắng.</p>
-                  </div>
-                )}
-
-                {roundState?.phase === "MR_WHITE_GUESSING" && (
-                  roundState.eliminated_player_id === Number(currentPlayer?.id) ? (
-                    <form className={styles.voteForm} onSubmit={submitWhiteGuess}>
-                      <p>Bạn là Mr. White. Hãy đoán từ khóa của Dân thường để thắng ngay.</p>
-                      <input
-                        maxLength={80}
-                        onChange={(event) => setMrWhiteGuess(event.target.value)}
-                        placeholder="Nhập từ khóa…"
-                        value={mrWhiteGuess}
-                      />
-                      <button disabled={!mrWhiteGuess.trim() || mrWhiteGuessPending} type="submit">
-                        {mrWhiteGuessPending ? "Đang kiểm tra…" : "Gửi đáp án"}
-                      </button>
-                    </form>
-                  ) : (
-                    <div className={styles.voteWaiting}>
-                      <strong>Mr. White đang đoán từ</strong>
-                      <p>Hãy chờ đáp án cuối cùng.</p>
-                    </div>
-                  )
-                )}
-
-                {roundState?.phase === "GAME_FINISHED" && (
-                  <div className={`${styles.voteResult} ${styles.voteCaught}`}>
-                    <small>KẾT THÚC VÁN</small>
-                    <strong>{winnerLabel(roundState.winner)} chiến thắng</strong>
-                    <p>
-                      Undercover: <b>{undercoverPlayer?.name ?? "—"}</b>
-                      {room.mrWhiteEnabled && <> · Mr. White: <b>{mrWhitePlayer?.name ?? "—"}</b></>}
-                    </p>
-                  </div>
-                )}
-
-                {roundStateError && <small className={styles.dealError}>{roundStateError}</small>}
-              </section>
+              <RoomPhasePanel
+                currentCardAvailable={Boolean(currentCard)}
+                mrWhiteGuess={mrWhiteGuess}
+                mrWhiteGuessPending={mrWhiteGuessPending}
+                onFinishTurn={finishCurrentTurn}
+                onMrWhiteGuessChange={setMrWhiteGuess}
+                onRevealCard={revealCurrentCard}
+                onSelectedVoteChange={setSelectedVote}
+                onSubmitVote={submitVote}
+                onSubmitWhiteGuess={submitWhiteGuess}
+                remainingSeconds={remainingPhaseSeconds}
+                room={room}
+                selectedVote={selectedVote}
+                state={roundState}
+                stateError={roundStateError}
+                turnPending={turnPending}
+                votePending={votePending}
+              />
             )}
 
             <ChatPanel
@@ -1145,36 +913,6 @@ export default function RoomDetailPage() {
       </section>
     </main>
   );
-}
-
-function formatCountdown(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function phaseTitle(phase?: RoundStateResponse["phase"]) {
-  switch (phase) {
-    case "REVEALING_ROLE": return "Xem vai trò bí mật";
-    case "DESCRIBING": return "Lượt mô tả";
-    case "VOTING": return "Ai đáng nghi nhất?";
-    case "REVEALING_RESULT": return "Công bố người bị loại";
-    case "MR_WHITE_GUESSING": return "Mr. White đoán từ";
-    case "GAME_FINISHED": return "Kết quả ván";
-    default: return "Đang tải ván chơi";
-  }
-}
-
-function roleLabel(role: NonNullable<RoundStateResponse["eliminated_role"]>) {
-  if (role === "undercover") return "UNDERCOVER";
-  if (role === "mr_white") return "MR. WHITE";
-  return "DÂN THƯỜNG";
-}
-
-function winnerLabel(winner: RoundStateResponse["winner"]) {
-  if (winner === "undercover") return "Undercover";
-  if (winner === "mr_white") return "Mr. White";
-  return "Dân thường";
 }
 
 type PlayerSeatProps = {

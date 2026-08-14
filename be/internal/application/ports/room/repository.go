@@ -20,6 +20,8 @@ type Repository interface {
 	MarkPlayerReady(ctx context.Context, input PlayerActionInput) (*domainroom.RoundState, error)
 	FinishTurn(ctx context.Context, input PlayerActionInput) (*domainroom.RoundState, error)
 	SubmitMrWhiteGuess(ctx context.Context, input MrWhiteGuessInput) (*domainroom.RoundState, error)
+	AdvanceExpiredRounds(ctx context.Context, now time.Time, limit int) ([]domainroom.PhaseTransition, error)
+	CountExpiredRounds(ctx context.Context, now time.Time) (int, error)
 }
 
 type StartRoundInput struct {

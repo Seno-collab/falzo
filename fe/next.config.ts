@@ -3,7 +3,10 @@ import type { NextConfig } from "next";
 const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Next standalone tracing creates POSIX-style symlinks. Keep it for the
+  // Linux container build while allowing local Windows verification to run.
+  output: process.platform === "win32" ? undefined : "standalone",
+  outputFileTracingRoot: process.cwd(),
   reactStrictMode: true,
   async rewrites() {
     return [

@@ -8,6 +8,7 @@ export type ChatMessage = {
   sender: string;
   text: string;
   time: string;
+  sentAt?: string;
   own?: boolean;
   system?: boolean;
 };

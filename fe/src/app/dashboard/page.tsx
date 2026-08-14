@@ -17,12 +17,14 @@ import {
 import { restoreSession } from "@/lib/auth";
 import type { RoomLanguage } from "@/types/room";
 import type { Friend } from "@/types/social";
+import { useUserRealtime } from "@/features/social/use-user-realtime";
 import styles from "./dashboard.module.css";
 
 export default function DashboardPage() {
   const router = useRouter();
   const session = useSession();
   const username = session.username;
+  const socialRealtime = useUserRealtime();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -98,12 +100,10 @@ export default function DashboardPage() {
     }
 
     void loadSocialData();
-    const pollTimer = window.setInterval(() => void loadSocialData(), 30_000);
     return () => {
       active = false;
-      window.clearInterval(pollTimer);
     };
-  }, []);
+  }, [socialRealtime.revision]);
 
   function retryRooms() {
     setRoomsError("");

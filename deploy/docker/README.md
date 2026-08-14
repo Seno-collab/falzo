@@ -6,9 +6,9 @@
 
 The legacy stack runs as one Docker Compose project on the VPS:
 
-1. PostgreSQL and Redis start and pass health checks.
+1. PostgreSQL, Redis and NATS JetStream start and pass health checks.
 2. The one-shot migration container completes successfully.
-3. Backend, frontend and Caddy start.
+3. Backend, Telegram alert bot, frontend and Caddy start.
 4. Caddy terminates TLS for `falzo.life`, sends `/api` to the Go backend, and
    sends all other requests to Next.js. WebSocket upgrades work through the
    same `/api` route.
@@ -51,6 +51,8 @@ Create a GitHub Environment named `production` and add these secrets:
 - `VPS_APP_DIR`, for example `/opt/falzo`
 - `GHCR_PULL_USERNAME`
 - `GHCR_PULL_TOKEN` with `read:packages`
+- `TELEGRAM_BOT_TOKEN`, created through BotFather
+- `TELEGRAM_CHAT_ID`, the target user, group or channel ID
 
 Add the repository variable `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. The OAuth client ID
 is public configuration and is embedded in the frontend build.

@@ -302,6 +302,12 @@ jobs:
             echo "Required Kubernetes Secret 'falzo-secrets' is missing from namespace falzo."
             exit 1
           fi
+          for secret_key in TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
+            if [ -z "$(kube get secret falzo-secrets -n falzo -o "jsonpath={.data.$secret_key}")" ]; then
+              echo "Required key '$secret_key' is missing from Kubernetes Secret 'falzo-secrets'."
+              exit 1
+            fi
+          done
           chmod 600 "$REMOTE_DIR/ghcr-token"
           kube create secret docker-registry ghcr-pull \
             --namespace falzo \
@@ -323,7 +329,8 @@ jobs:
 
           kube apply -k "$manifest_dir/platform"
           if ! kube rollout status statefulset/falzo-postgres -n falzo --timeout=180s \
-            || ! kube rollout status statefulset/falzo-redis -n falzo --timeout=180s; then
+            || ! kube rollout status statefulset/falzo-redis -n falzo --timeout=180s \
+            || ! kube rollout status statefulset/falzo-nats -n falzo --timeout=180s; then
             show_diagnostics
             exit 1
           fi
@@ -338,10 +345,12 @@ jobs:
 
           kube apply -k "$manifest_dir/app"
           if ! kube rollout status deployment/falzo-backend -n falzo --timeout=180s \
-            || ! kube rollout status deployment/falzo-frontend -n falzo --timeout=180s; then
+            || ! kube rollout status deployment/falzo-frontend -n falzo --timeout=180s \
+            || ! kube rollout status deployment/falzo-telegram-bot -n falzo --timeout=180s; then
             show_diagnostics
             kube logs deployment/falzo-backend -n falzo --all-containers=true --tail=100 || true
             kube logs deployment/falzo-frontend -n falzo --all-containers=true --tail=100 || true
+            kube logs deployment/falzo-telegram-bot -n falzo --all-containers=true --tail=100 || true
             exit 1
           fi
 

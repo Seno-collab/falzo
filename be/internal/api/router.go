@@ -17,8 +17,10 @@ func NewRouter(
 	authHandler *handler.AuthHandler,
 	roomHandler *handler.RoomHandler,
 	realtimeHandler *handler.RealtimeHandler,
+	chatHandler *handler.ChatHandler,
 	socialHandler *handler.SocialHandler,
 	authenticator *apimiddleware.Authenticator,
+	metricsHandler http.Handler,
 	logger *slog.Logger,
 ) *chi.Mux {
 	r := chi.NewRouter()
@@ -28,6 +30,9 @@ func NewRouter(
 	r.Use(timeoutUnlessWebSocket(30 * time.Second))
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
+	if metricsHandler != nil {
+		r.Handle("/metrics", metricsHandler)
+	}
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", authHandler.Login)
@@ -43,6 +48,7 @@ func NewRouter(
 			r.Get("/rooms", roomHandler.List)
 			r.Post("/rooms/join", roomHandler.Join)
 			r.Get("/rooms/{roomID}", roomHandler.Get)
+			r.Get("/rooms/{roomID}/messages", chatHandler.ListRoomMessages)
 			r.Post("/rooms/{roomID}/rounds", roomHandler.DealRound)
 			r.Get("/rooms/{roomID}/rounds/current/card", roomHandler.GetCurrentCard)
 			r.Patch("/rooms/{roomID}/settings/discussion", roomHandler.UpdateDiscussion)
@@ -67,6 +73,7 @@ func NewRouter(
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(authenticator.RequireWebSocketAccessToken)
+			r.Get("/ws", realtimeHandler.ConnectUser)
 			r.Get("/rooms/{roomID}/ws", realtimeHandler.ConnectRoom)
 		})
 	})

@@ -1,10 +1,19 @@
 package realtime
 
 import (
+	domainchat "be/internal/domain/chat"
+	"context"
 	"errors"
 	"testing"
 	"time"
 )
+
+type recordingChatStore struct{ messages []domainchat.Message }
+
+func (s *recordingChatStore) SaveMessage(_ context.Context, message domainchat.Message) error {
+	s.messages = append(s.messages, message)
+	return nil
+}
 
 type fixedClock struct {
 	now time.Time
@@ -130,6 +139,61 @@ func TestBroadcastDropsDuplicateServerEventID(t *testing.T) {
 	case duplicate := <-client.Events():
 		t.Fatalf("unexpected duplicate event: %#v", duplicate)
 	default:
+	}
+}
+
+func TestPublishChatPersistsBeforeBroadcast(t *testing.T) {
+	store := &recordingChatStore{}
+	hub := NewHub(fixedClock{now: time.Date(2026, time.August, 14, 12, 0, 0, 0, time.UTC)}, WithChatStore(store))
+	client, err := hub.Register("room-chat", 41, "player", []Member{{ID: 41, Name: "player", SeatNumber: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Unregister(client)
+	drainEvents(client.Events())
+	if err := hub.PublishChat(client, "durable message"); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.messages) != 1 || store.messages[0].Text != "durable message" {
+		t.Fatalf("stored messages = %#v", store.messages)
+	}
+}
+
+func TestFullOutboundQueueStopsSlowConsumer(t *testing.T) {
+	hub := NewHub(fixedClock{now: time.Now()})
+	client, err := hub.RegisterUser(52, "slow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Unregister(client)
+	for index := 0; index <= outboundQueueSize; index++ {
+		hub.Send(client, EventSocialUpdated, "", map[string]int{"index": index})
+	}
+	select {
+	case <-client.Done():
+		if !errors.Is(client.CloseReason(), ErrSlowConsumer) {
+			t.Fatalf("close reason = %v, want %v", client.CloseReason(), ErrSlowConsumer)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow consumer was not stopped")
+	}
+}
+
+func TestPublishUserDeliversSocialEvent(t *testing.T) {
+	hub := NewHub(fixedClock{now: time.Now()})
+	client, err := hub.RegisterUser(61, "friend")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Unregister(client)
+	hub.PublishUser(61, EventSocialUpdated, map[string]string{"reason": "friend_request_received"})
+	select {
+	case event := <-client.Events():
+		if event.Type != EventSocialUpdated {
+			t.Fatalf("event type = %q, want %q", event.Type, EventSocialUpdated)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("social event was not delivered")
 	}
 }
 

@@ -12,6 +12,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/falzo-api \
     ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/falzo-telegram-bot \
+    ./cmd/telegram-bot
 
 FROM alpine:3.22 AS runtime
 RUN apk add --no-cache ca-certificates \
@@ -22,6 +27,7 @@ RUN apk add --no-cache ca-certificates \
 
 WORKDIR /app
 COPY --from=builder --chown=falzo:falzo /out/falzo-api ./falzo-api
+COPY --from=builder --chown=falzo:falzo /out/falzo-telegram-bot ./falzo-telegram-bot
 
 USER falzo
 EXPOSE 8080

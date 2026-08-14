@@ -70,3 +70,11 @@ export type RoundStateResponse = {
   winner: "civilians" | "undercover" | "mr_white" | null;
   mr_white_guess_correct: boolean | null;
 };
+
+export type RoomChatMessage = {
+  id: string;
+  user_id: number;
+  username: string;
+  text: string;
+  sent_at: string;
+};

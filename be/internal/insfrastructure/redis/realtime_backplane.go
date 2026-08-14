@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"be/internal/observability"
 	"be/internal/realtime"
 	"context"
 	"encoding/json"
@@ -20,38 +21,44 @@ const (
 )
 
 type RealtimeBackplane struct {
-	client *goredis.Client
-	prefix string
-	logger *slog.Logger
-	mu     sync.Mutex
-	pubsub *goredis.PubSub
-	closed bool
+	client  *goredis.Client
+	prefix  string
+	logger  *slog.Logger
+	metrics *observability.Metrics
+	mu      sync.Mutex
+	pubsub  *goredis.PubSub
+	closed  bool
 }
 
-func NewRealtimeBackplane(client *goredis.Client, prefix string, logger *slog.Logger) *RealtimeBackplane {
+func NewRealtimeBackplane(client *goredis.Client, prefix string, logger *slog.Logger, metrics *observability.Metrics) *RealtimeBackplane {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &RealtimeBackplane{client: client, prefix: prefix, logger: logger}
+	return &RealtimeBackplane{client: client, prefix: prefix, logger: logger, metrics: metrics}
 }
 
 func (b *RealtimeBackplane) Subscribe(ctx context.Context) (<-chan realtime.BackplaneMessage, error) {
+	startedAt := time.Now()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.closed {
+		b.observeOperation("subscribe", startedAt, fmt.Errorf("realtime backplane is closed"))
 		return nil, fmt.Errorf("realtime backplane is closed")
 	}
 	if b.pubsub != nil {
+		b.observeOperation("subscribe", startedAt, fmt.Errorf("realtime backplane is already subscribed"))
 		return nil, fmt.Errorf("realtime backplane is already subscribed")
 	}
 
 	pubsub := b.client.Subscribe(ctx, b.channel())
 	if _, err := pubsub.Receive(ctx); err != nil {
 		_ = pubsub.Close()
+		b.observeOperation("subscribe", startedAt, err)
 		return nil, fmt.Errorf("subscribe realtime channel: %w", err)
 	}
 	b.pubsub = pubsub
+	b.observeOperation("subscribe", startedAt, nil)
 
 	messages := make(chan realtime.BackplaneMessage, realtimeSubscriptionBuffer)
 	go b.consume(ctx, pubsub.Channel(goredis.WithChannelSize(realtimeSubscriptionBuffer)), messages)
@@ -59,8 +66,10 @@ func (b *RealtimeBackplane) Subscribe(ctx context.Context) (<-chan realtime.Back
 }
 
 func (b *RealtimeBackplane) Publish(ctx context.Context, roomID string, event realtime.Event) error {
+	startedAt := time.Now()
 	payloadJSON, err := json.Marshal(event.Payload)
 	if err != nil {
+		b.observeOperation("publish", startedAt, err)
 		return fmt.Errorf("marshal realtime payload: %w", err)
 	}
 	messageJSON, err := json.Marshal(realtime.BackplaneMessage{
@@ -72,9 +81,12 @@ func (b *RealtimeBackplane) Publish(ctx context.Context, roomID string, event re
 		Payload:    payloadJSON,
 	})
 	if err != nil {
+		b.observeOperation("publish", startedAt, err)
 		return fmt.Errorf("marshal realtime message: %w", err)
 	}
-	return b.client.Publish(ctx, b.channel(), messageJSON).Err()
+	err = b.client.Publish(ctx, b.channel(), messageJSON).Err()
+	b.observeOperation("publish", startedAt, err)
+	return err
 }
 
 func (b *RealtimeBackplane) ClaimConnection(
@@ -258,4 +270,16 @@ func (b *RealtimeBackplane) requestKey(roomID string, userID int64, requestID st
 
 func presenceMember(connectionID string, userID int64) string {
 	return connectionID + ":" + strconv.FormatInt(userID, 10)
+}
+
+func (b *RealtimeBackplane) observeOperation(operation string, startedAt time.Time, err error) {
+	if b.metrics == nil {
+		return
+	}
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	b.metrics.RealtimeRedisOperations.WithLabelValues(operation, result).Inc()
+	b.metrics.RealtimeRedisDuration.WithLabelValues(operation).Observe(time.Since(startedAt).Seconds())
 }

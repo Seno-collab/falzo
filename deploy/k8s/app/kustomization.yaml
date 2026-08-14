@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: falzo
 resources:
   - backend.yaml
+  - telegram-bot.yaml
   - frontend.yaml
   - ingress.yaml
 images:

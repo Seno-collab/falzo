@@ -7,6 +7,7 @@ import type {
 import type {
   RoomLanguage,
   RoomResponse,
+  RoomChatMessage,
   RoundCardResponse,
   RoundStateResponse,
 } from "@/types/room";
@@ -126,6 +127,19 @@ export function getRoom(accessToken: string, roomId: string, options?: RequestOp
   return authenticatedRequest<RoomResponse>(
     accessToken,
     `/v1/rooms/${encodeURIComponent(roomId)}`,
+    { method: "GET" },
+    options,
+  );
+}
+
+export function listRoomMessages(
+  accessToken: string,
+  roomId: string,
+  options?: RequestOptions,
+) {
+  return authenticatedRequest<RoomChatMessage[]>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/messages?limit=100`,
     { method: "GET" },
     options,
   );
