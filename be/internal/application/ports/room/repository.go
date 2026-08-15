@@ -11,6 +11,7 @@ type Repository interface {
 	ListActive(ctx context.Context) ([]*domainroom.Room, error)
 	FindByID(ctx context.Context, roomID string) (*domainroom.Room, error)
 	JoinByInviteCode(ctx context.Context, inviteCode string, userID int64) (*domainroom.Room, error)
+	KickMember(ctx context.Context, input KickMemberInput) (*domainroom.Room, error)
 	FindRandomWordPair(ctx context.Context, languageCode domainroom.LanguageCode) (*domainroom.WordPair, error)
 	StartRound(ctx context.Context, input StartRoundInput) (*domainroom.RoundCard, error)
 	FindCurrentCard(ctx context.Context, roomID string, userID int64) (*domainroom.RoundCard, error)
@@ -22,6 +23,12 @@ type Repository interface {
 	SubmitMrWhiteGuess(ctx context.Context, input MrWhiteGuessInput) (*domainroom.RoundState, error)
 	AdvanceExpiredRounds(ctx context.Context, now time.Time, limit int) ([]domainroom.PhaseTransition, error)
 	CountExpiredRounds(ctx context.Context, now time.Time) (int, error)
+}
+
+type KickMemberInput struct {
+	RoomID       string
+	HostUserID   int64
+	TargetUserID int64
 }
 
 type StartRoundInput struct {

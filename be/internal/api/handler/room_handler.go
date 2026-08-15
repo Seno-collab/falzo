@@ -11,6 +11,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +22,7 @@ type RoomHandler struct {
 	listRooms        *roomapp.ListRoomsUseCase
 	getRoom          *roomapp.GetRoomUseCase
 	joinRoom         *roomapp.JoinRoomUseCase
+	kickMember       *roomapp.KickMemberUseCase
 	dealRound        *roomapp.DealRoundUseCase
 	getCard          *roomapp.GetCurrentCardUseCase
 	updateDiscussion *roomapp.UpdateDiscussionUseCase
@@ -38,6 +40,7 @@ func NewRoomHandler(
 	listRooms *roomapp.ListRoomsUseCase,
 	getRoom *roomapp.GetRoomUseCase,
 	joinRoom *roomapp.JoinRoomUseCase,
+	kickMember *roomapp.KickMemberUseCase,
 	dealRound *roomapp.DealRoundUseCase,
 	getCard *roomapp.GetCurrentCardUseCase,
 	updateDiscussion *roomapp.UpdateDiscussionUseCase,
@@ -57,6 +60,7 @@ func NewRoomHandler(
 		listRooms:        listRooms,
 		getRoom:          getRoom,
 		joinRoom:         joinRoom,
+		kickMember:       kickMember,
 		dealRound:        dealRound,
 		getCard:          getCard,
 		updateDiscussion: updateDiscussion,
@@ -217,6 +221,10 @@ func (h *RoomHandler) Get(w http.ResponseWriter, r *http.Request) {
 		h.writeRoomError(w, r, "get_room", err)
 		return
 	}
+	if !isRoomMember(room, principal.UserID) {
+		response.Error(w, apperror.Forbidden("Only room members can view this room"))
+		return
+	}
 	response.OK(w, mapRoomResponse(room, principal.UserID))
 }
 
@@ -242,6 +250,35 @@ func (h *RoomHandler) Join(w http.ResponseWriter, r *http.Request) {
 	}
 	h.syncRoomMembers(room)
 	h.publishRoomUpdated(room, "member_joined")
+	response.OK(w, mapRoomResponse(room, principal.UserID))
+}
+
+func (h *RoomHandler) KickMember(w http.ResponseWriter, r *http.Request) {
+	principal, ok := apimiddleware.PrincipalFromContext(r.Context())
+	if !ok {
+		response.Error(w, apperror.Unauthorized("Authentication required"))
+		return
+	}
+
+	targetUserID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil || targetUserID <= 0 {
+		response.Error(w, apperror.InvalidRequest("Invalid room member id"))
+		return
+	}
+	room, err := h.kickMember.Execute(r.Context(), roomapp.KickMemberInput{
+		RoomID:       chi.URLParam(r, "roomID"),
+		HostUserID:   principal.UserID,
+		TargetUserID: targetUserID,
+	})
+	if err != nil {
+		h.writeRoomError(w, r, "kick_room_member", err)
+		return
+	}
+	if h.realtime != nil {
+		h.realtime.EvictRoomMember(room.ID, targetUserID)
+	}
+	h.syncRoomMembers(room)
+	h.publishRoomUpdated(room, "member_kicked")
 	response.OK(w, mapRoomResponse(room, principal.UserID))
 }
 
@@ -491,7 +528,11 @@ func mapRoomError(err error) error {
 	case errors.Is(err, domainroom.ErrRoomNotWaiting):
 		return apperror.Conflict("Room is not waiting for players")
 	case errors.Is(err, domainroom.ErrNotRoomHost):
-		return apperror.Forbidden("Only the room admin can deal a round")
+		return apperror.Forbidden("Only the room admin can perform this action")
+	case errors.Is(err, domainroom.ErrRoomMemberNotFound):
+		return apperror.NotFound("Room member not found")
+	case errors.Is(err, domainroom.ErrCannotKickSelf):
+		return apperror.InvalidRequest("The room admin cannot remove themselves")
 	case errors.Is(err, domainroom.ErrNotEnoughPlayers):
 		return apperror.Conflict("At least four players are required to start a game")
 	case errors.Is(err, domainroom.ErrRoundCardNotFound):
@@ -525,6 +566,7 @@ func mapRoomError(err error) error {
 		errors.Is(err, domainroom.ErrRoomNameRequired),
 		errors.Is(err, domainroom.ErrRoomNameTooLong),
 		errors.Is(err, domainroom.ErrInvalidHostUserID),
+		errors.Is(err, domainroom.ErrInvalidRoomMemberID),
 		errors.Is(err, domainroom.ErrInvalidRoomExpiration),
 		errors.Is(err, domainroom.ErrInvalidDiscussionTime):
 		return apperror.InvalidRequest(err.Error())

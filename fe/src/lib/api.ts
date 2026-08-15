@@ -167,6 +167,14 @@ export function joinRoom(accessToken: string, inviteCode: string) {
   });
 }
 
+export function kickRoomMember(accessToken: string, roomId: string, userId: number) {
+  return authenticatedRequest<RoomResponse>(
+    accessToken,
+    `/v1/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(String(userId))}`,
+    { method: "DELETE" },
+  );
+}
+
 export function dealRoomRound(accessToken: string, roomId: string) {
   return authenticatedRequest<RoundCardResponse>(
     accessToken,

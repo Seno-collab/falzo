@@ -4,7 +4,7 @@ import Link from "next/link";
 import styles from "./error-screen.module.css";
 
 type ErrorScreenProps = {
-  statusCode: "404" | "500";
+  statusCode: "403" | "404" | "500";
   eyebrow: string;
   title: string;
   description: string;

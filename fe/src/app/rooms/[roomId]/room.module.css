@@ -1422,6 +1422,39 @@ button.playerCard {
   white-space: nowrap;
 }
 
+.kickCell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.kickButton {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(239 140 120 / 38%);
+  border-radius: 8px;
+  background: rgb(239 140 120 / 10%);
+  color: #f3a291;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.kickButton:hover:not(:disabled) {
+  background: rgb(239 140 120 / 18%);
+}
+
+.kickButton:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
+.kickError {
+  margin: 10px 0 0;
+  color: #f3a291;
+  font-size: 9px;
+}
+
 .scoreBadge {
   display: inline-flex;
   min-width: 58px;

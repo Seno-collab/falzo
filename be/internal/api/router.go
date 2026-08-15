@@ -48,6 +48,7 @@ func NewRouter(
 			r.Get("/rooms", roomHandler.List)
 			r.Post("/rooms/join", roomHandler.Join)
 			r.Get("/rooms/{roomID}", roomHandler.Get)
+			r.Delete("/rooms/{roomID}/members/{userID}", roomHandler.KickMember)
 			r.Get("/rooms/{roomID}/messages", chatHandler.ListRoomMessages)
 			r.Post("/rooms/{roomID}/rounds", roomHandler.DealRound)
 			r.Get("/rooms/{roomID}/rounds/current/card", roomHandler.GetCurrentCard)

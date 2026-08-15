@@ -127,6 +127,7 @@ func run() (runErr error) {
 	listRooms := roomapp.NewListRoomsUseCase(rooms)
 	getRoom := roomapp.NewGetRoomUseCase(rooms)
 	joinRoom := roomapp.NewJoinRoomUseCase(rooms)
+	kickMember := roomapp.NewKickMemberUseCase(rooms)
 	dealRound := roomapp.NewDealRoundUseCase(rooms, c)
 	getCurrentCard := roomapp.NewGetCurrentCardUseCase(rooms)
 	updateDiscussion := roomapp.NewUpdateDiscussionUseCase(rooms)
@@ -154,6 +155,7 @@ func run() (runErr error) {
 		listRooms,
 		getRoom,
 		joinRoom,
+		kickMember,
 		dealRound,
 		getCurrentCard,
 		updateDiscussion,

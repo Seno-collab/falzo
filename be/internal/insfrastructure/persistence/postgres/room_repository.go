@@ -152,7 +152,7 @@ func (r *RoomRepository) JoinByInviteCode(ctx context.Context, inviteCode string
 		SELECT id::text, status, max_players
 		FROM rooms
 		WHERE invite_code = $1 AND expires_at > now() AND status <> $2
-		FOR UPDATE`,
+		FOR NO KEY UPDATE`,
 		inviteCode,
 		domainroom.StatusClosed,
 	).Scan(&roomID, &status, &maxPlayers)
@@ -182,15 +182,32 @@ func (r *RoomRepository) JoinByInviteCode(ctx context.Context, inviteCode string
 	}
 
 	var memberCount int
-	var nextSeat int
 	if err := tx.QueryRow(ctx, `
-		SELECT COUNT(*), COALESCE(MAX(seat_number), 0) + 1
+		SELECT COUNT(*)
 		FROM room_members
-		WHERE room_id = $1`, roomID).Scan(&memberCount, &nextSeat); err != nil {
+		WHERE room_id = $1`, roomID).Scan(&memberCount); err != nil {
 		return nil, err
 	}
 	if memberCount >= maxPlayers {
 		return nil, domainroom.ErrRoomFull
+	}
+
+	var nextSeat int
+	if err := tx.QueryRow(ctx, `
+		SELECT candidate.seat_number
+		FROM generate_series(1, $2) AS candidate(seat_number)
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM room_members member
+			WHERE member.room_id = $1
+			  AND member.seat_number = candidate.seat_number
+		)
+		ORDER BY candidate.seat_number
+		LIMIT 1`, roomID, maxPlayers).Scan(&nextSeat); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domainroom.ErrRoomFull
+		}
+		return nil, err
 	}
 
 	if _, err := tx.Exec(ctx, `
@@ -212,6 +229,64 @@ func (r *RoomRepository) JoinByInviteCode(ctx context.Context, inviteCode string
 		return nil, err
 	}
 	return r.FindByID(ctx, roomID)
+}
+
+func (r *RoomRepository) KickMember(ctx context.Context, input roomports.KickMemberInput) (*domainroom.Room, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var hostUserID int64
+	var status domainroom.Status
+	err = tx.QueryRow(ctx, `
+		SELECT host_user_id, status
+		FROM rooms
+		WHERE id = $1 AND expires_at > now() AND status <> $2
+		FOR NO KEY UPDATE`,
+		input.RoomID,
+		domainroom.StatusClosed,
+	).Scan(&hostUserID, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domainroom.ErrRoomNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if hostUserID != input.HostUserID {
+		return nil, domainroom.ErrNotRoomHost
+	}
+	if hostUserID == input.TargetUserID {
+		return nil, domainroom.ErrCannotKickSelf
+	}
+	if status != domainroom.StatusWaiting {
+		return nil, domainroom.ErrRoomNotWaiting
+	}
+
+	result, err := tx.Exec(ctx, `
+		DELETE FROM room_members
+		WHERE room_id = $1 AND user_id = $2`,
+		input.RoomID,
+		input.TargetUserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if result.RowsAffected() == 0 {
+		return nil, domainroom.ErrRoomMemberNotFound
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE rooms
+		SET version = version + 1, updated_at = now()
+		WHERE id = $1`, input.RoomID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return r.FindByID(ctx, input.RoomID)
 }
 
 func (r *RoomRepository) FindRandomWordPair(

@@ -31,6 +31,7 @@ const (
 	EventSocialUpdated      = "social.notifications.updated"
 	EventError              = "error"
 	eventConnectionReplaced = "socket.connection.replaced"
+	eventRoomMemberEvicted  = "room.member.evicted"
 
 	MaxChatMessageRunes = 500
 	outboundQueueSize   = 64
@@ -54,6 +55,7 @@ var (
 	ErrRateLimited        = errors.New("chat message rate limit exceeded")
 	ErrSpectator          = errors.New("eliminated players cannot send chat messages")
 	ErrConnectionReplaced = errors.New("connection was replaced by a newer connection")
+	ErrRoomMemberRemoved  = errors.New("room membership was removed")
 	ErrRequestIDRequired  = errors.New("request id is required")
 	ErrDuplicateEvent     = errors.New("duplicate socket event")
 	ErrSlowConsumer       = errors.New("socket client outbound queue is full")
@@ -127,6 +129,10 @@ type connectionReplaced struct {
 	UserID               int64  `json:"user_id"`
 	PreviousConnectionID string `json:"previous_connection_id"`
 	NewConnectionID      string `json:"new_connection_id"`
+}
+
+type roomMemberEvicted struct {
+	UserID int64 `json:"user_id"`
 }
 
 type Client struct {
@@ -456,6 +462,18 @@ func (h *Hub) UpdateMembers(roomID string, members []Member) {
 	}
 }
 
+func (h *Hub) EvictRoomMember(roomID string, userID int64) {
+	event := h.newEvent(eventRoomMemberEvicted, "", roomMemberEvicted{UserID: userID})
+	if h.backplane != nil {
+		if err := h.publish(roomID, event); err == nil {
+			return
+		} else {
+			h.logger.Warn("redis room member eviction publish failed", slog.Any("error", err))
+		}
+	}
+	h.evictLocalRoomMember(roomID, userID)
+}
+
 func (h *Hub) PublishChat(client *Client, text string) error {
 	return h.PublishChatForRequest(client, "", text)
 }
@@ -691,6 +709,15 @@ func (h *Hub) consumeBackplane(ctx context.Context, messages <-chan BackplaneMes
 }
 
 func (h *Hub) handleBackplaneMessage(message BackplaneMessage) {
+	if message.Type == eventRoomMemberEvicted {
+		var payload roomMemberEvicted
+		if err := json.Unmarshal(message.Payload, &payload); err != nil {
+			h.logger.Warn("invalid room member eviction payload", slog.Any("error", err))
+			return
+		}
+		h.evictLocalRoomMember(message.RoomID, payload.UserID)
+		return
+	}
 	if message.Type == eventConnectionReplaced {
 		var payload connectionReplaced
 		if err := json.Unmarshal(message.Payload, &payload); err != nil {
@@ -733,6 +760,25 @@ func (h *Hub) handleBackplaneMessage(message BackplaneMessage) {
 		OccurredAt: message.OccurredAt,
 		Payload:    message.Payload,
 	})
+}
+
+func (h *Hub) evictLocalRoomMember(roomID string, userID int64) {
+	h.mu.Lock()
+	room := h.rooms[roomID]
+	if room == nil {
+		h.mu.Unlock()
+		return
+	}
+	delete(room.members, userID)
+	client := room.activeByUser[userID]
+	if client != nil {
+		client.stop(ErrRoomMemberRemoved)
+	}
+	h.mu.Unlock()
+
+	if client != nil {
+		h.Unregister(client)
+	}
 }
 
 func (h *Hub) sweepPresence(ctx context.Context) {

@@ -25,6 +25,7 @@ import {
   dealRoomRound,
   getCurrentRoomCard,
   getRoom,
+  kickRoomMember,
   updateRoomDiscussion,
 } from "@/lib/api";
 import { restoreSession } from "@/lib/auth";
@@ -39,7 +40,7 @@ export default function RoomDetailPage() {
   const session = useSession();
   const username = session.username;
   const [room, setRoom] = useState<GameRoom | null>(null);
-  const [roomState, setRoomState] = useState<"loading" | "ready" | "not-found" | "error">("loading");
+  const [roomState, setRoomState] = useState<"loading" | "ready" | "not-found" | "removed" | "error">("loading");
   const [reloadToken, setReloadToken] = useState(0);
   const [cards, setCards] = useState<PlayerCard[]>([]);
   const [cardRound, setCardRound] = useState(0);
@@ -53,6 +54,8 @@ export default function RoomDetailPage() {
   const [discussionDraft, setDiscussionDraft] = useState(30);
   const [settingsPending, setSettingsPending] = useState(false);
   const [settingsError, setSettingsError] = useState("");
+  const [kickPendingId, setKickPendingId] = useState<string | null>(null);
+  const [kickError, setKickError] = useState("");
   const [selectedVote, setSelectedVote] = useState("");
   const [mrWhiteGuess, setMrWhiteGuess] = useState("");
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -103,6 +106,11 @@ export default function RoomDetailPage() {
         if (error instanceof ApiError && error.status === 404) {
           setRoom(null);
           setRoomState("not-found");
+          return;
+        }
+        if (error instanceof ApiError && error.status === 403) {
+          setRoom(null);
+          setRoomState("removed");
           return;
         }
         if (trackActivity) {
@@ -283,6 +291,19 @@ export default function RoomDetailPage() {
     );
   }
 
+  if (roomState === "removed" || realtime.removed) {
+    return (
+      <ErrorScreen
+        description="Chủ phòng đã mời bạn ra. Ghế của bạn hiện đã sẵn sàng cho người chơi khác."
+        eyebrow="ROOM ACCESS ENDED"
+        primaryHref="/dashboard"
+        primaryLabel="Back to rooms"
+        statusCode="403"
+        title="Bạn không còn ở trong phòng này."
+      />
+    );
+  }
+
   if (roomState === "error" || !room) {
     return (
       <ErrorScreen
@@ -445,6 +466,27 @@ export default function RoomDetailPage() {
       setSettingsError(error instanceof Error ? error.message : "Could not save discussion time");
     } finally {
       setSettingsPending(false);
+    }
+  }
+
+  async function kickPlayer(player: RoomPlayer) {
+    if (!room || !isRoomAdmin || room.status !== "waiting" || player.host || player.current) return;
+    if (!window.confirm(`Remove ${player.name} from this room?`)) return;
+
+    setKickPendingId(player.id);
+    setKickError("");
+    try {
+      const activeSession = await restoreSession();
+      if (!activeSession) {
+        router.replace("/login");
+        return;
+      }
+      const response = await kickRoomMember(activeSession.access_token, room.id, Number(player.id));
+      setRoom(mapRoomResponse(response));
+    } catch (error) {
+      setKickError(error instanceof Error ? error.message : "Could not remove this player");
+    } finally {
+      setKickPendingId(null);
     }
   }
 
@@ -857,6 +899,7 @@ export default function RoomDetailPage() {
                   <th scope="col">Player</th>
                   <th scope="col">Status</th>
                   <th scope="col">Score</th>
+                  {room.status === "waiting" && isRoomAdmin && <th scope="col">Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -893,11 +936,28 @@ export default function RoomDetailPage() {
                         <small>PTS</small>
                       </span>
                     </td>
+                    {room.status === "waiting" && isRoomAdmin && (
+                      <td className={styles.kickCell}>
+                        {!player.host && !player.current ? (
+                          <button
+                            className={styles.kickButton}
+                            disabled={kickPendingId !== null}
+                            onClick={() => void kickPlayer(player)}
+                            type="button"
+                          >
+                            {kickPendingId === player.id ? "Removing…" : "Remove"}
+                          </button>
+                        ) : (
+                          <span aria-label="Not removable">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {kickError && <p className={styles.kickError} role="alert">{kickError}</p>}
         </section>
 
         <footer className={styles.roomNote}>

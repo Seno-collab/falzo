@@ -92,6 +92,33 @@ func TestRegisterReplacesExistingConnectionForSameRoomAndUser(t *testing.T) {
 	}
 }
 
+func TestEvictRoomMemberStopsTheirConnectionAndRevokesMembership(t *testing.T) {
+	hub := NewHub(fixedClock{now: time.Date(2026, time.August, 15, 12, 0, 0, 0, time.UTC)})
+	members := []Member{
+		{ID: 61, Name: "host", SeatNumber: 1, Host: true},
+		{ID: 62, Name: "member", SeatNumber: 2},
+	}
+	client, err := hub.Register("room-kick", 62, "member", members)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Unregister(client)
+
+	hub.EvictRoomMember("room-kick", 62)
+
+	select {
+	case <-client.Done():
+		if !errors.Is(client.CloseReason(), ErrRoomMemberRemoved) {
+			t.Fatalf("close reason = %v, want %v", client.CloseReason(), ErrRoomMemberRemoved)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("evicted room member connection stayed open")
+	}
+	if err := hub.PublishChat(client, "still here"); !errors.Is(err, ErrClientNotFound) {
+		t.Fatalf("PublishChat() error = %v, want %v", err, ErrClientNotFound)
+	}
+}
+
 func TestClaimRequestRejectsDuplicateAfterReconnect(t *testing.T) {
 	hub := NewHub(fixedClock{now: time.Date(2026, time.August, 14, 12, 0, 0, 0, time.UTC)})
 	members := []Member{{ID: 21, Name: "player", SeatNumber: 1}}

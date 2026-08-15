@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	webSocketReadLimit                           = 4 * 1024
-	webSocketWriteWait                           = 5 * time.Second
-	webSocketPingEvery                           = 25 * time.Second
-	webSocketCleanupWait                         = time.Second
-	webSocketReplacedStatus websocket.StatusCode = 4009
+	webSocketReadLimit                                = 4 * 1024
+	webSocketWriteWait                                = 5 * time.Second
+	webSocketPingEvery                                = 25 * time.Second
+	webSocketCleanupWait                              = time.Second
+	webSocketReplacedStatus      websocket.StatusCode = 4009
+	webSocketMemberRemovedStatus websocket.StatusCode = 4003
 )
 
 type RealtimeHandler struct {
@@ -134,7 +135,9 @@ func (h *RealtimeHandler) ConnectRoom(w http.ResponseWriter, r *http.Request) {
 
 	connectionErr := <-errCh
 	cancel()
-	if errors.Is(connectionErr, realtime.ErrConnectionReplaced) {
+	if errors.Is(connectionErr, realtime.ErrRoomMemberRemoved) {
+		_ = conn.Close(webSocketMemberRemovedStatus, "Removed from room")
+	} else if errors.Is(connectionErr, realtime.ErrConnectionReplaced) {
 		_ = conn.Close(webSocketReplacedStatus, "Connection replaced by a newer session")
 	} else {
 		_ = conn.CloseNow()
@@ -153,6 +156,8 @@ func (h *RealtimeHandler) ConnectRoom(w http.ResponseWriter, r *http.Request) {
 	if status == websocket.StatusNormalClosure ||
 		status == websocket.StatusGoingAway ||
 		status == webSocketReplacedStatus ||
+		status == webSocketMemberRemovedStatus ||
+		errors.Is(connectionErr, realtime.ErrRoomMemberRemoved) ||
 		errors.Is(connectionErr, context.Canceled) ||
 		errors.Is(connectionErr, realtime.ErrHubClosed) {
 		level = slog.LevelInfo
@@ -414,6 +419,8 @@ func realtimeDisconnectReason(err error) string {
 		return "normal"
 	case errors.Is(err, realtime.ErrConnectionReplaced):
 		return "replaced"
+	case errors.Is(err, realtime.ErrRoomMemberRemoved):
+		return "member_removed"
 	case errors.Is(err, realtime.ErrSlowConsumer):
 		return "slow_consumer"
 	case errors.Is(err, context.Canceled), errors.Is(err, realtime.ErrHubClosed):

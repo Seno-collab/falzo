@@ -10,6 +10,7 @@ const reconnectBaseDelay = 800;
 const maxVisibleMessages = 200;
 const maxRememberedEventIds = 512;
 const connectionReplacedCode = 4009;
+const roomMemberRemovedCode = 4003;
 
 export type RealtimeStatus = "connecting" | "connected" | "reconnecting" | "offline";
 
@@ -61,6 +62,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
   const [gameStateRevision, setGameStateRevision] = useState(0);
   const [voteUpdated, setVoteUpdated] = useState<VoteUpdatedEvent | null>(null);
   const [error, setError] = useState("");
+  const [removed, setRemoved] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const seenEventIdsRef = useRef(new Set<string>());
   const eventOrderRef = useRef<string[]>([]);
@@ -71,6 +73,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
     let attempt = 0;
     seenEventIdsRef.current.clear();
     eventOrderRef.current = [];
+    setRemoved(false);
 
     async function connect() {
       setStatus(attempt === 0 ? "connecting" : "reconnecting");
@@ -169,6 +172,12 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
       socket.onclose = ({ code }) => {
         if (!active || socketRef.current !== socket) return;
         socketRef.current = null;
+        if (code === roomMemberRemovedCode) {
+          setError("Bạn đã bị chủ phòng mời ra khỏi phòng này.");
+          setRemoved(true);
+          setStatus("offline");
+          return;
+        }
         if (code === connectionReplacedCode) {
           setError("Phòng này đã được mở bằng một kết nối mới hơn.");
           setStatus("offline");
@@ -211,6 +220,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
     players,
     roundStarted,
     roomRevision,
+    removed,
     sendChat,
     status,
     voteUpdated,
