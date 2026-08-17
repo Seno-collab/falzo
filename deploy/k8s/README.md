@@ -13,6 +13,13 @@ This directory deploys Falzo in three explicit phases:
 The staged flow prevents a new application release from serving traffic before
 its database migration has completed.
 
+NATS and the Telegram alert worker are optional notification components. Their
+rollout failures are reported as deployment warnings, while healthy database,
+backend and frontend resources continue to serve the application. Backend
+`ERROR` records are published to NATS and sent to Telegram when the notification
+path is available; `INFO` and `WARN` records remain in the normal application
+logs.
+
 ## GitHub Actions configuration
 
 Create a GitHub Environment named `production`. Configure an approval rule for

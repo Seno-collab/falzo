@@ -302,10 +302,11 @@ jobs:
             echo "Required Kubernetes Secret 'falzo-secrets' is missing from namespace falzo."
             exit 1
           fi
+          telegram_alerts_configured=true
           for secret_key in TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
             if [ -z "$(kube get secret falzo-secrets -n falzo -o "jsonpath={.data.$secret_key}")" ]; then
-              echo "Required key '$secret_key' is missing from Kubernetes Secret 'falzo-secrets'."
-              exit 1
+              echo "::warning title=Telegram alerts not configured::Optional key '$secret_key' is missing from Kubernetes Secret 'falzo-secrets'."
+              telegram_alerts_configured=false
             fi
           done
           chmod 600 "$REMOTE_DIR/ghcr-token"
@@ -356,10 +357,15 @@ jobs:
 
           kube apply -k "$manifest_dir/platform"
           if ! kube rollout status statefulset/falzo-postgres -n falzo --timeout=180s \
-            || ! kube rollout status statefulset/falzo-redis -n falzo --timeout=180s \
-            || ! kube rollout status statefulset/falzo-nats -n falzo --timeout=180s; then
+            || ! kube rollout status statefulset/falzo-redis -n falzo --timeout=180s; then
             show_diagnostics
             exit 1
+          fi
+
+          if ! kube rollout status statefulset/falzo-nats -n falzo --timeout=180s; then
+            echo "::warning title=NATS alerts unavailable::The optional notification transport did not become ready; the main application deployment will continue."
+            kube describe statefulset/falzo-nats -n falzo || true
+            kube logs statefulset/falzo-nats -n falzo --all-containers=true --tail=100 || true
           fi
 
           kube delete job falzo-migrate -n falzo --ignore-not-found
@@ -372,13 +378,19 @@ jobs:
 
           kube apply -k "$manifest_dir/app"
           if ! kube rollout status deployment/falzo-backend -n falzo --timeout=180s \
-            || ! kube rollout status deployment/falzo-frontend -n falzo --timeout=180s \
-            || ! kube rollout status deployment/falzo-telegram-bot -n falzo --timeout=180s; then
+            || ! kube rollout status deployment/falzo-frontend -n falzo --timeout=180s; then
             show_diagnostics
             kube logs deployment/falzo-backend -n falzo --all-containers=true --tail=100 || true
             kube logs deployment/falzo-frontend -n falzo --all-containers=true --tail=100 || true
-            kube logs deployment/falzo-telegram-bot -n falzo --all-containers=true --tail=100 || true
             exit 1
+          fi
+
+          if [ "$telegram_alerts_configured" != true ]; then
+            echo "Skipping the optional Telegram worker readiness check."
+          elif ! kube rollout status deployment/falzo-telegram-bot -n falzo --timeout=180s; then
+            echo "::warning title=Telegram alerts unavailable::The application is healthy, but the optional Telegram notification worker did not become ready."
+            kube describe deployment/falzo-telegram-bot -n falzo || true
+            kube logs deployment/falzo-telegram-bot -n falzo --all-containers=true --tail=100 || true
           fi
 
           install -d "$VPS_APP_DIR/k3s"

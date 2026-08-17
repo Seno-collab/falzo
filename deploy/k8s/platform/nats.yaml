@@ -52,6 +52,13 @@ spec:
               containerPort: 4222
             - name: monitoring
               containerPort: 8222
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /healthz
