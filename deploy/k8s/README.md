@@ -262,6 +262,10 @@ kubectl create secret tls falzo-tls \
 Then deploy and wait for all application rollouts:
 
 ```bash
+# Apply the Traefik middleware first so its informer observes the resource
+# before the HTTP Ingress starts referencing it.
+kubectl apply -f deploy/k8s/app/redirect-https.yaml
+kubectl get middleware.traefik.io redirect-https -n falzo
 kubectl apply -k deploy/k8s/app
 kubectl rollout status deployment/falzo-backend -n falzo --timeout=180s
 kubectl rollout status deployment/falzo-frontend -n falzo --timeout=180s

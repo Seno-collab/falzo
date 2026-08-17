@@ -5,6 +5,7 @@ resources:
   - backend.yaml
   - telegram-bot.yaml
   - frontend.yaml
+  - redirect-https.yaml
   - ingress.yaml
 images:
   - name: falzo/backend

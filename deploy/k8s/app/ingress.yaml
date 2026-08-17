@@ -65,18 +65,6 @@ spec:
                 port:
                   number: 3000
 ---
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: redirect-https
-  labels:
-    app.kubernetes.io/name: falzo
-    app.kubernetes.io/part-of: falzo
-spec:
-  redirectScheme:
-    scheme: https
-    permanent: true
----
 # Keep HTTP on its own non-TLS router. A TLS-enabled Traefik router attached to
 # the `web` entrypoint rejects plain HTTP and falls through to a 404; this
 # router catches it and sends the browser to HTTPS.

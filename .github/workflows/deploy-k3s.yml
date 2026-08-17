@@ -298,6 +298,11 @@ jobs:
           manifest_dir="$release_dir/k8s"
 
           kube apply -f "$manifest_dir/platform/namespace.yaml"
+          # Create the Traefik CRD middleware well before the HTTP Ingress.
+          # Otherwise Traefik can reconcile the Ingress first and emit a
+          # "middleware does not exist" error for each route during rollout.
+          kube apply -f "$manifest_dir/app/redirect-https.yaml"
+          kube get middleware.traefik.io redirect-https -n falzo >/dev/null
           if ! kube get secret falzo-secrets -n falzo >/dev/null 2>&1; then
             echo "Required Kubernetes Secret 'falzo-secrets' is missing from namespace falzo."
             exit 1
@@ -352,6 +357,7 @@ jobs:
 
           show_diagnostics() {
             kube get pods,svc,ingress -n falzo -o wide || true
+            kube get middleware.traefik.io -n falzo || true
             kube get events -n falzo --sort-by=.lastTimestamp | tail -n 50 || true
           }
 
