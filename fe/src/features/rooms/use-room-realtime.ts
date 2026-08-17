@@ -197,7 +197,12 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       const socket = socketRef.current;
       socketRef.current = null;
-      if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "Room closed");
+      // This closes only the browser transport; it does not change the room's
+      // persisted status. Keep the reason explicit so backend logs cannot be
+      // mistaken for a domain-level room closure.
+      if (socket && socket.readyState < WebSocket.CLOSING) {
+        socket.close(1000, "Client left room view");
+      }
     };
   }, [currentUsername, roomId]);
 

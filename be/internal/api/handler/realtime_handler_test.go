@@ -11,7 +11,7 @@ import (
 func TestRealtimeDisconnectLogAttrsNormalClosure(t *testing.T) {
 	err := fmt.Errorf("failed to read JSON message: %w", websocket.CloseError{
 		Code:   websocket.StatusNormalClosure,
-		Reason: "Room closed",
+		Reason: "Client left room view",
 	})
 
 	level, attrs := realtimeDisconnectLogAttrs("room-1", 1, err)
@@ -26,8 +26,8 @@ func TestRealtimeDisconnectLogAttrsNormalClosure(t *testing.T) {
 	if got := values["close_status"].Int64(); got != int64(websocket.StatusNormalClosure) {
 		t.Fatalf("close_status = %d, want %d", got, websocket.StatusNormalClosure)
 	}
-	if got := values["close_reason"].String(); got != "Room closed" {
-		t.Fatalf("close_reason = %q, want %q", got, "Room closed")
+	if got := values["close_reason"].String(); got != "Client left room view" {
+		t.Fatalf("close_reason = %q, want %q", got, "Client left room view")
 	}
 	if got := values["disconnect_reason"].String(); got != "normal" {
 		t.Fatalf("disconnect_reason = %q, want normal", got)
