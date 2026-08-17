@@ -37,12 +37,13 @@ the Kubernetes API locally over SSH, so port `6443` does not need to be exposed
 to GitHub-hosted runners.
 
 Before the first automated deployment, create the `falzo-secrets` Secret in
-namespace `falzo`, and install the `falzo-tls` certificate described below. The
-workflow checks the application Secret before changing the platform and safely
-creates or rotates `ghcr-pull` from the GitHub Environment credentials. It
-never uploads production database, Redis, JWT or Telegram credentials from
-GitHub. The Secret must contain `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in
-addition to the keys shown in `secret.example.yaml`.
+namespace `falzo`. The workflow installs pinned cert-manager `v1.20.3`, obtains
+and renews the public `falzo-tls` certificate through Let's Encrypt HTTP-01,
+checks the application Secret before changing the platform, and safely creates
+or rotates `ghcr-pull` from the GitHub Environment credentials. It never
+uploads production database, Redis, JWT or Telegram credentials from GitHub.
+The Secret must contain `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in addition
+to the keys shown in `secret.example.yaml`.
 
 Pushes to `main` that touch the backend, frontend, K3s manifests or the K3s
 workflow build and deploy all three images under the Git commit SHA. Manual
@@ -56,7 +57,8 @@ claims ports 80 and 443 for Caddy.
 - `kubectl` with access to the cluster.
 - A Traefik ingress controller with `web` and `websecure` entrypoints.
 - A container registry reachable by the cluster.
-- A TLS Secret or cert-manager certificate named `falzo-tls`.
+- Public DNS for both Falzo hosts and inbound ports 80/443 for the automated
+  Let's Encrypt HTTP-01 certificate.
 
 For production, prefer managed PostgreSQL, Redis and NATS. The bundled single-replica
 StatefulSets are appropriate for development, staging, or a small self-hosted
@@ -160,9 +162,8 @@ kubectl get service -A | grep LoadBalancer
 kubectl get ingress falzo -n falzo
 ```
 
-The TLS Secret `falzo-tls` must contain a certificate valid for both
-`falzo.life` and `www.falzo.life`. It can be created manually as shown later in
-this guide or maintained by cert-manager. In Google Cloud Console, add
+The workflow creates and maintains the TLS Secret `falzo-tls` with a certificate
+valid for both `falzo.life` and `www.falzo.life`. In Google Cloud Console, add
 `https://falzo.life` and `https://www.falzo.life` to the OAuth client's
 authorized JavaScript origins.
 
@@ -228,7 +229,21 @@ Do not deploy the new backend until the migration Job is complete.
 
 ## 6. Deploy the application
 
-Create TLS using cert-manager or an existing certificate. A manual example is:
+The deployment workflow normally installs cert-manager and creates `falzo-tls`
+automatically. To run the same TLS phase manually from the repository:
+
+```bash
+kubectl apply -f \
+  https://github.com/cert-manager/cert-manager/releases/download/v1.20.3/cert-manager.yaml
+kubectl wait --for=condition=Available deployment --all \
+  -n cert-manager --timeout=180s
+kubectl apply -f deploy/k8s/tls/cluster-issuer.yaml
+kubectl apply -f deploy/k8s/tls/certificate.yaml
+kubectl wait --for=condition=Ready certificate/falzo-tls \
+  -n falzo --timeout=300s
+```
+
+For manual recovery with an existing certificate instead, run:
 
 ```bash
 kubectl create secret tls falzo-tls \
