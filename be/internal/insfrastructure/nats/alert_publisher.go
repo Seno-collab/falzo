@@ -16,15 +16,24 @@ import (
 
 const alertQueueSize = 256
 
+const (
+	alertConnectTimeout   = 2 * time.Second
+	alertOperationTimeout = 3 * time.Second
+	alertPublishAttempts  = 3
+)
+
 var ErrAlertQueueFull = errors.New("NATS alert queue is full")
 var ErrAlertPublisherClosed = errors.New("NATS alert publisher is closed")
 
 type AlertPublisher struct {
+	url       string
+	stream    string
 	nc        *natsgo.Conn
 	js        natsgo.JetStreamContext
 	subject   string
 	queue     chan alerting.Event
 	done      chan struct{}
+	cancel    context.CancelFunc
 	metrics   *observability.Metrics
 	closeOnce sync.Once
 	queueMu   sync.RWMutex
@@ -36,35 +45,17 @@ func NewAlertPublisher(
 	stream string,
 	subject string,
 	metrics *observability.Metrics,
-) (*AlertPublisher, error) {
-	nc, err := natsgo.Connect(
-		url,
-		natsgo.Name("falzo-api-error-publisher"),
-		natsgo.Timeout(5*time.Second),
-		natsgo.MaxReconnects(-1),
-		natsgo.ReconnectWait(time.Second),
-		natsgo.DrainTimeout(3*time.Second),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("connect NATS: %w", err)
-	}
-	js, err := nc.JetStream(natsgo.PublishAsyncMaxPending(alertQueueSize))
-	if err != nil {
-		nc.Close()
-		return nil, fmt.Errorf("create JetStream context: %w", err)
-	}
-	if err := ensureAlertStream(js, stream, subject); err != nil {
-		nc.Close()
-		return nil, err
-	}
-
+) *AlertPublisher {
+	ctx, cancel := context.WithCancel(context.Background())
 	publisher := &AlertPublisher{
-		nc: nc, js: js, subject: subject,
+		url: url, stream: stream, subject: subject,
 		queue: make(chan alerting.Event, alertQueueSize),
-		done:  make(chan struct{}), metrics: metrics,
+		done:  make(chan struct{}), cancel: cancel, metrics: metrics,
 	}
-	go publisher.run()
-	return publisher, nil
+	// Connecting and publishing happen only on this worker. NATS latency or
+	// downtime must never delay API startup or an application request.
+	go publisher.run(ctx)
+	return publisher
 }
 
 func (p *AlertPublisher) Notify(_ context.Context, event alerting.Event) error {
@@ -88,52 +79,122 @@ func (p *AlertPublisher) Close(ctx context.Context) error {
 	p.closeOnce.Do(func() {
 		p.queueMu.Lock()
 		p.closed = true
-		close(p.queue)
+		p.cancel()
 		p.queueMu.Unlock()
 	})
 	select {
 	case <-p.done:
+		return nil
 	case <-ctx.Done():
-		p.nc.Close()
 		return ctx.Err()
 	}
-	if err := p.nc.Drain(); err != nil {
-		p.nc.Close()
-		return fmt.Errorf("drain NATS: %w", err)
-	}
-	return nil
 }
 
-func (p *AlertPublisher) run() {
+func (p *AlertPublisher) run(ctx context.Context) {
 	defer close(p.done)
-	for event := range p.queue {
-		p.setQueueDepth()
-		payload, err := json.Marshal(event)
-		if err != nil {
-			p.observe("marshal", "error")
-			continue
+	defer p.closeConnection()
+	for {
+		if ctx.Err() != nil {
+			p.setQueueDepth()
+			return
 		}
-		if err := p.publishWithRetry(payload); err != nil {
-			p.observe("publish", "error")
-			continue
+		select {
+		case <-ctx.Done():
+			p.setQueueDepth()
+			return
+		case event := <-p.queue:
+			p.setQueueDepth()
+			payload, err := json.Marshal(event)
+			if err != nil {
+				p.observe("marshal", "error")
+				continue
+			}
+			if err := p.publishWithRetry(ctx, payload); err != nil {
+				p.observe("publish", "error")
+				continue
+			}
+			p.observe("publish", "success")
 		}
-		p.observe("publish", "success")
 	}
-	p.setQueueDepth()
 }
 
-func (p *AlertPublisher) publishWithRetry(payload []byte) error {
+func (p *AlertPublisher) publishWithRetry(ctx context.Context, payload []byte) error {
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		_, lastErr = p.js.Publish(p.subject, payload, natsgo.Context(ctx))
-		cancel()
+	for attempt := 0; attempt < alertPublishAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := p.ensureConnection(ctx); err != nil {
+			lastErr = err
+			p.observe("connect", "error")
+		} else {
+			publishCtx, cancel := context.WithTimeout(ctx, alertOperationTimeout)
+			_, lastErr = p.js.Publish(p.subject, payload, natsgo.Context(publishCtx))
+			cancel()
+		}
 		if lastErr == nil {
 			return nil
 		}
-		time.Sleep(time.Duration(attempt+1) * 250 * time.Millisecond)
+		if attempt+1 < alertPublishAttempts {
+			timer := time.NewTimer(time.Duration(attempt+1) * 250 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
 	}
 	return lastErr
+}
+
+func (p *AlertPublisher) ensureConnection(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if p.nc != nil && !p.nc.IsClosed() {
+		return nil
+	}
+	p.closeConnection()
+	nc, err := natsgo.Connect(
+		p.url,
+		natsgo.Name("falzo-api-error-publisher"),
+		natsgo.Timeout(alertConnectTimeout),
+		natsgo.MaxReconnects(-1),
+		natsgo.ReconnectWait(time.Second),
+		natsgo.DrainTimeout(alertOperationTimeout),
+	)
+	if err != nil {
+		return fmt.Errorf("connect NATS: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		nc.Close()
+		return err
+	}
+	js, err := nc.JetStream(
+		natsgo.MaxWait(alertOperationTimeout),
+		natsgo.PublishAsyncMaxPending(alertQueueSize),
+	)
+	if err != nil {
+		nc.Close()
+		return fmt.Errorf("create JetStream context: %w", err)
+	}
+	if err := ensureAlertStream(js, p.stream, p.subject); err != nil {
+		nc.Close()
+		return err
+	}
+	p.nc = nc
+	p.js = js
+	p.observe("connect", "success")
+	return nil
+}
+
+func (p *AlertPublisher) closeConnection() {
+	if p.nc != nil {
+		p.nc.Close()
+		p.nc = nil
+		p.js = nil
+	}
 }
 
 func (p *AlertPublisher) observe(stage, result string) {

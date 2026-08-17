@@ -58,35 +58,31 @@ func run() (runErr error) {
 	defer stop()
 	metrics := observability.NewMetrics(nil)
 	if cfg.NATS.Enabled {
-		alertPublisher, alertErr := natsinfra.NewAlertPublisher(
+		alertPublisher := natsinfra.NewAlertPublisher(
 			cfg.NATS.URL,
 			cfg.NATS.Stream,
 			cfg.NATS.Subject,
 			metrics,
 		)
-		if alertErr != nil {
-			appLogger.Warn("NATS error notifications disabled", slog.Any("error", alertErr))
-		} else {
-			appLogger = slog.New(alerting.NewSlogHandler(
-				appLogger.Handler(),
-				alertPublisher,
-				"falzo-api",
-				cfg.Server.Env,
-			))
-			slog.SetDefault(appLogger)
-			defer func() {
-				closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if err := alertPublisher.Close(closeCtx); err != nil {
-					appLogger.Warn("close NATS alert publisher", slog.Any("error", err))
-				}
-			}()
-			defer func() {
-				if runErr != nil {
-					appLogger.Error("api stopped", slog.Any("error", runErr))
-				}
-			}()
-		}
+		appLogger = slog.New(alerting.NewSlogHandler(
+			appLogger.Handler(),
+			alertPublisher,
+			"falzo-api",
+			cfg.Server.Env,
+		))
+		slog.SetDefault(appLogger)
+		defer func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := alertPublisher.Close(closeCtx); err != nil {
+				appLogger.Warn("close NATS alert publisher", slog.Any("error", err))
+			}
+		}()
+		defer func() {
+			if runErr != nil {
+				appLogger.Error("api stopped", slog.Any("error", runErr))
+			}
+		}()
 	}
 	db, err := postgres.NewPool(ctx, cfg.Database)
 	if err != nil {

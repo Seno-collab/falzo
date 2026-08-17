@@ -186,10 +186,12 @@ jobs:
           require_value "Repository variable NEXT_PUBLIC_GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
           require_value "Environment secret GHCR_PULL_USERNAME" "$GHCR_PULL_USERNAME"
           require_value "Environment secret GHCR_PULL_TOKEN" "$GHCR_PULL_TOKEN"
-          require_value "Environment secret TELEGRAM_BOT_TOKEN" "$TELEGRAM_BOT_TOKEN"
-          require_value "Environment secret TELEGRAM_CHAT_ID" "$TELEGRAM_CHAT_ID"
           [[ "$GOOGLE_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "$GHCR_PULL_USERNAME" =~ ^[A-Za-z0-9._-]+$ ]]
+
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning title=Telegram alerts disabled::TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are optional, but both are required to start the notification worker."
+          fi
 
           bundle_dir="$RUNNER_TEMP/falzo-docker"
           install -m 700 -d "$bundle_dir"
@@ -368,8 +370,8 @@ jobs:
           }
 
           compose config --quiet
-          compose --profile tools pull postgres redis nats migration backend telegram-bot frontend caddy
-          if ! compose up -d --wait --wait-timeout 180 postgres redis nats; then
+          compose --profile tools pull postgres redis migration backend frontend caddy
+          if ! compose up -d --wait --wait-timeout 180 postgres redis; then
             show_compose_diagnostics
             exit 1
           fi
@@ -377,9 +379,30 @@ jobs:
             show_compose_diagnostics
             exit 1
           fi
-          if ! compose up -d --remove-orphans --wait --wait-timeout 180 backend telegram-bot frontend caddy; then
+          if ! compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend caddy; then
             show_compose_diagnostics
             exit 1
+          fi
+
+          if ! compose pull nats; then
+            echo "::warning title=NATS image unavailable::The optional notification transport image could not be pulled."
+          fi
+          if ! compose up -d --wait --wait-timeout 60 nats; then
+            echo "::warning title=NATS alerts unavailable::The optional notification transport did not become ready; the main application is already available."
+            compose logs --no-color --tail 100 nats || true
+          fi
+
+          telegram_alerts_configured=false
+          if grep -qE '^TELEGRAM_BOT_TOKEN=.+$' "$deploy_dir/release.env" \
+            && grep -qE '^TELEGRAM_CHAT_ID=.+$' "$deploy_dir/release.env"; then
+            telegram_alerts_configured=true
+          fi
+          if [ "$telegram_alerts_configured" != true ]; then
+            echo "Skipping the optional Telegram worker readiness check."
+            compose stop telegram-bot || true
+          elif ! compose up -d --wait --wait-timeout 60 telegram-bot; then
+            echo "::warning title=Telegram alerts unavailable::The application is healthy, but the optional Telegram notification worker did not become ready."
+            compose logs --no-color --tail 100 telegram-bot || true
           fi
           compose ps
           EOF

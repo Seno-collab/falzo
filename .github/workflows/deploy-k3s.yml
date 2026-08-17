@@ -368,12 +368,6 @@ jobs:
             exit 1
           fi
 
-          if ! kube rollout status statefulset/falzo-nats -n falzo --timeout=180s; then
-            echo "::warning title=NATS alerts unavailable::The optional notification transport did not become ready; the main application deployment will continue."
-            kube describe statefulset/falzo-nats -n falzo || true
-            kube logs statefulset/falzo-nats -n falzo --all-containers=true --tail=100 || true
-          fi
-
           kube delete job falzo-migrate -n falzo --ignore-not-found
           kube apply -k "$manifest_dir/migration"
           if ! kube wait --for=condition=complete job/falzo-migrate -n falzo --timeout=300s; then
@@ -391,9 +385,15 @@ jobs:
             exit 1
           fi
 
+          if ! kube rollout status statefulset/falzo-nats -n falzo --timeout=60s; then
+            echo "::warning title=NATS alerts unavailable::The optional notification transport did not become ready; the main application is already available."
+            kube describe statefulset/falzo-nats -n falzo || true
+            kube logs statefulset/falzo-nats -n falzo --all-containers=true --tail=100 || true
+          fi
+
           if [ "$telegram_alerts_configured" != true ]; then
             echo "Skipping the optional Telegram worker readiness check."
-          elif ! kube rollout status deployment/falzo-telegram-bot -n falzo --timeout=180s; then
+          elif ! kube rollout status deployment/falzo-telegram-bot -n falzo --timeout=60s; then
             echo "::warning title=Telegram alerts unavailable::The application is healthy, but the optional Telegram notification worker did not become ready."
             kube describe deployment/falzo-telegram-bot -n falzo || true
             kube logs deployment/falzo-telegram-bot -n falzo --all-containers=true --tail=100 || true

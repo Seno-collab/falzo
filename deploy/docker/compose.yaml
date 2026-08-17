@@ -100,8 +100,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      nats:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/ready"]
       interval: 5s
@@ -119,8 +117,8 @@ services:
       NATS_ALERT_SUBJECT: falzo.alerts.error
       NATS_ALERT_DURABLE: falzo-telegram-error-bot
       TELEGRAM_HEALTH_PORT: "8081"
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID is required}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     depends_on:
       nats:
         condition: service_healthy
