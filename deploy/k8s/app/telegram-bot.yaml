@@ -32,10 +32,15 @@ spec:
           image: falzo/backend:0.0.0
           command: ["/app/falzo-telegram-bot"]
           imagePullPolicy: IfNotPresent
+          ports:
+            - name: health
+              containerPort: 8081
           envFrom:
             - configMapRef:
                 name: falzo-config
           env:
+            - name: TELEGRAM_HEALTH_PORT
+              value: "8081"
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -46,6 +51,27 @@ spec:
                 secretKeyRef:
                   name: falzo-secrets
                   key: TELEGRAM_CHAT_ID
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

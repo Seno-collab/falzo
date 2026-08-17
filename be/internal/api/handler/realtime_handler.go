@@ -151,23 +151,8 @@ func (h *RealtimeHandler) ConnectRoom(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	status := websocket.CloseStatus(connectionErr)
-	level := slog.LevelWarn
-	if status == websocket.StatusNormalClosure ||
-		status == websocket.StatusGoingAway ||
-		status == webSocketReplacedStatus ||
-		status == webSocketMemberRemovedStatus ||
-		errors.Is(connectionErr, realtime.ErrRoomMemberRemoved) ||
-		errors.Is(connectionErr, context.Canceled) ||
-		errors.Is(connectionErr, realtime.ErrHubClosed) {
-		level = slog.LevelInfo
-	}
-	h.logger.LogAttrs(r.Context(), level, "websocket client disconnected",
-		slog.String("room_id", room.ID),
-		slog.Int64("user_id", principal.UserID),
-		slog.Int("close_status", int(status)),
-		slog.Any("error", connectionErr),
-	)
+	level, attrs := realtimeDisconnectLogAttrs(room.ID, principal.UserID, connectionErr)
+	h.logger.LogAttrs(r.Context(), level, "websocket client disconnected", attrs...)
 	if h.metrics != nil {
 		h.metrics.RealtimeDisconnects.WithLabelValues("room", realtimeDisconnectReason(connectionErr)).Inc()
 	}
@@ -428,4 +413,28 @@ func realtimeDisconnectReason(err error) string {
 	default:
 		return "transport_error"
 	}
+}
+
+func realtimeDisconnectLogAttrs(roomID string, userID int64, err error) (slog.Level, []slog.Attr) {
+	reason := realtimeDisconnectReason(err)
+	level := slog.LevelWarn
+	if reason == "normal" || reason == "replaced" || reason == "member_removed" || reason == "shutdown" {
+		level = slog.LevelInfo
+	}
+
+	attrs := []slog.Attr{
+		slog.String("room_id", roomID),
+		slog.Int64("user_id", userID),
+		slog.Int("close_status", int(websocket.CloseStatus(err))),
+		slog.String("disconnect_reason", reason),
+	}
+	if level == slog.LevelWarn {
+		return level, append(attrs, slog.Any("error", err))
+	}
+
+	var closeErr websocket.CloseError
+	if errors.As(err, &closeErr) && closeErr.Reason != "" {
+		attrs = append(attrs, slog.String("close_reason", closeErr.Reason))
+	}
+	return level, attrs
 }

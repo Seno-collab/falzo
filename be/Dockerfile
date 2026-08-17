@@ -30,5 +30,5 @@ COPY --from=builder --chown=falzo:falzo /out/falzo-api ./falzo-api
 COPY --from=builder --chown=falzo:falzo /out/falzo-telegram-bot ./falzo-telegram-bot
 
 USER falzo
-EXPOSE 8080
+EXPOSE 8080 8081
 ENTRYPOINT ["/app/falzo-api"]

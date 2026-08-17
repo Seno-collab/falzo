@@ -118,11 +118,18 @@ services:
       NATS_ALERT_STREAM: FALZO_ALERTS
       NATS_ALERT_SUBJECT: falzo.alerts.error
       NATS_ALERT_DURABLE: falzo-telegram-error-bot
+      TELEGRAM_HEALTH_PORT: "8081"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID is required}
     depends_on:
       nats:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
 
   frontend:
     image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required}
