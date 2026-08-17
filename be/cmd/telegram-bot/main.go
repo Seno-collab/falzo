@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"be/internal/alerting"
+	"be/internal/config"
 	natsinfra "be/internal/insfrastructure/nats"
 	"be/internal/insfrastructure/telegram"
 )
@@ -29,27 +29,21 @@ func main() {
 }
 
 func run() error {
-	natsURL := envOrDefault("NATS_URL", "nats://localhost:4222")
-	stream := envOrDefault("NATS_ALERT_STREAM", "FALZO_ALERTS")
-	subject := envOrDefault("NATS_ALERT_SUBJECT", "falzo.alerts.error")
-	durable := envOrDefault("NATS_ALERT_DURABLE", "falzo-telegram-error-bot")
-	healthPort := envOrDefault("TELEGRAM_HEALTH_PORT", "8081")
-	token := strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN"))
-	chatID := strings.TrimSpace(os.Getenv("TELEGRAM_CHAT_ID"))
-	if token == "" || chatID == "" {
-		return fmt.Errorf("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required")
+	cfg, err := config.LoadTelegramBot(".env")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	telegramClient, err := telegram.NewClient(
-		envOrDefault("TELEGRAM_API_BASE_URL", "https://api.telegram.org"),
-		token,
-		chatID,
+		cfg.Telegram.APIBaseURL,
+		cfg.Telegram.BotToken,
+		cfg.Telegram.ChatID,
 		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("create Telegram client: %w", err)
 	}
-	consumer, err := natsinfra.NewAlertConsumer(natsURL, stream, subject, durable)
+	consumer, err := natsinfra.NewAlertConsumer(cfg.NATS.URL, cfg.NATS.Stream, cfg.NATS.Subject, cfg.NATS.Durable)
 	if err != nil {
 		return fmt.Errorf("create alert consumer: %w", err)
 	}
@@ -58,7 +52,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	healthServer := &http.Server{
-		Addr:              ":" + healthPort,
+		Addr:              ":" + cfg.Telegram.HealthPort,
 		Handler:           newHealthHandler(),
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       5 * time.Second,
@@ -71,7 +65,7 @@ func run() error {
 		errCh <- healthServer.ListenAndServe()
 	}()
 
-	slog.Info("telegram alert bot listening", slog.String("subject", subject), slog.String("durable", durable))
+	slog.Info("telegram alert bot listening", slog.String("subject", cfg.NATS.Subject), slog.String("durable", cfg.NATS.Durable))
 	go func() {
 		errCh <- consumer.Run(ctx, func(ctx context.Context, event alerting.Event) error {
 			if err := telegramClient.SendAlert(ctx, event); err != nil {
@@ -120,11 +114,4 @@ func newHealthHandler() http.Handler {
 	mux.HandleFunc("/health/live", respond)
 	mux.HandleFunc("/health/ready", respond)
 	return mux
-}
-
-func envOrDefault(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
-	}
-	return fallback
 }

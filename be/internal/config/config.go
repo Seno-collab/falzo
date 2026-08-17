@@ -15,6 +15,7 @@ type Config struct {
 	Database DatabaseConfig
 	Redis    RedisConfig
 	NATS     NATSConfig
+	Telegram TelegramConfig
 	JWT      JWTConfig
 	Auth     AuthConfig
 	Google   GoogleConfig
@@ -54,6 +55,14 @@ type NATSConfig struct {
 	URL     string
 	Stream  string
 	Subject string
+	Durable string
+}
+
+type TelegramConfig struct {
+	HealthPort string
+	BotToken   string
+	ChatID     string
+	APIBaseURL string
 }
 
 type JWTConfig struct {
@@ -78,6 +87,32 @@ type GameConfig struct {
 }
 
 func Load(envPath string) (*Config, error) {
+	cfg, err := load(envPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func LoadTelegramBot(envPath string) (*Config, error) {
+	cfg, err := load(envPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cfg.ValidateTelegramBot(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func load(envPath string) (*Config, error) {
 	if envPath == "" {
 		envPath = ".env"
 	}
@@ -130,9 +165,16 @@ func Load(envPath string) (*Config, error) {
 		},
 		NATS: NATSConfig{
 			Enabled: v.GetBool("NATS_ENABLED"),
-			URL:     v.GetString("NATS_URL"),
-			Stream:  v.GetString("NATS_ALERT_STREAM"),
-			Subject: v.GetString("NATS_ALERT_SUBJECT"),
+			URL:     strings.TrimSpace(v.GetString("NATS_URL")),
+			Stream:  strings.TrimSpace(v.GetString("NATS_ALERT_STREAM")),
+			Subject: strings.TrimSpace(v.GetString("NATS_ALERT_SUBJECT")),
+			Durable: strings.TrimSpace(v.GetString("NATS_ALERT_DURABLE")),
+		},
+		Telegram: TelegramConfig{
+			HealthPort: strings.TrimSpace(v.GetString("TELEGRAM_HEALTH_PORT")),
+			BotToken:   strings.TrimSpace(v.GetString("TELEGRAM_BOT_TOKEN")),
+			ChatID:     strings.TrimSpace(v.GetString("TELEGRAM_CHAT_ID")),
+			APIBaseURL: strings.TrimSpace(v.GetString("TELEGRAM_API_BASE_URL")),
 		},
 		JWT: JWTConfig{
 			Secret:              v.GetString("JWT_SECRET"),
@@ -148,10 +190,6 @@ func Load(envPath string) (*Config, error) {
 			MaxPlayersPerRoom:  v.GetInt("GAME_MAX_PLAYERS_PER_ROOM"),
 			RoomTimeoutSeconds: v.GetInt("GAME_ROOM_TIMEOUT_SECONDS"),
 		},
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return nil, err
 	}
 
 	return cfg, nil
@@ -177,6 +215,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("NATS_URL", "nats://localhost:4222")
 	v.SetDefault("NATS_ALERT_STREAM", "FALZO_ALERTS")
 	v.SetDefault("NATS_ALERT_SUBJECT", "falzo.alerts.error")
+	v.SetDefault("NATS_ALERT_DURABLE", "falzo-telegram-error-bot")
+	v.SetDefault("TELEGRAM_HEALTH_PORT", "8081")
+	v.SetDefault("TELEGRAM_API_BASE_URL", "https://api.telegram.org")
 
 	v.SetDefault("JWT_EXPIRED_MINUTES", 60)
 	v.SetDefault("JWT_REFRESH_EXPIRED_HOURS", 168)
@@ -232,6 +273,23 @@ func (c *Config) Validate() error {
 	}
 	if c.Game.RoomTimeoutSeconds <= 0 {
 		return fmt.Errorf("GAME_ROOM_TIMEOUT_SECONDS must be positive")
+	}
+
+	return nil
+}
+
+func (c *Config) ValidateTelegramBot() error {
+	if c.NATS.URL == "" || c.NATS.Stream == "" || c.NATS.Subject == "" || c.NATS.Durable == "" {
+		return fmt.Errorf("NATS_URL, NATS_ALERT_STREAM, NATS_ALERT_SUBJECT and NATS_ALERT_DURABLE are required")
+	}
+	if c.Telegram.HealthPort == "" {
+		return fmt.Errorf("TELEGRAM_HEALTH_PORT is required")
+	}
+	if c.Telegram.BotToken == "" || c.Telegram.ChatID == "" {
+		return fmt.Errorf("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required")
+	}
+	if c.Telegram.APIBaseURL == "" {
+		return fmt.Errorf("TELEGRAM_API_BASE_URL is required")
 	}
 
 	return nil
