@@ -9,9 +9,9 @@ The legacy stack runs as one Docker Compose project on the VPS:
 1. PostgreSQL, Redis and NATS JetStream start and pass health checks.
 2. The one-shot migration container completes successfully.
 3. Backend, Telegram alert bot, frontend and Caddy start.
-4. Caddy terminates TLS for `falzo.life`, sends `/api` to the Go backend, and
-   sends all other requests to Next.js. WebSocket upgrades work through the
-   same `/api` route.
+4. Caddy terminates TLS for `falzo.life`, redirects `www.falzo.life` to the
+   apex domain, sends `/api` to the Go backend, and sends all other requests to
+   Next.js. WebSocket upgrades work through the same `/api` route.
 
 PostgreSQL and Redis do not publish host ports. Only Caddy publishes ports 80
 and 443.
@@ -21,7 +21,8 @@ and 443.
 - Linux VPS with Docker Engine and the Docker Compose v2 plugin.
 - The deployment SSH user can run Docker, either directly or with passwordless
   `sudo`.
-- DNS `A`/`AAAA` records for `falzo.life` point to the VPS.
+- DNS `A`/`AAAA` records for `falzo.life` point to the VPS, with
+  `www.falzo.life` configured as a `CNAME` to `falzo.life`.
 - TCP ports 22, 80 and 443 and UDP port 443 are allowed by the VPS firewall.
 
 Verify Docker before the first deployment:

@@ -365,18 +365,18 @@ jobs:
           set -euo pipefail
 
           for attempt in $(seq 1 24); do
-            if curl \
-              --fail \
-              --silent \
-              --show-error \
-              --max-time 10 \
-              "https://$PUBLIC_HOST/health/ready"; then
+            if curl --fail --silent --show-error --max-time 10 \
+              "https://$PUBLIC_HOST/health/ready" \
+              && curl --fail --silent --show-error --location --max-time 10 \
+                "http://$PUBLIC_HOST/health/ready" \
+              && curl --fail --silent --show-error --max-time 10 \
+                "https://www.$PUBLIC_HOST/health/ready"; then
               echo
-              echo "Falzo K3s deployment is ready."
+              echo "Falzo K3s deployment is ready on HTTP, HTTPS and www."
               exit 0
             fi
             sleep 5
           done
 
-          echo "::error title=Public API unavailable::Check DNS, Traefik, TLS and the falzo namespace logs."
+          echo "::error title=Public routes unavailable::Check apex/www DNS, Traefik, TLS and the falzo namespace logs."
           exit 1

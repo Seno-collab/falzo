@@ -109,14 +109,15 @@ registry and immutable tag that were pushed. Avoid `latest` for a real release.
 
 Review these values before deployment:
 
-- The public host is configured as `falzo.life` in `platform/configmap.yaml`
-  and `app/ingress.yaml`.
+- The public hosts are configured as `falzo.life` and `www.falzo.life` in
+  `platform/configmap.yaml` and `app/ingress.yaml`.
 - `GOOGLE_CLIENT_ID` in `platform/configmap.yaml`.
 - CPU, memory and PVC sizes for the target cluster.
 - `storageClassName` in each `volumeClaimTemplates` if the cluster has no
   default StorageClass.
 
-The WebSocket origin pattern must be the public host without `https://`.
+The WebSocket origin patterns must contain every public host without
+`https://`, separated by commas.
 
 ## Edge routing for falzo.life
 
@@ -150,7 +151,8 @@ helm upgrade --install traefik traefik/traefik \
 ```
 
 Point the DNS `A` record for `falzo.life` to the external IP assigned to
-Traefik. On a bare-metal cluster, a `LoadBalancer` implementation such as
+Traefik, and point `www.falzo.life` to it with either a `CNAME` or another `A`
+record. On a bare-metal cluster, a `LoadBalancer` implementation such as
 MetalLB or the K3s ServiceLB is also required:
 
 ```bash
@@ -158,10 +160,11 @@ kubectl get service -A | grep LoadBalancer
 kubectl get ingress falzo -n falzo
 ```
 
-The TLS Secret `falzo-tls` must contain a certificate valid for `falzo.life`.
-It can be created manually as shown later in this guide or maintained by
-cert-manager. In Google Cloud Console, add `https://falzo.life` to the OAuth
-client's authorized JavaScript origins.
+The TLS Secret `falzo-tls` must contain a certificate valid for both
+`falzo.life` and `www.falzo.life`. It can be created manually as shown later in
+this guide or maintained by cert-manager. In Google Cloud Console, add
+`https://falzo.life` and `https://www.falzo.life` to the OAuth client's
+authorized JavaScript origins.
 
 Traefik routes `/api`, including WebSocket upgrades, to the Go service. All
 other paths are routed to Next.js. The production frontend derives `wss://`

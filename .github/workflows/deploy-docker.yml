@@ -390,18 +390,18 @@ jobs:
           set -euo pipefail
 
           for attempt in $(seq 1 24); do
-            if curl \
-              --fail \
-              --silent \
-              --show-error \
-              --max-time 10 \
-              https://falzo.life/health/ready; then
+            if curl --fail --silent --show-error --max-time 10 \
+              https://falzo.life/health/ready \
+              && curl --fail --silent --show-error --location --max-time 10 \
+                http://falzo.life/health/ready \
+              && curl --fail --silent --show-error --location --max-time 10 \
+                https://www.falzo.life/health/ready; then
               echo
-              echo "Falzo public API is ready."
+              echo "Falzo public API is ready on HTTP, HTTPS and www."
               exit 0
             fi
             sleep 5
           done
 
-          echo "::error title=Public API unavailable::Check falzo.life DNS records, VPS ports 80/443, and Caddy logs."
+          echo "::error title=Public routes unavailable::Check apex/www DNS, VPS ports 80/443, TLS, and Caddy logs."
           exit 1

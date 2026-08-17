@@ -1,3 +1,7 @@
+www.falzo.life {
+	redir https://falzo.life{uri} permanent
+}
+
 falzo.life {
 	encode zstd gzip
 
