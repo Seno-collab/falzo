@@ -5,6 +5,7 @@ import (
 	"be/internal/realtime"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -104,7 +105,7 @@ func (b *RealtimeBackplane) ClaimConnection(
 		TTL: ttl,
 		Get: true,
 	}).Result()
-	if err == goredis.Nil {
+	if errors.Is(err, goredis.Nil) {
 		return "", nil
 	}
 	return result, err
