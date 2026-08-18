@@ -10,6 +10,7 @@ export type SocialUser = {
   id: number;
   username: string;
   relationship: RelationshipStatus;
+  online: boolean;
 };
 
 export type FriendRequest = {
@@ -27,6 +28,7 @@ export type Friend = {
   id: number;
   username: string;
   friends_at: string;
+  online: boolean;
 };
 
 export type FriendNotificationType =

@@ -38,6 +38,7 @@ type socialUserResponse struct {
 	ID           int64                           `json:"id"`
 	UserName     string                          `json:"username"`
 	Relationship domainsocial.RelationshipStatus `json:"relationship"`
+	Online       bool                            `json:"online"`
 }
 
 type friendRequestResponse struct {
@@ -55,6 +56,7 @@ type friendResponse struct {
 	ID        int64     `json:"id"`
 	UserName  string    `json:"username"`
 	FriendsAt time.Time `json:"friends_at"`
+	Online    bool      `json:"online"`
 }
 
 type notificationResponse struct {
@@ -83,12 +85,14 @@ func (h *SocialHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, "search_users", err)
 		return
 	}
+	onlineUsers := h.onlineUsers(r)
 	data := make([]socialUserResponse, 0, len(users))
 	for _, user := range users {
 		data = append(data, socialUserResponse{
 			ID:           user.ID,
 			UserName:     user.UserName,
 			Relationship: user.Relationship,
+			Online:       onlineUsers[user.ID],
 		})
 	}
 	response.OK(w, data)
@@ -197,15 +201,29 @@ func (h *SocialHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, "list_friends", err)
 		return
 	}
+	onlineUsers := h.onlineUsers(r)
 	data := make([]friendResponse, 0, len(friends))
 	for _, friend := range friends {
 		data = append(data, friendResponse{
 			ID:        friend.ID,
 			UserName:  friend.UserName,
 			FriendsAt: friend.FriendsAt,
+			Online:    onlineUsers[friend.ID],
 		})
 	}
 	response.OK(w, data)
+}
+
+func (h *SocialHandler) onlineUsers(r *http.Request) map[int64]bool {
+	if h.realtime == nil {
+		return map[int64]bool{}
+	}
+	onlineUsers, err := h.realtime.OnlineUserIDs(r.Context())
+	if err != nil {
+		h.logger.WarnContext(r.Context(), "could not load online users", slog.Any("error", err))
+		return map[int64]bool{}
+	}
+	return onlineUsers
 }
 
 func (h *SocialHandler) Unfriend(w http.ResponseWriter, r *http.Request) {

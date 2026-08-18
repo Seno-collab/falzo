@@ -224,6 +224,41 @@ func TestPublishUserDeliversSocialEvent(t *testing.T) {
 	}
 }
 
+func TestOnlineUserIDsIncludesLobbyAndRoomConnections(t *testing.T) {
+	hub := NewHub(fixedClock{now: time.Now()})
+	lobbyClient, err := hub.RegisterUser(71, "lobby-player")
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomClient, err := hub.Register("room-online", 72, "room-player", []Member{{
+		ID: 72, Name: "room-player", SeatNumber: 1,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Unregister(roomClient)
+
+	onlineUsers, err := hub.OnlineUserIDs(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !onlineUsers[71] || !onlineUsers[72] {
+		t.Fatalf("online users = %#v, want lobby and room players", onlineUsers)
+	}
+
+	hub.Unregister(lobbyClient)
+	onlineUsers, err = hub.OnlineUserIDs(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if onlineUsers[71] {
+		t.Fatalf("online users = %#v, disconnected lobby player is still online", onlineUsers)
+	}
+	if !onlineUsers[72] {
+		t.Fatalf("online users = %#v, connected room player is missing", onlineUsers)
+	}
+}
+
 func drainEvents(events <-chan Event) {
 	for {
 		select {

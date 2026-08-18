@@ -11,6 +11,7 @@ import {
   countUnreadNotifications,
   createRoom,
   joinRoom,
+  listFriendRequests,
   listFriends,
   listRooms,
 } from "@/lib/api";
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const socialRealtime = useUserRealtime();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [incomingRequests, setIncomingRequests] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [roomsLoaded, setRoomsLoaded] = useState(false);
@@ -46,6 +48,11 @@ export default function DashboardPage() {
   const initial = username.trim().charAt(0).toUpperCase() || "P";
   const openRooms = rooms.filter((room) => room.status === "waiting").length;
   const safeFriends = Array.isArray(friends) ? friends : [];
+  const onlineFriends = safeFriends.filter((friend) => friend.online);
+  const featuredFriends = [...safeFriends]
+    .sort((left, right) => Number(right.online) - Number(left.online)
+      || left.username.localeCompare(right.username))
+    .slice(0, 6);
 
   useEffect(() => {
     let active = true;
@@ -86,12 +93,16 @@ export default function DashboardPage() {
       try {
         const activeSession = await restoreSession();
         if (!activeSession) return;
-        const [friendData, unreadData] = await Promise.all([
+        const [friendData, friendRequestData, unreadData] = await Promise.all([
           listFriends(activeSession.access_token, { trackActivity: false }),
+          listFriendRequests(activeSession.access_token, { trackActivity: false }),
           countUnreadNotifications(activeSession.access_token, { trackActivity: false }),
         ]);
         if (!active) return;
         setFriends(Array.isArray(friendData) ? friendData : []);
+        setIncomingRequests(friendRequestData.filter(
+          (request) => request.receiver_name === activeSession.username,
+        ).length);
         setUnreadNotifications(unreadData.count);
         setFriendsLoaded(true);
       } catch {
@@ -100,8 +111,10 @@ export default function DashboardPage() {
     }
 
     void loadSocialData();
+    const pollTimer = window.setInterval(() => void loadSocialData(), 10_000);
     return () => {
       active = false;
+      window.clearInterval(pollTimer);
     };
   }, [socialRealtime.revision]);
 
@@ -201,8 +214,8 @@ export default function DashboardPage() {
         </Link>
 
         <div className={styles.lobbyLabel}>
-          <span aria-hidden="true" />
-          Undercover rooms
+          <span className={socialRealtime.connected ? styles.realtimeOnline : styles.realtimeOffline} aria-hidden="true" />
+          {socialRealtime.connected ? "Players online" : "Reconnecting"}
         </div>
 
         <div className={styles.account}>
@@ -243,7 +256,7 @@ export default function DashboardPage() {
               </div>
 
               <div className={styles.friendList}>
-                {safeFriends.slice(0, 5).map((friend, index) => (
+                {featuredFriends.slice(0, 5).map((friend, index) => (
                   <Link
                     className={styles.friend}
                     href="/friends"
@@ -251,10 +264,14 @@ export default function DashboardPage() {
                   >
                     <span className={`${styles.friendAvatar} ${styles[friendColor(index)]}`}>
                       {friend.username.charAt(0).toUpperCase()}
+                      <span
+                        className={`${styles.friendPresence} ${friend.online ? styles.isOnline : styles.isOffline}`}
+                        aria-label={friend.online ? "Online" : "Offline"}
+                      />
                     </span>
                     <span>
                       <strong>{friend.username}</strong>
-                      <small>Falzo friend</small>
+                      <small>{friend.online ? "Online now" : "Offline"}</small>
                     </span>
                     <span className={styles.chatIcon} aria-hidden="true">→</span>
                   </Link>
@@ -279,13 +296,82 @@ export default function DashboardPage() {
           <div className={styles.pageHeading}>
             <div>
               <p>WELCOME BACK, {username.toUpperCase()}</p>
-              <h1>Choose a room.<br />Take a seat.</h1>
+              <h1>Your people.<br />Then the game.</h1>
             </div>
             <div className={styles.roomSummary}>
               <strong>{openRooms}</strong>
               <span>rooms waiting</span>
             </div>
           </div>
+
+          <section className={styles.peoplePanel} aria-labelledby="people-online-title">
+            <div className={styles.peopleOverview}>
+              <div className={styles.peopleHeading}>
+                <span className={styles.peopleMark} aria-hidden="true">◎</span>
+                <div>
+                  <p>PLAYER HUB</p>
+                  <h2 id="people-online-title">People online</h2>
+                  <span>
+                    {socialRealtime.connected
+                      ? "Live presence is connected"
+                      : "Presence is reconnecting"}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.peopleStats} aria-label="Player summary">
+                <div>
+                  <strong>{onlineFriends.length}</strong>
+                  <span>online</span>
+                </div>
+                <div>
+                  <strong>{safeFriends.length}</strong>
+                  <span>friends</span>
+                </div>
+                <div>
+                  <strong>{incomingRequests}</strong>
+                  <span>requests</span>
+                </div>
+              </div>
+
+              <Link className={styles.managePeopleButton} href="/friends">
+                Manage players <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+
+            {featuredFriends.length > 0 ? (
+              <div className={styles.peopleGrid}>
+                {featuredFriends.map((friend, index) => (
+                  <Link className={styles.peopleCard} href="/friends" key={friend.id}>
+                    <span className={`${styles.peopleAvatar} ${styles[friendColor(index)]}`}>
+                      {playerInitials(friend.username)}
+                      <span
+                        className={`${styles.peoplePresence} ${friend.online ? styles.isOnline : styles.isOffline}`}
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className={styles.peopleIdentity}>
+                      <strong>{friend.username}</strong>
+                      <small>{friend.online ? "Ready to play" : "Currently offline"}</small>
+                    </span>
+                    <span className={`${styles.presenceBadge} ${friend.online ? styles.onlineBadge : ""}`}>
+                      {friend.online ? "Online" : "Offline"}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : friendsLoaded ? (
+              <div className={styles.peopleEmpty}>
+                <div>
+                  <strong>Build your player circle</strong>
+                  <span>Find people by username, manage requests, and see who is ready to play.</span>
+                </div>
+                <Link href="/friends">Find players</Link>
+              </div>
+            ) : (
+              <div className={styles.peopleLoading}>Loading your players…</div>
+            )}
+          </section>
 
           <div className={styles.roomToolbar}>
             <div className={styles.roomCount}>
@@ -511,4 +597,9 @@ function roomApiErrorMessage(error: unknown) {
 function friendColor(index: number) {
   const colors = ["lime", "coral", "blue", "mint", "violet", "sand"] as const;
   return colors[index % colors.length];
+}
+
+function playerInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part.charAt(0)).join("").toUpperCase() || "?";
 }

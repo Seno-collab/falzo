@@ -189,6 +189,7 @@
 }
 
 .avatar {
+  position: relative;
   display: grid;
   width: 39px;
   height: 39px;
@@ -198,6 +199,24 @@
   color: #172019;
   font-size: 12px;
   font-weight: 900;
+}
+
+.avatarPresence {
+  position: absolute;
+  right: -1px;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #1e2821;
+  border-radius: 50%;
+}
+
+.avatarPresence.online {
+  background: #66d79a;
+}
+
+.avatarPresence.offline {
+  background: #68746c;
 }
 
 .person {

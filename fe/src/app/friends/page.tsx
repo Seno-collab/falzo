@@ -336,10 +336,10 @@ function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: Readonly
     <div className={styles.list}>
       {friends.map((friend) => (
         <article className={styles.row} key={friend.id}>
-          <Avatar name={friend.username} />
+          <Avatar name={friend.username} online={friend.online} />
           <div className={styles.person}>
             <strong>{friend.username}</strong>
-            <span>Friends since {formatDate(friend.friends_at)}</span>
+            <span>{friend.online ? "Online now" : `Friends since ${formatDate(friend.friends_at)}`}</span>
           </div>
           <button
             className={styles.dangerButton}
@@ -501,10 +501,10 @@ function FindPanel({
         <div className={styles.list}>
           {results.map((user) => (
             <article className={styles.row} key={user.id}>
-              <Avatar name={user.username} />
+              <Avatar name={user.username} online={user.online} />
               <div className={styles.person}>
                 <strong>{user.username}</strong>
-                <span>{relationshipLabel(user.relationship)}</span>
+                <span>{user.online ? `Online · ${relationshipLabel(user.relationship)}` : relationshipLabel(user.relationship)}</span>
               </div>
               {renderRelationshipAction(user)}
             </article>
@@ -559,8 +559,15 @@ function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, u
   );
 }
 
-function Avatar({ name }: Readonly<{ name: string }>) {
-  return <span className={styles.avatar} aria-hidden="true">{name.trim().charAt(0).toUpperCase() || "?"}</span>;
+function Avatar({ name, online }: Readonly<{ name: string; online?: boolean }>) {
+  return (
+    <span className={styles.avatar} aria-hidden="true">
+      {name.trim().charAt(0).toUpperCase() || "?"}
+      {online !== undefined && (
+        <span className={`${styles.avatarPresence} ${online ? styles.online : styles.offline}`} />
+      )}
+    </span>
+  );
 }
 
 function EmptyState({ action, onAction, text, title }: Readonly<{

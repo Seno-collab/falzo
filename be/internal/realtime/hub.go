@@ -45,6 +45,7 @@ const (
 	connectionLeaseTTL  = 45 * time.Second
 	maxRequestIDLength  = 128
 	userChannelPrefix   = "user:"
+	globalPresenceID    = "users:online"
 )
 
 var (
@@ -374,6 +375,9 @@ func (h *Hub) RegisterUser(userID int64, userName string) (*Client, error) {
 		h.metrics.RealtimeConnectionsTotal.WithLabelValues("user", "accepted").Inc()
 	}
 	if h.backplane != nil {
+		if replaced != nil {
+			h.removePresence(replaced)
+		}
 		previousID, err := h.claimConnection(client)
 		if err != nil {
 			h.Unregister(client)
@@ -382,8 +386,32 @@ func (h *Hub) RegisterUser(userID int64, userName string) (*Client, error) {
 		if previousID != "" && previousID != client.id {
 			h.publishConnectionReplaced(channelID, userID, previousID, client.id)
 		}
+		if err := h.touchPresence(client); err != nil {
+			h.logger.Warn("redis global presence touch failed", slog.Any("error", err))
+		}
 	}
 	return client, nil
+}
+
+// OnlineUserIDs returns users with an active realtime connection anywhere in
+// the application. A user can have both a lobby and room connection; the
+// returned map intentionally collapses those connections into one status.
+func (h *Hub) OnlineUserIDs(ctx context.Context) (map[int64]bool, error) {
+	if h.backplane != nil {
+		queryCtx, cancel := context.WithTimeout(ctx, backplaneTimeout)
+		defer cancel()
+		return h.backplane.OnlineUsers(queryCtx, globalPresenceID, h.clock.Now())
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	onlineUsers := make(map[int64]bool)
+	for _, room := range h.rooms {
+		for userID := range room.activeByUser {
+			onlineUsers[userID] = true
+		}
+	}
+	return onlineUsers, nil
 }
 
 func (h *Hub) PublishUser(userID int64, eventType string, payload any) {
@@ -402,9 +430,7 @@ func (h *Hub) Unregister(client *Client) {
 	if !registered {
 		h.mu.Unlock()
 		if h.backplane != nil {
-			if client.trackPresence {
-				h.removePresence(client)
-			}
+			h.removePresence(client)
 			h.releaseConnection(client)
 		}
 		return
@@ -428,9 +454,7 @@ func (h *Hub) Unregister(client *Client) {
 	h.mu.Unlock()
 
 	if h.backplane != nil {
-		if client.trackPresence {
-			h.removePresence(client)
-		}
+		h.removePresence(client)
 		h.releaseConnection(client)
 		if client.trackPresence {
 			if err := h.publishPresenceSync(client.roomID, nil); err != nil {
@@ -574,10 +598,8 @@ func (h *Hub) Heartbeat(client *Client) error {
 		client.stop(ErrConnectionReplaced)
 		return ErrConnectionReplaced
 	}
-	if client.trackPresence {
-		if err := h.touchPresence(client); err != nil {
-			h.logger.Warn("redis presence heartbeat failed", slog.Any("error", err))
-		}
+	if err := h.touchPresence(client); err != nil {
+		h.logger.Warn("redis presence heartbeat failed", slog.Any("error", err))
 	}
 	return nil
 }
@@ -678,9 +700,7 @@ func (h *Hub) Close() {
 	h.mu.Unlock()
 	if h.backplane != nil {
 		for _, client := range clients {
-			if client.trackPresence {
-				h.removePresence(client)
-			}
+			h.removePresence(client)
 			h.releaseConnection(client)
 		}
 		for _, client := range clients {
@@ -808,13 +828,13 @@ func (h *Hub) sweepPresence(ctx context.Context) {
 func (h *Hub) touchPresence(client *Client) error {
 	ctx, cancel := h.backplaneContext()
 	defer cancel()
-	return h.backplane.TouchPresence(
-		ctx,
-		client.roomID,
-		client.id,
-		client.userID,
-		h.clock.Now().Add(presenceTTL),
-	)
+	expiresAt := h.clock.Now().Add(presenceTTL)
+	if client.trackPresence {
+		if err := h.backplane.TouchPresence(ctx, client.roomID, client.id, client.userID, expiresAt); err != nil {
+			return err
+		}
+	}
+	return h.backplane.TouchPresence(ctx, globalPresenceID, client.id, client.userID, expiresAt)
 }
 
 func (h *Hub) claimConnection(client *Client) (string, error) {
@@ -844,10 +864,14 @@ func (h *Hub) releaseConnection(client *Client) {
 
 func (h *Hub) removePresence(client *Client) {
 	ctx, cancel := h.backplaneContext()
-	err := h.backplane.RemovePresence(ctx, client.roomID, client.id, client.userID)
-	cancel()
-	if err != nil {
-		h.logger.Warn("redis presence remove failed", slog.Any("error", err))
+	defer cancel()
+	if client.trackPresence {
+		if err := h.backplane.RemovePresence(ctx, client.roomID, client.id, client.userID); err != nil {
+			h.logger.Warn("redis room presence remove failed", slog.Any("error", err))
+		}
+	}
+	if err := h.backplane.RemovePresence(ctx, globalPresenceID, client.id, client.userID); err != nil {
+		h.logger.Warn("redis global presence remove failed", slog.Any("error", err))
 	}
 }
 
