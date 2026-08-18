@@ -8,6 +8,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { useSession } from "@/components/session-guard";
 import { ErrorScreen } from "@/components/error-screen";
 import { ChatPanel } from "@/features/chat/chat-panel";
+import { GameGuide } from "./game-guide";
 import { RoomPhasePanel } from "./room-phase-panel";
 import {
   colorForPlayer,
@@ -33,6 +34,7 @@ import styles from "./room.module.css";
 
 type DealPhase = "waiting" | "dealing" | "ready";
 type CardOverlay = "hidden" | "facedown" | "revealed";
+type MobileRoomView = "table" | "chat" | "ranking";
 
 export default function RoomDetailPage() {
   const params = useParams<{ roomId: string }>();
@@ -59,6 +61,7 @@ export default function RoomDetailPage() {
   const [selectedVote, setSelectedVote] = useState("");
   const [mrWhiteGuess, setMrWhiteGuess] = useState("");
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [mobileView, setMobileView] = useState<MobileRoomView>("table");
   const dealTimersRef = useRef<number[]>([]);
   const realtime = useRoomRealtime(params.roomId, username);
   const gameState = useRoomGameState({
@@ -66,6 +69,7 @@ export default function RoomDetailPage() {
     playing: room?.status === "playing",
     roomRound: room?.round,
     realtimeRevision: realtime.gameStateRevision,
+    realtimeState: realtime.gameStateUpdated,
     roundStarted: realtime.roundStarted?.round,
     votesCast: realtime.voteUpdated?.votes_cast,
   });
@@ -194,6 +198,10 @@ export default function RoomDetailPage() {
     const timer = window.setInterval(() => setClockNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [room?.status]);
+
+  useEffect(() => {
+    if (roundState?.phase === "VOTING") setSelectedVote("");
+  }, [roundState?.cycle, roundState?.phase, roundState?.round]);
 
   useEffect(() => {
     if (rosterKey) {
@@ -536,6 +544,8 @@ export default function RoomDetailPage() {
         </div>
       </header>
 
+      <GameGuide mrWhiteEnabled={room.mrWhiteEnabled} />
+
       {dealPhase === "dealing" && activeDealPlayer && (
         <div className={styles.dealOverlay} role="status" aria-live="assertive">
           <div className={styles.dealShowcase} key={activeDealPlayer.id}>
@@ -621,23 +631,36 @@ export default function RoomDetailPage() {
         </div>
       )}
 
-      <section className={styles.content}>
+      <section className={styles.content} data-mobile-view={mobileView}>
         <div className={styles.roomHeading}>
-          <div>
+          <div className={styles.roomIntro}>
             <div className={styles.eyebrow}>
               <span className={`${styles.statusDot} ${styles[room.status]}`} />
               {room.status === "waiting" ? "WAITING FOR PLAYERS" : `ROUND ${room.round} IN PROGRESS`}
             </div>
             <h1>{room.name}</h1>
-            <p>
-              Room <strong>#{room.code}</strong>
-              <span aria-hidden="true">·</span>
-              {room.players.length}/{room.maxPlayers} players
-              <span aria-hidden="true">·</span>
-              {openSeats} seats open
-              <span aria-hidden="true">·</span>
-              {room.language === "vi" ? "Tiếng Việt" : "English"}
-            </p>
+            <div className={styles.roomSummary}>
+              <div className={styles.inviteSummary}>
+                <small>MÃ PHÒNG</small>
+                <strong>#{room.code}</strong>
+                <span>Gửi mã này để mời bạn bè</span>
+              </div>
+              <div>
+                <small>NGƯỜI CHƠI</small>
+                <strong>{room.players.length}<i>/{room.maxPlayers}</i></strong>
+                <span>{onlinePlayers} đang online</span>
+              </div>
+              <div>
+                <small>CHỖ TRỐNG</small>
+                <strong>{openSeats}</strong>
+                <span>{openSeats > 0 ? "Vẫn có thể tham gia" : "Phòng đã đủ người"}</span>
+              </div>
+              <div>
+                <small>NGÔN NGỮ</small>
+                <strong className={styles.languageValue}>{room.language === "vi" ? "VI" : "EN"}</strong>
+                <span>{room.language === "vi" ? "Tiếng Việt" : "English"}</span>
+              </div>
+            </div>
           </div>
 
           <div className={styles.gameControl}>
@@ -741,8 +764,41 @@ export default function RoomDetailPage() {
           </div>
         </div>
 
+        <nav className={styles.mobileRoomNav} aria-label="Điều hướng trong phòng">
+          <button
+            aria-controls="game-table-panel"
+            aria-pressed={mobileView === "table"}
+            onClick={() => setMobileView("table")}
+            type="button"
+          >
+            <span aria-hidden="true">◆</span>
+            <span><strong>Bàn chơi</strong><small>{activePlayers.length} người còn lại</small></span>
+          </button>
+          <button
+            aria-controls="action-chat-panel"
+            aria-pressed={mobileView === "chat"}
+            onClick={() => setMobileView("chat")}
+            type="button"
+          >
+            <span aria-hidden="true">◌</span>
+            <span>
+              <strong>Hành động</strong>
+              <small>{room.status === "playing" ? "Diễn biến & chat" : `${realtime.messages.length} tin nhắn`}</small>
+            </span>
+          </button>
+          <button
+            aria-controls="room-ranking-panel"
+            aria-pressed={mobileView === "ranking"}
+            onClick={() => setMobileView("ranking")}
+            type="button"
+          >
+            <span aria-hidden="true">↗</span>
+            <span><strong>Xếp hạng</strong><small>Điểm người chơi</small></span>
+          </button>
+        </nav>
+
         <div className={styles.roomLayout}>
-          <section className={styles.board} aria-label={`${room.name} seating table`}>
+          <section className={styles.board} id="game-table-panel" aria-label={`${room.name} seating table`}>
             <div className={styles.seatRow}>
               {seats.slice(0, splitAt).map((player, index) => (
                 <PlayerSeat
@@ -799,7 +855,7 @@ export default function RoomDetailPage() {
             </div>
           </section>
 
-          <div className={styles.rightRail}>
+          <div className={styles.rightRail} id="action-chat-panel">
             {room.status === "playing" && (
               <RoomPhasePanel
                 currentCardAvailable={Boolean(currentCard)}
@@ -888,7 +944,7 @@ export default function RoomDetailPage() {
           </div>
         </div>
 
-        <section className={styles.leaderboard} aria-labelledby="leaderboard-title">
+        <section className={styles.leaderboard} id="room-ranking-panel" aria-labelledby="leaderboard-title">
           <div className={styles.leaderboardHeading}>
             <div>
               <p>ROOM STANDINGS</p>

@@ -1,17 +1,42 @@
 .page {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
-  background: #131915;
+  overflow-x: clip;
+  background:
+    radial-gradient(circle at 12% 7%, rgb(217 242 117 / 9%), transparent 26rem),
+    radial-gradient(circle at 88% 32%, rgb(72 137 94 / 8%), transparent 30rem),
+    #111713;
   color: #f7f4e9;
 }
 
+.page::before {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  opacity: .24;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px);
+  background-size: 48px 48px;
+  content: "";
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, #000, transparent 75%);
+}
+
 .header {
+  position: sticky;
+  z-index: 50;
+  top: 0;
   display: grid;
   min-height: 78px;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 0 34px;
-  border-bottom: 1px solid #313832;
-  background: #131915;
+  border-bottom: 1px solid rgb(111 130 116 / 35%);
+  background: rgb(17 23 19 / 88%);
+  box-shadow: 0 10px 35px rgb(0 0 0 / 14%);
+  backdrop-filter: blur(16px);
 }
 
 .brand {
@@ -98,17 +123,48 @@
 }
 
 .content {
-  width: min(calc(100% - 48px), 1180px);
+  width: min(calc(100% - 48px), 1260px);
   margin: 0 auto;
-  padding: 52px 0 64px;
+  padding: 42px 0 72px;
 }
 
 .roomHeading {
+  position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 30px;
-  margin-bottom: 30px;
+  gap: 34px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  padding: 28px;
+  border: 1px solid #3e4d42;
+  border-radius: 28px 28px 28px 8px;
+  background:
+    linear-gradient(115deg, rgb(217 242 117 / 8%), transparent 42%),
+    #18211b;
+  box-shadow:
+    0 24px 60px rgb(0 0 0 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 3%);
+}
+
+.roomHeading::after {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  right: -130px;
+  top: -155px;
+  border: 1px solid rgb(217 242 117 / 12%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 42px rgb(217 242 117 / 2%);
+  content: "";
+  pointer-events: none;
+}
+
+.roomIntro {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1;
 }
 
 .eyebrow {
@@ -140,36 +196,470 @@
 
 .roomHeading h1 {
   margin: 0;
-  font-size: clamp(42px, 6vw, 72px);
+  font-size: clamp(40px, 5vw, 66px);
   letter-spacing: -.065em;
   line-height: .95;
 }
 
-.roomHeading p {
-  display: flex;
-  flex-wrap: wrap;
+.roomSummary {
+  display: grid;
+  max-width: 730px;
+  grid-template-columns: 1.45fr repeat(3, minmax(100px, 1fr));
   gap: 8px;
-  margin: 16px 0 0;
-  color: #89958c;
-  font-size: 10px;
+  margin-top: 22px;
 }
 
-.roomHeading p strong {
-  color: #c7cec8;
+.roomSummary > div {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 4px;
+  min-height: 82px;
+  padding: 12px 14px;
+  border: 1px solid #354139;
+  border-radius: 14px 14px 14px 5px;
+  background: rgb(12 18 14 / 38%);
+}
+
+.roomSummary > div.inviteSummary {
+  border-color: rgb(217 242 117 / 42%);
+  background: rgb(217 242 117 / 9%);
+}
+
+.roomSummary small {
+  color: #7f8e84;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .15em;
+}
+
+.roomSummary strong {
+  overflow: hidden;
+  color: #f5f5ec;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 20px;
+  letter-spacing: -.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomSummary strong i {
+  color: #718077;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.roomSummary .inviteSummary strong {
+  color: #d9f275;
+}
+
+.roomSummary .languageValue {
+  color: #9db6ff;
+}
+
+.roomSummary span {
+  overflow: hidden;
+  color: #78857c;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gameControl {
   position: relative;
+  z-index: 1;
   display: grid;
+  width: min(290px, 30vw);
+  align-content: center;
   justify-items: end;
-  gap: 7px;
+  gap: 9px;
+}
+
+.gameGuideButton {
+  position: fixed;
+  z-index: 141;
+  right: 24px;
+  bottom: 24px;
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 18px 0 12px;
+  border: 1px solid #d9f275;
+  border-radius: 999px;
+  background: #d9f275;
+  box-shadow: 0 12px 34px rgb(0 0 0 / 42%);
+  color: #172019;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .06em;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+
+.gameGuideButton > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: #172019;
+  color: #d9f275;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.gameGuideButton:hover,
+.gameGuideButton[aria-expanded="true"] {
+  border-color: #efffae;
+  background: #efffae;
+  color: #172019;
+  transform: translateY(-2px);
+}
+
+.gameGuideButton:focus-visible,
+.gameGuideHeader > button:focus-visible,
+.gameGuideFooter > button:focus-visible {
+  outline: 2px solid #d9f275;
+  outline-offset: 3px;
+}
+
+.gameGuideOverlay {
+  position: fixed;
+  z-index: 139;
+  display: grid;
+  inset: 0;
+  align-items: end;
+  justify-items: end;
+  padding: 24px;
+  pointer-events: none;
+  animation: card-reveal-overlay-in .18s ease-out both;
+}
+
+.gameGuideDialog {
+  display: grid;
+  width: min(420px, calc(100vw - 48px));
+  max-height: calc(100dvh - 112px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  margin-bottom: 60px;
+  overflow: hidden;
+  border: 1px solid #536057;
+  border-radius: 20px 20px 6px 20px;
+  background: #18201b;
+  box-shadow: 0 34px 90px rgb(0 0 0 / 55%);
+  pointer-events: auto;
+}
+
+.gameGuideHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px;
+  border-bottom: 1px solid #343f37;
+  background:
+    radial-gradient(circle at 15% 0%, rgb(217 242 117 / 12%), transparent 38%),
+    #1b241e;
+}
+
+.gameGuideHeader small,
+.guideSectionTitle small {
+  color: #d9f275;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.gameGuideHeader h2 {
+  margin: 7px 0 0;
+  color: #f7f4e9;
+  font-size: 26px;
+  letter-spacing: -.045em;
+  line-height: 1;
+}
+
+.gameGuideHeader p {
+  margin: 10px 0 0;
+  color: #95a098;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.gameGuideHeader > button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid #465149;
+  border-radius: 50%;
+  background: #202a23;
+  color: #c9d0ca;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gameGuideBody {
+  display: grid;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 24px;
+  padding: 22px 20px;
+  overscroll-behavior: contain;
+  scrollbar-color: #788b6d #202923;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gameGuideBody::-webkit-scrollbar {
+  width: 8px;
+}
+
+.gameGuideBody::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #202923;
+}
+
+.gameGuideBody::-webkit-scrollbar-thumb {
+  border: 2px solid #202923;
+  border-radius: 999px;
+  background: #788b6d;
+}
+
+.gameGuideBody::-webkit-scrollbar-thumb:hover {
+  background: #d9f275;
+}
+
+.guideSection {
+  display: grid;
+  gap: 16px;
+}
+
+.guideSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guideSectionTitle > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid #465149;
+  border-radius: 11px 11px 11px 4px;
+  color: #d9f275;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.guideSectionTitle h3 {
+  margin: 3px 0 0;
+  color: #eff1e9;
+  font-size: 16px;
+}
+
+.guideSteps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guideSteps li {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 132px;
+  padding: 15px;
+  border: 1px solid #37433b;
+  border-radius: 14px 14px 14px 5px;
+  background: #1d2720;
+}
+
+.guideSteps li > span {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 50%;
+  background: #d9f275;
+  color: #172019;
+  font-size: 9px;
+  font-weight: 950;
+}
+
+.guideSteps strong {
+  color: #eef0e9;
+  font-size: 10px;
+}
+
+.guideSteps p {
+  margin: 6px 0 0;
+  color: #8e9991;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.roleGuideGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.roleGuideCard {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-height: 0;
+  padding: 17px;
+  border: 1px solid #435047;
+  border-radius: 16px 16px 16px 5px;
+  background: #202923;
+}
+
+.roleGuideCard > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.roleGuideCard > div > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px 9px 9px 3px;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.roleGuideCard > div > strong {
+  color: #f4f3eb;
+  font-size: 13px;
+}
+
+.roleGuideCard p {
+  margin: 0;
+  color: #9ca69e;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.roleGuideCard p b {
+  color: #dce0dc;
+}
+
+.roleGuideCard > small {
+  align-self: end;
+  margin-top: auto;
+  padding-top: 4px;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  line-height: 1.45;
+}
+
+.civilianGuide > div > span {
+  background: #d9f275;
+  color: #172019;
+}
+
+.civilianGuide > small { color: #d9f275; }
+
+.undercoverGuide > div > span {
+  background: #ef765f;
+  color: #261713;
+}
+
+.undercoverGuide > small { color: #ef8c78; }
+
+.mrWhiteGuide > div > span {
+  background: #eee9dd;
+  color: #252822;
+}
+
+.mrWhiteGuide > small { color: #ddd9cf; }
+
+.guideTips {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgb(217 242 117 / 22%);
+  border-radius: 14px 14px 14px 5px;
+  background: rgb(217 242 117 / 6%);
+}
+
+.guideTips > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: #d9f275;
+  color: #172019;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.guideTips strong {
+  color: #e8ede7;
+  font-size: 10px;
+}
+
+.guideTips p {
+  margin: 4px 0 0;
+  color: #929e95;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.gameGuideFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 20px;
+  border-top: 1px solid #343f37;
+  background: #151c18;
+}
+
+.gameGuideFooter > span {
+  color: #6f7b72;
+  font-size: 8px;
+}
+
+.gameGuideFooter > button {
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #d9f275;
+  color: #172019;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .discussionSetting {
   display: grid;
   justify-items: end;
   gap: 6px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #354139;
+  border-radius: 14px 14px 14px 5px;
+  background: rgb(12 18 14 / 38%);
 }
 
 .discussionSetting > label {
@@ -219,21 +709,26 @@
 
 .dealButton {
   display: inline-flex;
-  min-height: 42px;
+  width: 100%;
+  min-height: 48px;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  padding: 0 16px;
-  border: 1px solid #52604f;
+  padding: 0 18px;
+  border: 1px solid #d9f275;
   border-radius: 999px;
-  background: #1c271f;
-  color: #e9ece7;
-  font-size: 10px;
-  font-weight: 800;
+  background: #d9f275;
+  box-shadow: 0 12px 26px rgb(151 183 67 / 14%);
+  color: #172019;
+  font-size: 11px;
+  font-weight: 900;
   cursor: pointer;
 }
 
 .dealButton:disabled {
   border-color: #3c473f;
+  background: #1c271f;
+  box-shadow: none;
   color: #89938c;
   cursor: wait;
 }
@@ -243,7 +738,7 @@
 }
 
 .dealButton span {
-  color: #d9f275;
+  color: currentColor;
   font-size: 16px;
 }
 
@@ -303,6 +798,10 @@
   cursor: pointer;
 }
 
+.mobileRoomNav {
+  display: none;
+}
+
 .confirmNo {
   border: 1px solid #465149;
   background: transparent;
@@ -324,7 +823,7 @@
 .roomLayout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;
-  gap: 14px;
+  gap: 18px;
   align-items: stretch;
 }
 
@@ -333,7 +832,7 @@
   min-width: 0;
   height: 670px;
   grid-template-rows: minmax(0, 1fr) 170px;
-  gap: 14px;
+  gap: 18px;
 }
 
 .rightRail:has(.votePanel) {
@@ -345,9 +844,12 @@
   display: grid;
   gap: 14px;
   padding: 18px;
-  border: 1px solid #435047;
+  border: 1px solid #506157;
   border-radius: 18px 18px 18px 5px;
-  background: #1b231e;
+  background:
+    linear-gradient(145deg, rgb(217 242 117 / 5%), transparent 45%),
+    #1b231e;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 15%);
 }
 
 .votePanelHeading {
@@ -536,6 +1038,7 @@
 .roomChat {
   min-height: 0;
   max-height: none;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 16%);
 }
 
 .myAccount {
@@ -662,18 +1165,39 @@
 }
 
 .board {
+  position: relative;
   display: grid;
   min-width: 0;
   min-height: 670px;
   grid-template-rows: auto minmax(280px, 1fr) auto;
-  gap: 26px;
-  padding: 28px;
+  gap: 28px;
+  padding: 30px;
   overflow: hidden;
-  border: 1px solid #3c4a40;
+  border: 1px solid #45564a;
   border-radius: 30px 30px 30px 9px;
   background:
-    radial-gradient(circle at 50% 50%, rgb(217 242 117 / 7%), transparent 30%),
-    #18211b;
+    radial-gradient(ellipse at 50% 48%, rgb(90 167 111 / 15%), transparent 42%),
+    linear-gradient(rgb(255 255 255 / 1.6%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 1.6%) 1px, transparent 1px),
+    #172019;
+  background-size: auto, 32px 32px, 32px 32px, auto;
+  box-shadow:
+    0 26px 65px rgb(0 0 0 / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 3%);
+}
+
+.board::before {
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgb(217 242 117 / 6%);
+  border-radius: 21px 21px 21px 6px;
+  content: "";
+  pointer-events: none;
+}
+
+.board > * {
+  position: relative;
+  z-index: 1;
 }
 
 .seatRow {
@@ -689,15 +1213,30 @@
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 8px;
-  padding: 10px;
-  border: 1px solid #354038;
+  padding: 11px;
+  border: 1px solid #3c4a41;
   border-radius: 16px 16px 16px 5px;
-  background: #202a23;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 3%), transparent 48%),
+    #202a23;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 13%);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.seat:hover {
+  border-color: #617269;
+  box-shadow: 0 14px 28px rgb(0 0 0 / 20%);
+  transform: translateY(-2px);
 }
 
 .currentSeat {
-  border-color: #80904f;
-  box-shadow: inset 0 0 0 1px rgb(217 242 117 / 9%);
+  border-color: #b9d65e;
+  background:
+    linear-gradient(145deg, rgb(217 242 117 / 9%), transparent 52%),
+    #202a23;
+  box-shadow:
+    0 0 0 3px rgb(217 242 117 / 6%),
+    0 14px 28px rgb(0 0 0 / 18%);
 }
 
 .playerInfo {
@@ -924,8 +1463,16 @@ button.playerCard {
 
 .emptySeat {
   border-style: dashed;
-  background: transparent;
+  background: rgb(13 20 15 / 26%);
   color: #778279;
+  box-shadow: none;
+  opacity: .74;
+}
+
+.emptySeat:hover {
+  border-color: #4d5b52;
+  box-shadow: none;
+  transform: none;
 }
 
 .emptyAvatar {
@@ -940,6 +1487,7 @@ button.playerCard {
 }
 
 .table {
+  position: relative;
   align-self: stretch;
   justify-self: center;
   display: flex;
@@ -949,11 +1497,43 @@ button.playerCard {
   align-items: center;
   justify-content: center;
   padding: 35px;
-  border: 8px solid #202c24;
+  overflow: hidden;
+  border: 9px solid #202c24;
   border-radius: 50%;
-  background: #28543a;
+  background:
+    radial-gradient(circle at 50% 40%, rgb(217 242 117 / 11%), transparent 38%),
+    linear-gradient(145deg, #326b49, #214a33 68%, #1b3d2b);
   text-align: center;
-  box-shadow: inset 0 0 0 1px #496951, 0 22px 45px rgb(0 0 0 / 24%);
+  box-shadow:
+    inset 0 0 0 2px rgb(164 207 150 / 28%),
+    inset 0 -28px 55px rgb(9 25 15 / 22%),
+    0 28px 55px rgb(0 0 0 / 30%),
+    0 0 0 1px rgb(217 242 117 / 5%);
+}
+
+.table::before {
+  position: absolute;
+  inset: 15px;
+  border: 1px solid rgb(217 242 117 / 16%);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.table::after {
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  border: 1px dashed rgb(217 242 117 / 9%);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  transform: rotate(-12deg);
+}
+
+.table > * {
+  position: relative;
+  z-index: 1;
 }
 
 .tableMark {
@@ -964,8 +1544,9 @@ button.playerCard {
   margin-bottom: 14px;
   border: 1px solid rgb(217 242 117 / 35%);
   border-radius: 13px 13px 13px 4px;
-  background: rgb(217 242 117 / 10%);
-  color: #d9f275;
+  background: #d9f275;
+  box-shadow: 0 12px 24px rgb(17 37 24 / 26%);
+  color: #183421;
   font-size: 20px;
   font-weight: 900;
   transform: rotate(-4deg);
@@ -1365,9 +1946,12 @@ button.playerCard {
 .leaderboard {
   margin-top: 14px;
   padding: 24px;
-  border: 1px solid #354038;
+  border: 1px solid #3d4b42;
   border-radius: 20px 20px 20px 6px;
-  background: #19221c;
+  background:
+    linear-gradient(120deg, rgb(217 242 117 / 4%), transparent 30%),
+    #19221c;
+  box-shadow: 0 22px 52px rgb(0 0 0 / 16%);
 }
 
 .leaderboardHeading {
@@ -1800,6 +2384,19 @@ button.playerCard {
 }
 
 @media (max-width: 1040px) {
+  .roomHeading {
+    flex-direction: column;
+  }
+
+  .gameControl {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .discussionSetting {
+    justify-items: start;
+  }
+
   .roomLayout {
     grid-template-columns: 1fr;
   }
@@ -1859,16 +2456,173 @@ button.playerCard {
 
   .content {
     width: calc(100% - 28px);
-    padding-top: 38px;
+    padding-top: 24px;
+  }
+
+  .mobileRoomNav {
+    position: sticky;
+    z-index: 40;
+    top: 86px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    margin: 0 0 14px;
+    padding: 5px;
+    border: 1px solid #435047;
+    border-radius: 17px;
+    background: rgb(20 28 23 / 92%);
+    box-shadow: 0 14px 32px rgb(0 0 0 / 28%);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobileRoomNav button {
+    display: grid;
+    min-width: 0;
+    min-height: 58px;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+    padding: 8px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: #87938a;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mobileRoomNav button[aria-pressed="true"] {
+    border-color: #d9f275;
+    background: #d9f275;
+    box-shadow: 0 8px 18px rgb(120 148 51 / 18%);
+    color: #172019;
+  }
+
+  .mobileRoomNav button > span:first-child {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border-radius: 7px;
+    background: rgb(255 255 255 / 6%);
+    font-size: 10px;
+  }
+
+  .mobileRoomNav button[aria-pressed="true"] > span:first-child {
+    background: rgb(23 32 25 / 11%);
+  }
+
+  .mobileRoomNav button > span:last-child {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .mobileRoomNav strong,
+  .mobileRoomNav small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileRoomNav strong {
+    font-size: 9px;
+  }
+
+  .mobileRoomNav small {
+    color: currentColor;
+    font-size: 6px;
+    opacity: .68;
+  }
+
+  .content[data-mobile-view="table"] .leaderboard,
+  .content[data-mobile-view="chat"] .leaderboard {
+    display: none;
+  }
+
+  .content[data-mobile-view="table"] .rightRail {
+    display: block;
+    height: auto;
+  }
+
+  .content[data-mobile-view="table"] .rightRail .roomChat,
+  .content[data-mobile-view="table"] .rightRail .myAccount {
+    display: none;
+  }
+
+  .content[data-mobile-view="table"] .votePanel {
+    margin-top: 14px;
+  }
+
+  .content[data-mobile-view="chat"] .board {
+    display: none;
+  }
+
+  .content[data-mobile-view="chat"] .rightRail {
+    height: auto;
+    grid-template-rows: minmax(460px, 62dvh) auto;
+  }
+
+  .content[data-mobile-view="chat"] .rightRail:has(.votePanel) {
+    grid-template-rows: auto minmax(460px, 62dvh) auto;
+  }
+
+  .content[data-mobile-view="ranking"] .roomLayout {
+    display: none;
+  }
+
+  .content[data-mobile-view="ranking"] .leaderboard {
+    display: block;
+    margin-top: 0;
   }
 
   .roomHeading {
     align-items: flex-start;
     flex-direction: column;
+    padding: 22px;
+  }
+
+  .roomSummary {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .gameControl {
     justify-items: start;
+  }
+
+  .gameGuideOverlay {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .gameGuideDialog {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 84px);
+    margin-bottom: 60px;
+    border-radius: 22px 22px 8px 8px;
+  }
+
+  .gameGuideButton {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .gameGuideHeader {
+    padding: 22px 20px 19px;
+  }
+
+  .gameGuideBody {
+    gap: 24px;
+    padding: 22px 20px;
+  }
+
+  .guideSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gameGuideFooter {
+    padding: 14px 20px;
   }
 
   .discussionSetting {
@@ -1882,6 +2636,19 @@ button.playerCard {
 
   .board {
     padding: 18px;
+    grid-template-rows: auto;
+  }
+
+  .board > .table {
+    grid-row: 1;
+  }
+
+  .board > .seatRow:first-child {
+    grid-row: 2;
+  }
+
+  .board > .seatRow:last-child {
+    grid-row: 3;
   }
 
   .seatRow {
@@ -1890,8 +2657,8 @@ button.playerCard {
 
   .table {
     width: 100%;
-    min-height: 250px;
-    border-radius: 120px;
+    min-height: 220px;
+    border-radius: 32px;
   }
 
   .roomChat {
@@ -1917,6 +2684,47 @@ button.playerCard {
     font-size: 45px;
   }
 
+  .roomHeading {
+    padding: 18px;
+    border-radius: 22px 22px 22px 7px;
+  }
+
+  .roomSummary {
+    gap: 7px;
+  }
+
+  .roomSummary > div {
+    min-height: 76px;
+    padding: 10px;
+  }
+
+  .roomSummary strong {
+    font-size: 17px;
+  }
+
+  .gameGuideHeader p,
+  .gameGuideFooter > span {
+    display: none;
+  }
+
+  .gameGuideHeader h2 {
+    font-size: 25px;
+  }
+
+  .guideSteps,
+  .roleGuideGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .guideSteps li,
+  .roleGuideCard {
+    min-height: 0;
+  }
+
+  .gameGuideFooter {
+    justify-content: flex-end;
+  }
+
   .seatRow {
     grid-template-columns: 1fr;
   }
@@ -1926,7 +2734,7 @@ button.playerCard {
   }
 
   .table {
-    min-height: 260px;
+    min-height: 200px;
     padding: 28px 20px;
   }
 

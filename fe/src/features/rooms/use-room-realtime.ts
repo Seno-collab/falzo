@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/features/chat/chat-panel";
 import { restoreSession } from "@/lib/auth";
 import { listRoomMessages } from "@/lib/api";
+import type { RoundPhase } from "@/types/room";
 
 const reconnectMaxDelay = 15_000;
 const reconnectBaseDelay = 800;
@@ -37,6 +38,14 @@ export type VoteUpdatedEvent = {
   completed: boolean;
 };
 
+export type GameStateUpdatedEvent = {
+  round: number;
+  cycle: number;
+  phase: RoundPhase;
+  current_turn_player_id: number | null;
+  phase_deadline_at: string | null;
+};
+
 type PresencePayload = { players: RealtimePlayer[] };
 type ChatPayload = {
   id: string;
@@ -60,6 +69,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
   const [roundStarted, setRoundStarted] = useState<RoundStartedEvent | null>(null);
   const [roomRevision, setRoomRevision] = useState(0);
   const [gameStateRevision, setGameStateRevision] = useState(0);
+  const [gameStateUpdated, setGameStateUpdated] = useState<GameStateUpdatedEvent | null>(null);
   const [voteUpdated, setVoteUpdated] = useState<VoteUpdatedEvent | null>(null);
   const [error, setError] = useState("");
   const [removed, setRemoved] = useState(false);
@@ -150,6 +160,8 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
             break;
           }
           case "game.state.updated": {
+            const update = parseGameStateUpdatedEvent(event.payload);
+            if (update) setGameStateUpdated(update);
             setGameStateRevision((current) => current + 1);
             break;
           }
@@ -223,6 +235,7 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
     error,
     messages,
     gameStateRevision,
+    gameStateUpdated,
     players,
     roundStarted,
     roomRevision,
@@ -230,6 +243,39 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
     sendChat,
     status,
     voteUpdated,
+  };
+}
+
+const roundPhases = new Set<RoundPhase>([
+  "REVEALING_ROLE",
+  "DESCRIBING",
+  "VOTING",
+  "REVEALING_RESULT",
+  "MR_WHITE_GUESSING",
+  "GAME_FINISHED",
+]);
+
+function parseGameStateUpdatedEvent(payload: unknown): GameStateUpdatedEvent | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.round !== "number"
+    || typeof value.cycle !== "number"
+    || typeof value.phase !== "string"
+    || !roundPhases.has(value.phase as RoundPhase)
+  ) {
+    return null;
+  }
+  return {
+    round: value.round,
+    cycle: value.cycle,
+    phase: value.phase as RoundPhase,
+    current_turn_player_id: typeof value.current_turn_player_id === "number"
+      ? value.current_turn_player_id
+      : null,
+    phase_deadline_at: typeof value.phase_deadline_at === "string"
+      ? value.phase_deadline_at
+      : null,
   };
 }
 
