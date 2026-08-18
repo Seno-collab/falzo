@@ -1,5 +1,3 @@
-"use client";
-
 import type { FormEvent } from "react";
 import type { GameRoom, RoomPlayer } from "@/features/rooms/data";
 import type { RoundStateResponse } from "@/types/room";

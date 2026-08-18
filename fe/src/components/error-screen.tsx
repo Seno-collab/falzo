@@ -8,7 +8,7 @@ type ErrorScreenProps = {
   eyebrow: string;
   title: string;
   description: string;
-  onRetry?: () => void;
+  onRetryAction?: () => void;
   primaryHref?: string;
   primaryLabel?: string;
 };
@@ -18,7 +18,7 @@ export function ErrorScreen({
   eyebrow,
   title,
   description,
-  onRetry,
+  onRetryAction,
   primaryHref = "/",
   primaryLabel = "Back home",
 }: ErrorScreenProps) {
@@ -46,13 +46,13 @@ export function ErrorScreen({
         <p className={styles.description}>{description}</p>
 
         <div className={styles.actions}>
-          {onRetry && (
-            <button className={styles.primaryAction} onClick={onRetry} type="button">
+          {onRetryAction && (
+            <button className={styles.primaryAction} onClick={onRetryAction} type="button">
               Try again
             </button>
           )}
           <Link
-            className={onRetry ? styles.secondaryAction : styles.primaryAction}
+            className={onRetryAction ? styles.secondaryAction : styles.primaryAction}
             href={primaryHref}
           >
             {primaryLabel}

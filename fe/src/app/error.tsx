@@ -18,7 +18,7 @@ export default function ErrorPage({
     <ErrorScreen
       description="Something unexpected interrupted the game. Your room has not been intentionally closed."
       eyebrow="SOMETHING WENT WRONG"
-      onRetry={reset}
+      onRetryAction={reset}
       statusCode="500"
       title="The game hit a bad draw."
     />

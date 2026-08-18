@@ -20,13 +20,13 @@ type ChatPanelProps = {
   initialMessages?: readonly ChatMessage[];
   currentUsername?: string;
   connected?: boolean;
-  onSendMessage?: (text: string) => boolean;
+  onSendMessageAction?: (text: string) => boolean;
   presence?: "online" | "offline" | "room";
   contextLabel?: string;
   inputPlaceholder?: string;
   disabledPlaceholder?: string;
   className?: string;
-  onClose?: () => void;
+  onCloseAction?: () => void;
 };
 
 export function ChatPanel({
@@ -36,13 +36,13 @@ export function ChatPanel({
   initialMessages = [],
   currentUsername = "You",
   connected = true,
-  onSendMessage,
+  onSendMessageAction,
   presence = "online",
   contextLabel,
   inputPlaceholder = "Write a message…",
   disabledPlaceholder = "Reconnecting…",
   className,
-  onClose,
+  onCloseAction,
 }: ChatPanelProps) {
   const inputId = useId();
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>(() => [...initialMessages]);
@@ -59,8 +59,8 @@ export function ChatPanel({
     const text = draftMessage.trim();
     if (!text) return;
 
-    if (onSendMessage) {
-      if (onSendMessage(text)) setDraftMessage("");
+    if (onSendMessageAction) {
+      if (onSendMessageAction(text)) setDraftMessage("");
       return;
     }
 
@@ -87,8 +87,8 @@ export function ChatPanel({
 
         <div className={styles.headerActions}>
           {contextLabel && <span>{contextLabel}</span>}
-          {onClose && (
-            <button aria-label={`Close chat with ${title}`} onClick={onClose} type="button">
+          {onCloseAction && (
+            <button aria-label={`Close chat with ${title}`} onClick={onCloseAction} type="button">
               ×
             </button>
           )}

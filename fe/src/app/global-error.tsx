@@ -21,7 +21,7 @@ export default function GlobalError({
         <ErrorScreen
           description="Falzo could not load the application shell. Try again or return home to start fresh."
           eyebrow="APPLICATION ERROR"
-          onRetry={reset}
+          onRetryAction={reset}
           statusCode="500"
           title="We could not set the table."
         />

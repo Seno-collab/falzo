@@ -82,6 +82,10 @@ export default function RoomDetailPage() {
       : [],
     [room],
   );
+  const playerRanks = useMemo(
+    () => new Map(rankedPlayers.map((player, index) => [player.id, index + 1])),
+    [rankedPlayers],
+  );
 
   const rosterKey = room?.id ?? "";
 
@@ -309,7 +313,7 @@ export default function RoomDetailPage() {
       <ErrorScreen
         description="The room server could not be reached. Your room was not intentionally closed."
         eyebrow="ROOM UNAVAILABLE"
-        onRetry={() => setReloadToken((current) => current + 1)}
+        onRetryAction={() => setReloadToken((current) => current + 1)}
         primaryHref="/dashboard"
         primaryLabel="Back to rooms"
         statusCode="500"
@@ -540,7 +544,7 @@ export default function RoomDetailPage() {
                 className={`${styles.dealAvatar} ${styles[activeDealPlayer.color]}`}
                 aria-hidden="true"
               >
-                {activeDealPlayer.name.charAt(0).toUpperCase()}
+                {playerInitials(activeDealPlayer.name)}
               </span>
               <div>
                 <small>DEALING CARD TO</small>
@@ -748,6 +752,7 @@ export default function RoomDetailPage() {
                   key={player?.id ?? `empty-top-${index}`}
                   onReveal={revealCurrentCard}
                   player={player}
+                  rank={player ? playerRanks.get(player.id) : undefined}
                 />
               ))}
             </div>
@@ -788,6 +793,7 @@ export default function RoomDetailPage() {
                   key={player?.id ?? `empty-bottom-${index}`}
                   onReveal={revealCurrentCard}
                   player={player}
+                  rank={player ? playerRanks.get(player.id) : undefined}
                 />
               ))}
             </div>
@@ -829,7 +835,7 @@ export default function RoomDetailPage() {
               inputPlaceholder={isCurrentTurn ? "Nhập lời mô tả…" : "Message the room…"}
               key={room.id}
               messages={realtime.messages}
-              onSendMessage={realtime.sendChat}
+              onSendMessageAction={realtime.sendChat}
               presence={currentPlayer?.eliminated
                 ? "room"
                 : realtime.connected ? "online" : "offline"}
@@ -906,15 +912,16 @@ export default function RoomDetailPage() {
                 {rankedPlayers.map((player, index) => (
                   <tr className={player.current ? styles.currentRanking : undefined} key={player.id}>
                     <td>
-                      <span className={`${styles.rankNumber} ${index < 3 ? styles.topRank : ""}`}>
+                      <span
+                        className={`${styles.rankNumber} ${index < 3 ? styles.topRank : ""}`}
+                        key={`${player.id}-${index + 1}`}
+                      >
                         {String(index + 1).padStart(2, "0")}
                       </span>
                     </td>
                     <td>
                       <div className={styles.rankedPlayer}>
-                        <span className={`${styles.rankedAvatar} ${styles[player.color]}`} aria-hidden="true">
-                          {player.name.charAt(0).toUpperCase()}
-                        </span>
+                        <PlayerAvatar compact player={player} />
                         <strong title={player.name}>{player.name}</strong>
                         {player.current && <small>YOU</small>}
                       </div>
@@ -925,6 +932,7 @@ export default function RoomDetailPage() {
                           player.online ? styles.onlineStatus : styles.offlineStatus
                         }`}
                       >
+                        <span className={styles.statusIndicator} aria-hidden="true" />
                         {player.eliminated
                           ? "Spectator"
                           : player.host ? "Admin" : "Player"} · {player.online ? "Online" : "Offline"}
@@ -981,7 +989,61 @@ type PlayerSeatProps = {
   dealPhase: DealPhase;
   dealt: boolean;
   onReveal: () => void;
+  rank?: number;
 };
+
+type PlayerAvatarProps = {
+  compact?: boolean;
+  player: RoomPlayer;
+  rank?: number;
+};
+
+function PlayerAvatar({ compact = false, player, rank }: PlayerAvatarProps) {
+  return (
+    <span
+      aria-label={`${player.name}${rank ? `, rank ${rank}` : ""}, ${player.online ? "online" : "offline"}`}
+      className={`${styles.playerAvatarFrame} ${compact ? styles.compactAvatarFrame : ""} ${
+        player.current ? styles.currentPlayerAvatar : ""
+      } ${rank ? styles.rankedAvatarFrame : ""}`}
+      role="img"
+      title={`${player.name} - ${player.online ? "Online" : "Offline"}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`${styles.playerAvatar} ${styles[player.color]} ${
+          player.online ? "" : styles.offlineAvatar
+        }`}
+      >
+        {playerInitials(player.name)}
+      </span>
+      <span
+        aria-hidden="true"
+        className={`${styles.avatarPresence} ${
+          player.online ? styles.avatarPresenceOnline : styles.avatarPresenceOffline
+        }`}
+      />
+      {rank && (
+        <span
+          aria-hidden="true"
+          className={`${styles.avatarRank} ${rank <= 3 ? styles.topAvatarRank : ""}`}
+          key={rank}
+        >
+          #{String(rank).padStart(2, "0")}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function playerInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+}
 
 function PlayerSeat({
   player,
@@ -989,14 +1051,17 @@ function PlayerSeat({
   dealPhase,
   dealt,
   onReveal,
+  rank,
 }: PlayerSeatProps) {
   if (!player) {
     return (
       <article className={`${styles.seat} ${styles.emptySeat}`}>
-        <span className={styles.emptyAvatar} aria-hidden="true">+</span>
-        <div>
-          <strong>Open seat</strong>
-          <small>Waiting for player</small>
+        <div className={styles.playerInfo}>
+          <span className={styles.emptyAvatar} aria-hidden="true">+</span>
+          <div>
+            <strong>Open seat</strong>
+            <small>Waiting for player</small>
+          </div>
         </div>
         <div className={styles.emptyCard} aria-hidden="true" />
       </article>
@@ -1008,9 +1073,7 @@ function PlayerSeat({
   return (
     <article className={`${styles.seat} ${player.current ? styles.currentSeat : ""}`}>
       <div className={styles.playerInfo}>
-        <span className={`${styles.playerAvatar} ${styles[player.color]}`} aria-hidden="true">
-          {player.name.charAt(0).toUpperCase()}
-        </span>
+        <PlayerAvatar player={player} rank={rank} />
         <div>
           <strong title={player.name}>{player.name}</strong>
           <small>

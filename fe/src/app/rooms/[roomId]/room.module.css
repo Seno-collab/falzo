@@ -686,10 +686,10 @@
   position: relative;
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 62px;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid #354038;
   border-radius: 16px 16px 16px 5px;
   background: #202a23;
@@ -702,26 +702,146 @@
 
 .playerInfo {
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
-.playerAvatar,
-.emptyAvatar {
+.playerAvatarFrame {
+  position: relative;
   display: grid;
-  width: 33px;
-  height: 33px;
+  width: 39px;
+  height: 39px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 50%;
+  border: 2px solid #4c5a50;
+  border-radius: 14px 14px 14px 5px;
+  background: #172019;
+  box-shadow:
+    0 8px 18px rgb(0 0 0 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.currentPlayerAvatar {
+  border-color: #d9f275;
+  box-shadow:
+    0 0 0 3px rgb(217 242 117 / 10%),
+    0 8px 18px rgb(0 0 0 / 24%);
+}
+
+.rankedAvatarFrame::before {
+  position: absolute;
+  z-index: 0;
+  inset: -6px;
+  padding: 2px;
+  border-radius: 18px 18px 18px 7px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 22%,
+    #d9f275 30%,
+    #f7bf4b 42%,
+    transparent 50% 76%,
+    rgb(217 242 117 / 45%) 86%,
+    transparent 94%
+  );
+  content: "";
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rank-ring-spin 2.4s linear infinite;
+}
+
+.playerAvatar {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 10px 10px 10px 3px;
   color: #172019;
   font-size: 10px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 22%);
+  transition: filter .2s ease, opacity .2s ease;
+}
+
+.offlineAvatar {
+  filter: grayscale(.72) saturate(.55);
+  opacity: .68;
+}
+
+.avatarPresence {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  right: -4px;
+  bottom: -3px;
+  border: 3px solid #202a23;
+  border-radius: 50%;
+}
+
+.avatarPresenceOnline {
+  background: #bfe75d;
+  box-shadow: 0 0 9px rgb(191 231 93 / 48%);
+}
+
+.avatarPresenceOffline {
+  background: #6f7a72;
+}
+
+.avatarRank {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  top: -15px;
+  left: -15px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #202a23;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #cfd8d0);
+  color: #1d2920;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: -.06em;
+  box-shadow:
+    0 7px 15px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 70%);
+  animation: rank-change-in .38s cubic-bezier(.2, .9, .3, 1.25) both;
+}
+
+.topAvatarRank {
+  background: linear-gradient(145deg, #f6ffbd, #c3df5f);
+  color: #253018;
+  box-shadow:
+    0 0 18px rgb(217 242 117 / 38%),
+    0 8px 16px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 75%);
+}
+
+.emptyAvatar {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 14px 14px 14px 5px;
+  color: #68736b;
+  font-size: 13px;
   font-weight: 850;
 }
 
-.playerInfo > div,
-.emptySeat > div:nth-child(2) {
+.playerInfo > div {
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -730,7 +850,9 @@
 .playerInfo strong,
 .emptySeat strong {
   overflow: hidden;
-  font-size: 10px;
+  color: #f1f4f0;
+  font-size: 11px;
+  letter-spacing: -.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -741,12 +863,12 @@
   font-size: 8px;
 }
 
-.lime { background: #d9f275; }
-.coral { background: #ef8c78; }
-.blue { background: #a9bceb; }
-.sand { background: #e8d6ac; }
-.violet { background: #c4ace8; }
-.mint { background: #a9dbc1; }
+.lime { background: linear-gradient(145deg, #efffb1, #bad956); }
+.coral { background: linear-gradient(145deg, #ffb3a4, #e86f5d); }
+.blue { background: linear-gradient(145deg, #cbd8fa, #89a4df); }
+.sand { background: linear-gradient(145deg, #fff0c9, #d8bc7f); }
+.violet { background: linear-gradient(145deg, #decdf7, #aa88d9); }
+.mint { background: linear-gradient(145deg, #c9f0dc, #7fc6a4); }
 
 .playerCard,
 .emptyCard {
@@ -1336,6 +1458,7 @@ button.playerCard {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 8px;
   font-weight: 850;
+  animation: rank-change-in .38s cubic-bezier(.2, .9, .3, 1.25) both;
 }
 
 .topRank {
@@ -1351,16 +1474,21 @@ button.playerCard {
   gap: 10px;
 }
 
-.rankedAvatar {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  color: #172019;
+.compactAvatarFrame {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px 12px 12px 4px;
+}
+
+.compactAvatarFrame .playerAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px 9px 9px 3px;
   font-size: 9px;
-  font-weight: 900;
+}
+
+.compactAvatarFrame .avatarPresence {
+  border-color: #1b231d;
 }
 
 .rankedPlayer strong {
@@ -1385,6 +1513,7 @@ button.playerCard {
   display: inline-flex;
   min-height: 25px;
   align-items: center;
+  gap: 6px;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -1392,6 +1521,15 @@ button.playerCard {
   font-weight: 850;
   letter-spacing: .05em;
   white-space: nowrap;
+}
+
+.statusIndicator {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentcolor;
+  box-shadow: 0 0 7px currentcolor;
 }
 
 .adminStatus {
@@ -1541,6 +1679,22 @@ button.playerCard {
   }
 }
 
+@keyframes rank-change-in {
+  from {
+    opacity: 0;
+    transform: translateY(-7px) scale(.72);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rank-ring-spin {
+  to { transform: rotate(1turn); }
+}
+
 @keyframes dealing-mark {
   from {
     transform: rotate(-8deg) scale(.94);
@@ -1662,6 +1816,21 @@ button.playerCard {
 
   .seatRow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .seat {
+    grid-template-columns: minmax(0, 1fr) 62px;
+    align-items: center;
+    justify-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .playerCard,
+  .emptyCard {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
   }
 
   .table {
@@ -1860,6 +2029,9 @@ button.playerCard {
   }
 
   .dealtCard,
+  .avatarRank,
+  .rankNumber,
+  .rankedAvatarFrame::before,
   .myCardReady,
   .dealingTable .tableMark,
   .dealOverlay,
