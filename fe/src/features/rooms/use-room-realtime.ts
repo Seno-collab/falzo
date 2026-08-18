@@ -104,9 +104,10 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
         void listRoomMessages(session.access_token, roomId, { trackActivity: false })
           .then((history) => {
             if (!active || socketRef.current !== socket) return;
+            const restoredMessages = Array.isArray(history) ? history : [];
             setMessages((current) => mergeMessages(
               current,
-              history.map((message) => mapChatMessage(message, currentUsername)),
+              restoredMessages.map((message) => mapChatMessage(message, currentUsername)),
             ));
           })
           .catch(() => {
