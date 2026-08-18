@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +38,7 @@ func (s *TokenSessionStore) save(ctx context.Context, kind, tokenID string, user
 }
 func (s *TokenSessionStore) consume(ctx context.Context, kind, tokenID string) (bool, error) {
 	_, err := s.client.GetDel(ctx, s.key(kind, tokenID)).Result()
-	if err == goredis.Nil {
+	if errors.Is(err, goredis.Nil) {
 		return false, nil
 	}
 	return err == nil, err

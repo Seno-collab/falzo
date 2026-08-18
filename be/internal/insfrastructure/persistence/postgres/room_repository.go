@@ -636,13 +636,27 @@ func (r *RoomRepository) AdvanceExpiredRounds(
 	return transitions, nil
 }
 
+func (r *RoomRepository) commitCurrentRoundState(
+	ctx context.Context,
+	tx pgx.Tx,
+	roomID string,
+	userID int64,
+	at time.Time,
+) (*domainroom.RoundState, error) {
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return r.FindCurrentRoundState(ctx, roomID, userID, at)
+}
+
 func (r *RoomRepository) MarkPlayerReady(ctx context.Context, input roomports.PlayerActionInput) (*domainroom.RoundState, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := advanceGameState(ctx, tx, input.RoomID, input.At); err != nil {
+	advanced, err := advanceGameState(ctx, tx, input.RoomID, input.At)
+	if err != nil {
 		return nil, err
 	}
 	var roundNumber int
@@ -682,13 +696,12 @@ func (r *RoomRepository) MarkPlayerReady(ctx context.Context, input roomports.Pl
 				return nil, err
 			}
 		}
+	} else if phase != domainroom.RoundPhaseDescribing && advanced {
+		return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
 	} else if phase != domainroom.RoundPhaseDescribing {
 		return nil, domainroom.ErrInvalidGameState
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return r.FindCurrentRoundState(ctx, input.RoomID, input.UserID, input.At)
+	return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
 }
 
 func (r *RoomRepository) FinishTurn(ctx context.Context, input roomports.PlayerActionInput) (*domainroom.RoundState, error) {
@@ -697,7 +710,8 @@ func (r *RoomRepository) FinishTurn(ctx context.Context, input roomports.PlayerA
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := advanceGameState(ctx, tx, input.RoomID, input.At); err != nil {
+	advanced, err := advanceGameState(ctx, tx, input.RoomID, input.At)
+	if err != nil {
 		return nil, err
 	}
 	var roundNumber, cycleNumber int
@@ -721,18 +735,21 @@ func (r *RoomRepository) FinishTurn(ctx context.Context, input roomports.PlayerA
 		return nil, err
 	}
 	if phase != domainroom.RoundPhaseDescribing {
+		if advanced {
+			return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
+		}
 		return nil, domainroom.ErrInvalidGameState
 	}
 	if !currentPlayerID.Valid || currentPlayerID.Int64 != input.UserID {
+		if advanced {
+			return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
+		}
 		return nil, domainroom.ErrNotCurrentTurn
 	}
 	if err := finishCurrentTurn(ctx, tx, input.RoomID, roundNumber, cycleNumber, input.At, false); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return r.FindCurrentRoundState(ctx, input.RoomID, input.UserID, input.At)
+	return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
 }
 
 func (r *RoomRepository) CastVote(ctx context.Context, input roomports.CastVoteInput) (*domainroom.RoundState, error) {
@@ -742,7 +759,8 @@ func (r *RoomRepository) CastVote(ctx context.Context, input roomports.CastVoteI
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := advanceGameState(ctx, tx, input.RoomID, input.VotedAt); err != nil {
+	advanced, err := advanceGameState(ctx, tx, input.RoomID, input.VotedAt)
+	if err != nil {
 		return nil, err
 	}
 	var roundNumber, cycleNumber int
@@ -763,6 +781,15 @@ func (r *RoomRepository) CastVote(ctx context.Context, input roomports.CastVoteI
 		return nil, err
 	}
 	if phase != domainroom.RoundPhaseVoting {
+		if advanced {
+			state, stateErr := r.commitCurrentRoundState(
+				ctx, tx, input.RoomID, input.VoterUserID, input.VotedAt,
+			)
+			if state != nil {
+				state.FinalizedNow = true
+			}
+			return state, stateErr
+		}
 		return nil, domainroom.ErrVotingNotOpen
 	}
 	if !votingEndsAt.Valid || !input.VotedAt.Before(votingEndsAt.Time) {
@@ -845,7 +872,8 @@ func (r *RoomRepository) SubmitMrWhiteGuess(ctx context.Context, input roomports
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := advanceGameState(ctx, tx, input.RoomID, input.At); err != nil {
+	advanced, err := advanceGameState(ctx, tx, input.RoomID, input.At)
+	if err != nil {
 		return nil, err
 	}
 	var roundNumber int
@@ -867,6 +895,9 @@ func (r *RoomRepository) SubmitMrWhiteGuess(ctx context.Context, input roomports
 		return nil, err
 	}
 	if phase != domainroom.RoundPhaseMrWhiteGuessing || !mrWhiteUserID.Valid || mrWhiteUserID.Int64 != input.UserID {
+		if advanced {
+			return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
+		}
 		return nil, domainroom.ErrMrWhiteGuessNotAllowed
 	}
 	if previousGuess.Valid {
@@ -891,10 +922,7 @@ func (r *RoomRepository) SubmitMrWhiteGuess(ctx context.Context, input roomports
 	} else if err := continueAfterResult(ctx, tx, input.RoomID, roundNumber, input.At, false); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return r.FindCurrentRoundState(ctx, input.RoomID, input.UserID, input.At)
+	return r.commitCurrentRoundState(ctx, tx, input.RoomID, input.UserID, input.At)
 }
 
 type roundStateQueryer interface {

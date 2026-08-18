@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ApiError,
   castRoomVote,
   confirmRoomRole,
   finishRoomTurn,
+  getCurrentRoundState,
   submitMrWhiteGuess,
 } from "@/lib/api";
 import { restoreSession } from "@/lib/auth";
@@ -31,15 +33,29 @@ export function useRoomGameCommands(
     if (!roomId || pending !== null) return false;
     setPending(command);
     onError("");
+    let accessToken = "";
     try {
       const session = await restoreSession();
       if (!session) {
         router.replace("/login");
         return false;
       }
-      onState(await action(session.access_token, roomId));
+      accessToken = session.access_token;
+      onState(await action(accessToken, roomId));
       return true;
     } catch (error) {
+      // A phase deadline can expire between rendering an action and the API
+      // receiving it. A conflict in this case means the server already moved
+      // the round forward, so refresh instead of showing a stale phase error.
+      if (accessToken && error instanceof ApiError && error.status === 409) {
+        try {
+          onState(await getCurrentRoundState(accessToken, roomId, { trackActivity: false }));
+          onError("");
+          return false;
+        } catch {
+          // Keep the original conflict when the recovery request also fails.
+        }
+      }
       onError(error instanceof Error ? error.message : fallback);
       return false;
     } finally {
