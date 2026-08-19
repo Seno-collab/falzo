@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: falzo-backend
+  namespace: falzo
+  labels:
+    app.kubernetes.io/name: falzo-backend
+    app.kubernetes.io/part-of: falzo
+spec:
+  namespaceSelector:
+    matchNames:
+      - falzo
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falzo-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s

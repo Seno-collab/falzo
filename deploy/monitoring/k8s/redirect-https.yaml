@@ -1,0 +1,12 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: falzo-monitor-redirect-https
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: falzo-grafana
+    app.kubernetes.io/part-of: falzo
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
