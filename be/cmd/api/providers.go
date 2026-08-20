@@ -191,6 +191,7 @@ func provideRealtimeHub(
 }
 
 func provideAuthHandler(
+	register *authapp.RegisterUseCase,
 	login *authapp.LoginUseCase,
 	refresh *authapp.RefreshTokenUseCase,
 	forgot *authapp.ForgotPasswordUseCase,
@@ -201,6 +202,7 @@ func provideAuthHandler(
 	cfg *config.Config,
 ) *handler.AuthHandler {
 	return handler.NewAuthHandler(
+		register,
 		login,
 		refresh,
 		forgot,

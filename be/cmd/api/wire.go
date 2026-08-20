@@ -32,6 +32,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config) (*applicatio
 		provideTokenSessionStore,
 		provideGoogleIdentityVerifier,
 		provideInviteCodeGenerator,
+		authapp.NewRegisterUseCase,
 		provideLoginUseCase,
 		authapp.NewRefreshTokenUseCase,
 		authapp.NewForgotPasswordUseCase,

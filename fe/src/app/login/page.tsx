@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GoogleLoginButton } from "@/components/google-login-button";
+import { PasswordAuthForm } from "@/components/password-auth-form";
 
 export default function LoginPage() {
   return (
@@ -27,7 +28,9 @@ export default function LoginPage() {
           <span className="auth-icon" aria-hidden="true">✦</span>
           <p className="eyebrow">WELCOME TO FALZO</p>
           <h2>Enter the game</h2>
-          <p className="muted">Use Google to create your player profile or continue where you left off.</p>
+          <p className="muted">Create a player account, sign in with your password, or continue with Google.</p>
+          <PasswordAuthForm />
+          <div className="auth-divider"><span>or</span></div>
           <GoogleLoginButton />
           <p className="auth-terms">By continuing, you agree to play nice.</p>
         </div>

@@ -12,6 +12,7 @@ import (
 )
 
 type AuthHandler struct {
+	register         *authapp.RegisterUseCase
 	login            *authapp.LoginUseCase
 	refresh          *authapp.RefreshTokenUseCase
 	forgotPassword   *authapp.ForgotPasswordUseCase
@@ -23,6 +24,7 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(
+	register *authapp.RegisterUseCase,
 	login *authapp.LoginUseCase,
 	refresh *authapp.RefreshTokenUseCase,
 	forgot *authapp.ForgotPasswordUseCase,
@@ -36,6 +38,7 @@ func NewAuthHandler(
 		logger = slog.Default()
 	}
 	return &AuthHandler{
+		register:         register,
 		login:            login,
 		refresh:          refresh,
 		forgotPassword:   forgot,
@@ -47,9 +50,13 @@ func NewAuthHandler(
 	}
 }
 
+type registerRequest struct {
+	UserName string `json:"username" validate:"required,min=3,max=30,username"`
+	Password string `json:"password" validate:"required,min=8,max=72"`
+}
 type loginRequest struct {
-	UserName string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
+	UserName string `json:"username" validate:"required,max=100"`
+	Password string `json:"password" validate:"required,max=72"`
 }
 type refreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
@@ -63,6 +70,20 @@ type resetPasswordRequest struct {
 }
 type googleLoginRequest struct {
 	Credential string `json:"credential" validate:"required,max=8192"`
+}
+
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	body, err := request.DecodeJSON[registerRequest](w, r)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	result, err := h.register.Execute(r.Context(), authapp.RegisterInput{UserName: body.UserName, Password: body.Password})
+	if err != nil {
+		h.writeAuthError(w, r, "register", err)
+		return
+	}
+	response.Created(w, result)
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +200,8 @@ func mapAuthError(err error) error {
 		return apperror.UserNameExists()
 	case errors.Is(err, domainuser.ErrInvalidToken):
 		return apperror.InvalidToken()
+	case errors.Is(err, authapp.ErrInvalidRegistrationInput):
+		return apperror.InvalidRequest("Username or password does not meet the registration requirements")
 	case errors.Is(err, authapp.ErrInvalidGoogleCredential):
 		return apperror.InvalidCredentials()
 	default:

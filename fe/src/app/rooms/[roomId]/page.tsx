@@ -204,6 +204,15 @@ export default function RoomDetailPage() {
   }, [roundState?.cycle, roundState?.phase, roundState?.round]);
 
   useEffect(() => {
+    if (
+      roundState?.current_user_ready
+      && roundState.round === cardRound
+    ) {
+      setCardOverlay("hidden");
+    }
+  }, [cardRound, roundState?.current_user_ready, roundState?.round]);
+
+  useEffect(() => {
     if (rosterKey) {
       dealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       dealTimersRef.current = [];
@@ -508,7 +517,11 @@ export default function RoomDetailPage() {
   }
 
   async function confirmRoleCard() {
-    if (!room || roleReadyPending || roundState?.current_user_ready) return;
+    if (!room || roleReadyPending) return;
+    if (roundState?.current_user_ready) {
+      setCardOverlay("hidden");
+      return;
+    }
     if (await gameCommands.confirmRole()) {
       setCardOverlay("hidden");
     }

@@ -16,6 +16,7 @@ type UserRepository interface {
 	FindByUserName(ctx context.Context, username string) (*domainuser.User, error)
 	FindByID(ctx context.Context, id int64) (*domainuser.User, error)
 	FindByIdentity(ctx context.Context, provider, subject string) (*domainuser.User, error)
+	CreatePasswordUser(ctx context.Context, username, passwordHash string, now time.Time) (*domainuser.User, error)
 	CreateExternalUser(ctx context.Context, username, provider, subject, email string, now time.Time) (*domainuser.User, error)
 	UpdatePassword(ctx context.Context, userID int64, passwordHash string) error
 	UpdateLoginState(ctx context.Context, user *domainuser.User) error

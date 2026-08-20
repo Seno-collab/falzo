@@ -2,6 +2,7 @@ package validatorx
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -13,6 +14,7 @@ type FieldError struct {
 }
 
 var validate = newValidator()
+var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func Validate(v any) []FieldError {
 	err := validate.Struct(v)
@@ -43,6 +45,9 @@ func Validate(v any) []FieldError {
 
 func newValidator() *validator.Validate {
 	v := validator.New()
+	_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+		return usernamePattern.MatchString(fl.Field().String())
+	})
 
 	v.RegisterTagNameFunc(func(field reflect.StructField) string {
 		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
@@ -73,6 +78,8 @@ func messageFor(err validator.FieldError) string {
 		return field + " must be less than or equal to " + err.Param()
 	case "oneof":
 		return field + " must be one of: " + err.Param()
+	case "username":
+		return field + " may contain only letters, numbers, underscores, and hyphens"
 	default:
 		return field + " is invalid"
 	}

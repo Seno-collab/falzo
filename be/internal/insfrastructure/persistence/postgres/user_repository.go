@@ -33,6 +33,28 @@ func (r *UserRepository) FindByIdentity(ctx context.Context, provider, subject s
 		WHERE i.provider = $1 AND i.provider_subject = $2`, provider, subject))
 }
 
+func (r *UserRepository) CreatePasswordUser(ctx context.Context, username, passwordHash string, now time.Time) (*domainuser.User, error) {
+	user := &domainuser.User{
+		UserName:     username,
+		PasswordHash: passwordHash,
+		Status:       domainuser.UserStatusActive,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO users (username, password_hash, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		user.UserName, user.PasswordHash, user.Status, user.CreatedAt, user.UpdatedAt,
+	).Scan(&user.ID)
+	if IsUniqueViolation(err) {
+		return nil, domainuser.ErrUserNameAlreadyExists
+	}
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 func (r *UserRepository) CreateExternalUser(ctx context.Context, username, provider, subject, email string, now time.Time) (*domainuser.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

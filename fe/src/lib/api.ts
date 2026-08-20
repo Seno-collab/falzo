@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   AuthTokens,
   GoogleLoginResult,
+  PasswordAuthResult,
 } from "@/types/auth";
 import type {
   RoomLanguage,
@@ -85,7 +86,11 @@ function post<T>(path: string, body: unknown) {
 }
 
 export function login(username: string, password: string) {
-  return post<AuthTokens>("/v1/auth/login", { username, password });
+  return post<PasswordAuthResult>("/v1/auth/login", { username, password });
+}
+
+export function register(username: string, password: string) {
+  return post<PasswordAuthResult>("/v1/auth/register", { username, password });
 }
 
 export function googleLogin(credential: string) {

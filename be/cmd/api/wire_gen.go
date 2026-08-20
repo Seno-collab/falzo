@@ -49,6 +49,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config) (*applicatio
 	}
 	tokenSessionStore := provideTokenSessionStore(client, cfg)
 	clock := provideClock()
+	registerUseCase := authapp.NewRegisterUseCase(passwordHasher, userRepository, tokenManager, tokenSessionStore, clock)
 	loginUseCase := provideLoginUseCase(passwordHasher, userRepository, tokenManager, tokenSessionStore, cfg, clock)
 	refreshTokenUseCase := authapp.NewRefreshTokenUseCase(userRepository, tokenManager, tokenSessionStore, clock)
 	forgotPasswordUseCase := authapp.NewForgotPasswordUseCase(userRepository, tokenManager, tokenSessionStore, clock)
@@ -56,7 +57,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config) (*applicatio
 	logoutUseCase := authapp.NewLogoutUseCase(tokenManager, tokenSessionStore, clock)
 	googleIdentityVerifier := provideGoogleIdentityVerifier(cfg)
 	googleLoginUseCase := authapp.NewGoogleLoginUseCase(googleIdentityVerifier, userRepository, tokenManager, tokenSessionStore, clock)
-	authHandler := provideAuthHandler(loginUseCase, refreshTokenUseCase, forgotPasswordUseCase, resetPasswordUseCase, logoutUseCase, logger, googleLoginUseCase, cfg)
+	authHandler := provideAuthHandler(registerUseCase, loginUseCase, refreshTokenUseCase, forgotPasswordUseCase, resetPasswordUseCase, logoutUseCase, logger, googleLoginUseCase, cfg)
 	repository := provideRoomRepository(pool)
 	inviteCodeGenerator := provideInviteCodeGenerator()
 	createRoomUseCase := provideCreateRoomUseCase(repository, inviteCodeGenerator, clock, cfg)

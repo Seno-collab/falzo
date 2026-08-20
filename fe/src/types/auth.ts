@@ -21,6 +21,10 @@ export type GoogleLoginResult = AuthTokens & {
   username: string;
 };
 
+export type PasswordAuthResult = AuthTokens & {
+  username: string;
+};
+
 export type AuthSession = AuthTokens & {
   username: string;
   expires_at?: number;

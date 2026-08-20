@@ -198,7 +198,7 @@ export default function DashboardPage() {
       const response = await joinRoom(activeSession.access_token, room.code);
       router.push(`/rooms/${response.id}`);
     } catch (error) {
-      setQuickJoinError(roomApiErrorMessage(error));
+      setQuickJoinError(quickJoinErrorMessage(error));
       setRoomsReloadToken((current) => current + 1);
     } finally {
       setJoiningRoomId(null);
@@ -511,7 +511,6 @@ export default function DashboardPage() {
             {rooms.map((room) => {
               const isFull = room.players.length >= room.maxPlayers;
               const isCurrentMember = room.players.some((player) => player.current);
-              const canJoin = room.status === "waiting" && !isFull && !isCurrentMember;
               const isJoining = joiningRoomId === room.id;
               return (
                 <article className={styles.roomCard} key={room.id}>
@@ -556,7 +555,7 @@ export default function DashboardPage() {
                     <span className={!isFull ? styles.openSeats : undefined}>
                       {isFull ? "Room full" : `${room.maxPlayers - room.players.length} seats open`}
                     </span>
-                    {canJoin ? (
+                    {!isCurrentMember ? (
                       <button
                         className={styles.viewRoomButton}
                         disabled={joiningRoomId !== null}
@@ -567,7 +566,7 @@ export default function DashboardPage() {
                       </button>
                     ) : (
                       <Link className={styles.viewRoomButton} href={`/rooms/${room.id}`}>
-                        View room <span aria-hidden="true">→</span>
+                        Enter room <span aria-hidden="true">→</span>
                       </Link>
                     )}
                   </div>
@@ -592,6 +591,22 @@ export default function DashboardPage() {
 function roomApiErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   return "Could not reach the room server. Please try again.";
+}
+
+function quickJoinErrorMessage(error: unknown) {
+  if (!(error instanceof ApiError)) {
+    return "Could not reach the room server. You are still in the lobby.";
+  }
+  if (error.code === "GAME_ROOM_FULL") {
+    return "Room is full. Please choose another room.";
+  }
+  if (error.status === 404) {
+    return "This room no longer exists. You have returned to the lobby.";
+  }
+  if (error.code === "CONFLICT") {
+    return "This game has already started and is no longer accepting players.";
+  }
+  return error.message;
 }
 
 function friendColor(index: number) {
