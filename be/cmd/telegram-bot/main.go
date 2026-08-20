@@ -47,7 +47,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create alert consumer: %w", err)
 	}
-	defer consumer.Close()
+	defer func(consumer *natsinfra.AlertConsumer) {
+		_ = consumer.Close()
+	}(consumer)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
