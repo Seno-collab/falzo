@@ -243,6 +243,9 @@ func providePhaseTransitionHandler(
 			Cycle:             transition.CycleNumber,
 			Phase:             transition.To,
 			CurrentTurnUserID: transition.CurrentTurnPlayerID,
+			TurnNumber:        transition.TurnNumber,
+			TotalTurns:        transition.TotalTurns,
+			TurnEndsAt:        transition.TurnEndsAt,
 			PhaseDeadlineAt:   transition.PhaseDeadlineAt,
 		})
 		if !transition.MembersChanged {

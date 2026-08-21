@@ -43,6 +43,9 @@ export type GameStateUpdatedEvent = {
   cycle: number;
   phase: RoundPhase;
   current_turn_player_id: number | null;
+  turn_number: number;
+  total_turns: number;
+  turn_ends_at: string | null;
   phase_deadline_at: string | null;
 };
 
@@ -263,6 +266,8 @@ function parseGameStateUpdatedEvent(payload: unknown): GameStateUpdatedEvent | n
     || typeof value.cycle !== "number"
     || typeof value.phase !== "string"
     || !roundPhases.has(value.phase as RoundPhase)
+    || typeof value.turn_number !== "number"
+    || typeof value.total_turns !== "number"
   ) {
     return null;
   }
@@ -272,6 +277,11 @@ function parseGameStateUpdatedEvent(payload: unknown): GameStateUpdatedEvent | n
     phase: value.phase as RoundPhase,
     current_turn_player_id: typeof value.current_turn_player_id === "number"
       ? value.current_turn_player_id
+      : null,
+    turn_number: value.turn_number,
+    total_turns: value.total_turns,
+    turn_ends_at: typeof value.turn_ends_at === "string"
+      ? value.turn_ends_at
       : null,
     phase_deadline_at: typeof value.phase_deadline_at === "string"
       ? value.phase_deadline_at

@@ -353,9 +353,12 @@ export default function RoomDetailPage() {
   const currentCardDealt = Boolean(
     currentPlayer && dealtPlayerIds.includes(currentPlayer.id),
   );
-  const remainingPhaseSeconds = roundState?.phase_deadline_at
+  const activeDeadline = roundState?.phase === "DESCRIBING"
+    ? roundState.turn_ends_at
+    : roundState?.phase_deadline_at;
+  const remainingPhaseSeconds = activeDeadline
     ? Math.max(0, Math.ceil(
-      (new Date(roundState.phase_deadline_at).getTime() - clockNow) / 1_000,
+      (new Date(activeDeadline).getTime() - clockNow) / 1_000,
     ))
     : 0;
   const currentTurnPlayer = roundState?.current_turn_player_id
@@ -518,12 +521,17 @@ export default function RoomDetailPage() {
 
   async function confirmRoleCard() {
     if (!room || roleReadyPending) return;
-    if (roundState?.current_user_ready) {
-      setCardOverlay("hidden");
-      return;
-    }
-    if (await gameCommands.confirmRole()) {
-      setCardOverlay("hidden");
+
+    // Closing the private card is a local UI action. After a reload the round
+    // may already be past REVEALING_ROLE, where the backend correctly rejects
+    // a late "ready" command; that rejection must not keep the overlay open.
+    setCardOverlay("hidden");
+
+    if (
+      roundState?.phase === "REVEALING_ROLE"
+      && !roundState.current_user_ready
+    ) {
+      await gameCommands.confirmRole();
     }
   }
 
@@ -634,11 +642,15 @@ export default function RoomDetailPage() {
           <button
             autoFocus
             className={styles.confirmRoleButton}
-            disabled={roleReadyPending}
+            disabled={roundState?.phase === "REVEALING_ROLE" && roleReadyPending}
             onClick={confirmRoleCard}
             type="button"
           >
-            {roleReadyPending ? "Đang xác nhận…" : "Đã hiểu"}
+            {roundState?.phase === "REVEALING_ROLE" && roleReadyPending
+              ? "Đang xác nhận…"
+              : roundState?.phase === "REVEALING_ROLE" && !roundState.current_user_ready
+                ? "Đã hiểu"
+                : "Ẩn thẻ"}
           </button>
           <p>Ghi nhớ vai trò và không để người khác nhìn thấy.</p>
         </div>

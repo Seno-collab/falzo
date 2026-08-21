@@ -512,9 +512,9 @@ func (r *RoomRepository) FindCurrentRoundState(
 	ctx context.Context,
 	roomID string,
 	userID int64,
-	now time.Time,
+	_ time.Time,
 ) (*domainroom.RoundState, error) {
-	return loadCurrentRoundState(ctx, r.db, roomID, userID, now)
+	return loadCurrentRoundState(ctx, r.db, roomID, userID)
 }
 
 func (r *RoomRepository) CountExpiredRounds(ctx context.Context, now time.Time) (int, error) {
@@ -604,29 +604,59 @@ func (r *RoomRepository) AdvanceExpiredRounds(
 			TransitionedAt:     now,
 			MembersChanged:     item.phase == domainroom.RoundPhaseVoting,
 		}
-		var deadline pgtype.Timestamptz
+		var phaseDeadline pgtype.Timestamptz
 		var currentPlayer pgtype.Int8
+		var turnDeadline pgtype.Timestamptz
 		err = tx.QueryRow(ctx, `
 			SELECT rr.cycle_number, rr.phase, rr.phase_deadline_at,
-				(SELECT user_id FROM room_round_turns
-				 WHERE room_id = rr.room_id AND round_number = rr.round_number
-				   AND cycle_number = rr.cycle_number
-				   AND started_at IS NOT NULL AND finished_at IS NULL
-				 ORDER BY turn_number LIMIT 1)
+				active_turn.user_id,
+				COALESCE(active_turn.turn_number, 0),
+				turn_counts.total_turns,
+				active_turn.deadline_at
 			FROM room_rounds rr
+			LEFT JOIN LATERAL (
+				SELECT turn.user_id, turn.turn_number, turn.deadline_at
+				FROM room_round_turns turn
+				WHERE turn.room_id = rr.room_id
+				  AND turn.round_number = rr.round_number
+				  AND turn.cycle_number = rr.cycle_number
+				  AND turn.started_at IS NOT NULL
+				  AND turn.finished_at IS NULL
+				ORDER BY turn.turn_number
+				LIMIT 1
+			) active_turn ON TRUE
+			CROSS JOIN LATERAL (
+				SELECT COUNT(*)::INT AS total_turns
+				FROM room_round_turns turn
+				WHERE turn.room_id = rr.room_id
+				  AND turn.round_number = rr.round_number
+				  AND turn.cycle_number = rr.cycle_number
+			) turn_counts
 			WHERE rr.room_id = $1 AND rr.round_number = $2`,
 			item.roomID, item.roundNumber,
-		).Scan(&transition.CycleNumber, &transition.To, &deadline, &currentPlayer)
+		).Scan(
+			&transition.CycleNumber,
+			&transition.To,
+			&phaseDeadline,
+			&currentPlayer,
+			&transition.TurnNumber,
+			&transition.TotalTurns,
+			&turnDeadline,
+		)
 		if err != nil {
 			return nil, err
 		}
-		if deadline.Valid {
-			value := deadline.Time
+		if phaseDeadline.Valid {
+			value := phaseDeadline.Time
 			transition.PhaseDeadlineAt = &value
 		}
 		if currentPlayer.Valid {
 			value := currentPlayer.Int64
 			transition.CurrentTurnPlayerID = &value
+		}
+		if turnDeadline.Valid {
+			value := turnDeadline.Time
+			transition.TurnEndsAt = &value
 		}
 		transitions = append(transitions, transition)
 	}
@@ -686,8 +716,14 @@ func (r *RoomRepository) MarkPlayerReady(ctx context.Context, input roomports.Pl
 		var readyCount, playerCount int
 		if err := tx.QueryRow(ctx, `
 			SELECT
-				(SELECT COUNT(*) FROM room_round_ready_players WHERE room_id = $1 AND round_number = $2),
-				(SELECT COUNT(*) FROM room_members WHERE room_id = $1)`, input.RoomID, roundNumber,
+				COUNT(*) FILTER (WHERE ready.user_id IS NOT NULL)::INT AS ready_players,
+				COUNT(*)::INT AS eligible_players
+			FROM room_members member
+			LEFT JOIN room_round_ready_players ready
+				ON ready.room_id = member.room_id
+				AND ready.round_number = $2
+				AND ready.user_id = member.user_id
+			WHERE member.room_id = $1`, input.RoomID, roundNumber,
 		).Scan(&readyCount, &playerCount); err != nil {
 			return nil, err
 		}
@@ -934,7 +970,6 @@ func loadCurrentRoundState(
 	queryer roundStateQueryer,
 	roomID string,
 	userID int64,
-	now time.Time,
 ) (*domainroom.RoundState, error) {
 	state := &domainroom.RoundState{RoomID: roomID}
 	var phaseDeadline pgtype.Timestamptz
@@ -949,27 +984,64 @@ func loadCurrentRoundState(
 	var turnEndsAt pgtype.Timestamptz
 	err := queryer.QueryRow(ctx, `
 		SELECT r.current_round, rr.cycle_number, rr.phase, rr.phase_deadline_at,
-			(SELECT COUNT(*) FROM room_round_ready_players WHERE room_id = r.id AND round_number = r.current_round),
-			(SELECT COUNT(*) FROM room_members WHERE room_id = r.id),
-			EXISTS (SELECT 1 FROM room_round_ready_players WHERE room_id = r.id AND round_number = r.current_round AND user_id = $2),
-			(SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND eliminated_at IS NULL),
-			(SELECT COUNT(*) FROM room_round_votes WHERE room_id = r.id AND round_number = r.current_round AND cycle_number = rr.cycle_number),
-			(SELECT target_user_id FROM room_round_votes
-			 WHERE room_id = r.id AND round_number = r.current_round AND cycle_number = rr.cycle_number AND voter_user_id = $2),
+			ready_state.ready_players,
+			member_state.eligible_players,
+			ready_state.current_user_ready,
+			member_state.eligible_voters,
+			vote_state.votes_cast,
+			vote_state.current_user_vote_id,
 			rr.undercover_user_id, rr.mr_white_user_id, rr.eliminated_user_id,
 			rr.eliminated_role, rr.winner, rr.mr_white_guess_correct,
-			(SELECT user_id FROM room_round_turns WHERE room_id = r.id AND round_number = r.current_round
-			 AND cycle_number = rr.cycle_number AND started_at IS NOT NULL AND finished_at IS NULL ORDER BY turn_number LIMIT 1),
-			COALESCE((SELECT turn_number FROM room_round_turns WHERE room_id = r.id AND round_number = r.current_round
-			 AND cycle_number = rr.cycle_number AND started_at IS NOT NULL AND finished_at IS NULL ORDER BY turn_number LIMIT 1), 0),
-			(SELECT COUNT(*) FROM room_round_turns WHERE room_id = r.id AND round_number = r.current_round AND cycle_number = rr.cycle_number),
-			(SELECT deadline_at FROM room_round_turns WHERE room_id = r.id AND round_number = r.current_round
-			 AND cycle_number = rr.cycle_number AND started_at IS NOT NULL AND finished_at IS NULL ORDER BY turn_number LIMIT 1)
+			active_turn.user_id,
+			COALESCE(active_turn.turn_number, 0),
+			turn_counts.total_turns,
+			active_turn.deadline_at
 		FROM rooms r
-		JOIN room_members current_member
-			ON current_member.room_id = r.id AND current_member.user_id = $2
 		JOIN room_rounds rr
 			ON rr.room_id = r.id AND rr.round_number = r.current_round
+		JOIN LATERAL (
+			SELECT
+				COUNT(*)::INT AS eligible_players,
+				COUNT(*) FILTER (WHERE member.eliminated_at IS NULL)::INT AS eligible_voters,
+				BOOL_OR(member.user_id = $2) AS current_user_is_member
+			FROM room_members member
+			WHERE member.room_id = r.id
+		) member_state ON member_state.current_user_is_member
+		CROSS JOIN LATERAL (
+			SELECT
+				COUNT(*)::INT AS ready_players,
+				(COUNT(*) FILTER (WHERE ready.user_id = $2) > 0) AS current_user_ready
+			FROM room_round_ready_players ready
+			WHERE ready.room_id = r.id
+			  AND ready.round_number = r.current_round
+		) ready_state
+		CROSS JOIN LATERAL (
+			SELECT
+				COUNT(*)::INT AS votes_cast,
+				MAX(vote.target_user_id) FILTER (WHERE vote.voter_user_id = $2) AS current_user_vote_id
+			FROM room_round_votes vote
+			WHERE vote.room_id = r.id
+			  AND vote.round_number = r.current_round
+			  AND vote.cycle_number = rr.cycle_number
+		) vote_state
+		LEFT JOIN LATERAL (
+			SELECT turn.user_id, turn.turn_number, turn.deadline_at
+			FROM room_round_turns turn
+			WHERE turn.room_id = r.id
+			  AND turn.round_number = r.current_round
+			  AND turn.cycle_number = rr.cycle_number
+			  AND turn.started_at IS NOT NULL
+			  AND turn.finished_at IS NULL
+			ORDER BY turn.turn_number
+			LIMIT 1
+		) active_turn ON TRUE
+		CROSS JOIN LATERAL (
+			SELECT COUNT(*)::INT AS total_turns
+			FROM room_round_turns turn
+			WHERE turn.room_id = r.id
+			  AND turn.round_number = r.current_round
+			  AND turn.cycle_number = rr.cycle_number
+		) turn_counts
 		WHERE r.id = $1 AND r.expires_at > now() AND r.status = $3`,
 		roomID, userID, domainroom.StatusPlaying,
 	).Scan(

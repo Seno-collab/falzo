@@ -123,6 +123,9 @@ type PhaseTransition struct {
 	From                RoundPhase
 	To                  RoundPhase
 	CurrentTurnPlayerID *int64
+	TurnNumber          int
+	TotalTurns          int
+	TurnEndsAt          *time.Time
 	PhaseDeadlineAt     *time.Time
 	PreviousDeadlineAt  time.Time
 	TransitionedAt      time.Time

@@ -118,6 +118,9 @@ type StateUpdated struct {
 	Cycle             int                   `json:"cycle"`
 	Phase             domainroom.RoundPhase `json:"phase"`
 	CurrentTurnUserID *int64                `json:"current_turn_player_id,omitempty"`
+	TurnNumber        int                   `json:"turn_number"`
+	TotalTurns        int                   `json:"total_turns"`
+	TurnEndsAt        *time.Time            `json:"turn_ends_at,omitempty"`
 	PhaseDeadlineAt   *time.Time            `json:"phase_deadline_at,omitempty"`
 }
 

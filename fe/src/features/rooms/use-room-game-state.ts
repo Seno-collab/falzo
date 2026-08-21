@@ -42,6 +42,9 @@ export function useRoomGameState({
         phase: realtimeState.phase,
         phase_deadline_at: realtimeState.phase_deadline_at,
         current_turn_player_id: realtimeState.current_turn_player_id,
+        turn_number: realtimeState.turn_number,
+        total_turns: realtimeState.total_turns,
+        turn_ends_at: realtimeState.turn_ends_at,
         ...(enteringVoting ? {
           votes_cast: 0,
           current_user_vote_id: null,

@@ -454,6 +454,9 @@ func (h *RoomHandler) publishStateUpdated(state *domainroom.RoundState) {
 		Cycle:             state.CycleNumber,
 		Phase:             state.Phase,
 		CurrentTurnUserID: state.CurrentTurnPlayerID,
+		TurnNumber:        state.TurnNumber,
+		TotalTurns:        state.TotalTurns,
+		TurnEndsAt:        state.TurnEndsAt,
 		PhaseDeadlineAt:   state.PhaseDeadlineAt,
 	})
 }

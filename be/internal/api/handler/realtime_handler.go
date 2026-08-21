@@ -109,7 +109,9 @@ func (h *RealtimeHandler) ConnectRoom(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	defer conn.CloseNow()
+	defer func(conn *websocket.Conn) {
+		_ = conn.CloseNow()
+	}(conn)
 	conn.SetReadLimit(webSocketReadLimit)
 
 	client, err := h.hub.Register(room.ID, principal.UserID, principal.UserName, mapRealtimeMembers(room))
@@ -316,6 +318,9 @@ func (h *RealtimeHandler) sendState(client *realtime.Client, state *domainroom.R
 		Cycle:             state.CycleNumber,
 		Phase:             state.Phase,
 		CurrentTurnUserID: state.CurrentTurnPlayerID,
+		TurnNumber:        state.TurnNumber,
+		TotalTurns:        state.TotalTurns,
+		TurnEndsAt:        state.TurnEndsAt,
 		PhaseDeadlineAt:   state.PhaseDeadlineAt,
 	})
 }
