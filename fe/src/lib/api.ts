@@ -42,9 +42,8 @@ async function request<T>(
   init: RequestInit,
   options: RequestOptions = {},
 ): Promise<T> {
-  const finishRequest = options.trackActivity === false
-    ? () => undefined
-    : beginApiRequest();
+  const finishRequest =
+    options.trackActivity === false ? () => undefined : beginApiRequest();
 
   try {
     const response = await fetch(`${API_PREFIX}${path}`, {
@@ -113,22 +112,35 @@ function authenticatedRequest<T>(
   init: RequestInit,
   options?: RequestOptions,
 ) {
-  return request<T>(path, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...init.headers,
+  return request<T>(
+    path,
+    {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...init.headers,
+      },
     },
-  }, options);
+    options,
+  );
 }
 
 export function listRooms(accessToken: string, options?: RequestOptions) {
-  return authenticatedRequest<RoomResponse[]>(accessToken, "/v1/rooms", {
-    method: "GET",
-  }, options);
+  return authenticatedRequest<RoomResponse[]>(
+    accessToken,
+    "/v1/rooms",
+    {
+      method: "GET",
+    },
+    options,
+  );
 }
 
-export function getRoom(accessToken: string, roomId: string, options?: RequestOptions) {
+export function getRoom(
+  accessToken: string,
+  roomId: string,
+  options?: RequestOptions,
+) {
   return authenticatedRequest<RoomResponse>(
     accessToken,
     `/v1/rooms/${encodeURIComponent(roomId)}`,
@@ -152,7 +164,12 @@ export function listRoomMessages(
 
 export function createRoom(
   accessToken: string,
-  input: { name: string; maxPlayers: number; languageCode: RoomLanguage; mrWhiteEnabled: boolean },
+  input: {
+    name: string;
+    maxPlayers: number;
+    languageCode: RoomLanguage;
+    mrWhiteEnabled: boolean;
+  },
 ) {
   return authenticatedRequest<RoomResponse>(accessToken, "/v1/rooms", {
     method: "POST",
@@ -172,7 +189,11 @@ export function joinRoom(accessToken: string, inviteCode: string) {
   });
 }
 
-export function kickRoomMember(accessToken: string, roomId: string, userId: number) {
+export function kickRoomMember(
+  accessToken: string,
+  roomId: string,
+  userId: number,
+) {
   return authenticatedRequest<RoomResponse>(
     accessToken,
     `/v1/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(String(userId))}`,
@@ -229,7 +250,11 @@ export function getCurrentRoundState(
   );
 }
 
-export function castRoomVote(accessToken: string, roomId: string, targetPlayerId: number) {
+export function castRoomVote(
+  accessToken: string,
+  roomId: string,
+  targetPlayerId: number,
+) {
   return authenticatedRequest<RoundStateResponse>(
     accessToken,
     `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/votes`,
@@ -256,7 +281,11 @@ export function finishRoomTurn(accessToken: string, roomId: string) {
   );
 }
 
-export function submitMrWhiteGuess(accessToken: string, roomId: string, guess: string) {
+export function submitMrWhiteGuess(
+  accessToken: string,
+  roomId: string,
+  guess: string,
+) {
   return authenticatedRequest<RoundStateResponse>(
     accessToken,
     `/v1/rooms/${encodeURIComponent(roomId)}/rounds/current/mr-white/guess`,
@@ -274,16 +303,28 @@ export function searchUsers(accessToken: string, query: string, limit = 20) {
 }
 
 export function sendFriendRequest(accessToken: string, receiverId: number) {
-  return authenticatedRequest<FriendRequest>(accessToken, "/v1/friend-requests", {
-    method: "POST",
-    body: JSON.stringify({ receiver_id: receiverId }),
-  });
+  return authenticatedRequest<FriendRequest>(
+    accessToken,
+    "/v1/friend-requests",
+    {
+      method: "POST",
+      body: JSON.stringify({ receiver_id: receiverId }),
+    },
+  );
 }
 
-export function listFriendRequests(accessToken: string, options?: RequestOptions) {
-  return authenticatedRequest<FriendRequest[]>(accessToken, "/v1/friend-requests", {
-    method: "GET",
-  }, options);
+export function listFriendRequests(
+  accessToken: string,
+  options?: RequestOptions,
+) {
+  return authenticatedRequest<FriendRequest[]>(
+    accessToken,
+    "/v1/friend-requests",
+    {
+      method: "GET",
+    },
+    options,
+  );
 }
 
 export function acceptFriendRequest(accessToken: string, requestId: number) {
@@ -311,15 +352,24 @@ export function cancelFriendRequest(accessToken: string, requestId: number) {
 }
 
 export function listFriends(accessToken: string, options?: RequestOptions) {
-  return authenticatedRequest<Friend[]>(accessToken, "/v1/friends", {
-    method: "GET",
-  }, options);
+  return authenticatedRequest<Friend[]>(
+    accessToken,
+    "/v1/friends",
+    {
+      method: "GET",
+    },
+    options,
+  );
 }
 
 export function unfriend(accessToken: string, friendUserId: number) {
-  return authenticatedRequest<void>(accessToken, `/v1/friends/${friendUserId}`, {
-    method: "DELETE",
-  });
+  return authenticatedRequest<void>(
+    accessToken,
+    `/v1/friends/${friendUserId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export function listNotifications(
@@ -340,7 +390,10 @@ export function listNotifications(
   );
 }
 
-export function countUnreadNotifications(accessToken: string, options?: RequestOptions) {
+export function countUnreadNotifications(
+  accessToken: string,
+  options?: RequestOptions,
+) {
   return authenticatedRequest<{ count: number }>(
     accessToken,
     "/v1/notifications/unread-count",
@@ -349,7 +402,10 @@ export function countUnreadNotifications(accessToken: string, options?: RequestO
   );
 }
 
-export function markNotificationRead(accessToken: string, notificationId: number) {
+export function markNotificationRead(
+  accessToken: string,
+  notificationId: number,
+) {
   return authenticatedRequest<void>(
     accessToken,
     `/v1/notifications/${notificationId}/read`,

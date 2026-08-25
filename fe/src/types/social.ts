@@ -4,7 +4,11 @@ export type RelationshipStatus =
   | "INCOMING_REQUEST"
   | "OUTGOING_REQUEST";
 
-export type FriendRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELED";
+export type FriendRequestStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "CANCELED";
 
 export type SocialUser = {
   id: number;

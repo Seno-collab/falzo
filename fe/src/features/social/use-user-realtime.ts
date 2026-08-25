@@ -30,14 +30,17 @@ export function useUserRealtime() {
         const connectionMode = attempt === 0 ? "initial" : "reconnect";
         attempt = 0;
         setConnected(true);
-        nextSocket.send(JSON.stringify({
-          type: "notification.sync",
-          request_id: createRequestId(),
-          payload: { connection_mode: connectionMode },
-        }));
+        nextSocket.send(
+          JSON.stringify({
+            type: "notification.sync",
+            request_id: createRequestId(),
+            payload: { connection_mode: connectionMode },
+          }),
+        );
       };
       nextSocket.onmessage = ({ data }) => {
-        if (!active || socket !== nextSocket || typeof data !== "string") return;
+        if (!active || socket !== nextSocket || typeof data !== "string")
+          return;
         try {
           const event = JSON.parse(data) as { type?: unknown };
           if (event.type === "social.notifications.updated") {
@@ -52,8 +55,9 @@ export function useUserRealtime() {
         socket = null;
         setConnected(false);
         if (code === connectionReplacedCode) return;
-        const delay = Math.min(reconnectBaseDelay * 2 ** attempt, reconnectMaxDelay)
-          + Math.floor(Math.random() * 250);
+        const delay =
+          Math.min(reconnectBaseDelay * 2 ** attempt, reconnectMaxDelay) +
+          Math.floor(Math.random() * 250);
         attempt += 1;
         reconnectTimer = window.setTimeout(() => void connect(), delay);
       };
@@ -63,7 +67,8 @@ export function useUserRealtime() {
     return () => {
       active = false;
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
-      if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "Page closed");
+      if (socket && socket.readyState < WebSocket.CLOSING)
+        socket.close(1000, "Page closed");
     };
   }, []);
 
@@ -71,11 +76,15 @@ export function useUserRealtime() {
 }
 
 function userWebSocketURL() {
-  const configuredURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.replace(/\/$/, "");
+  const configuredURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.replace(
+    /\/$/,
+    "",
+  );
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const defaultHost = process.env.NODE_ENV === "development"
-    ? `${window.location.hostname}:8080`
-    : window.location.host;
+  const defaultHost =
+    process.env.NODE_ENV === "development"
+      ? `${window.location.hostname}:8080`
+      : window.location.host;
   return `${configuredURL ?? `${protocol}//${defaultHost}`}/api/v1/ws`;
 }
 

@@ -42,9 +42,13 @@ export function RoomPhasePanel({
 }: RoomPhasePanelProps) {
   const currentPlayer = room.players.find((player) => player.current);
   const currentTurnPlayer = state?.current_turn_player_id
-    ? room.players.find((player) => player.id === String(state.current_turn_player_id))
+    ? room.players.find(
+        (player) => player.id === String(state.current_turn_player_id),
+      )
     : undefined;
-  const isCurrentTurn = Boolean(currentPlayer && currentTurnPlayer?.id === currentPlayer.id);
+  const isCurrentTurn = Boolean(
+    currentPlayer && currentTurnPlayer?.id === currentPlayer.id,
+  );
   const activeVoteTargets = room.players.filter(
     (player) => !player.current && !player.eliminated,
   );
@@ -53,15 +57,21 @@ export function RoomPhasePanel({
     <section className={styles.votePanel} aria-labelledby="round-flow-title">
       <div className={styles.votePanelHeading}>
         <div>
-          <small>VÁN {room.round} · VÒNG {state?.cycle ?? 1}</small>
+          <small>
+            VÁN {room.round} · VÒNG {state?.cycle ?? 1}
+          </small>
           <h2 id="round-flow-title">{phaseTitle(state?.phase)}</h2>
         </div>
         {state?.phase_deadline_at && state.phase !== "GAME_FINISHED" && (
-          <strong className={styles.roundTimer}>{formatCountdown(remainingSeconds)}</strong>
+          <strong className={styles.roundTimer}>
+            {formatCountdown(remainingSeconds)}
+          </strong>
         )}
       </div>
 
-      {!state && <p className={styles.voteHelp}>Đang đồng bộ trạng thái ván…</p>}
+      {!state && (
+        <p className={styles.voteHelp}>Đang đồng bộ trạng thái ván…</p>
+      )}
 
       {state?.phase === "REVEALING_ROLE" && (
         <RoleRevealPhase
@@ -103,7 +113,9 @@ export function RoomPhasePanel({
           state={state}
         />
       )}
-      {state?.phase === "GAME_FINISHED" && <GameFinishedPhase room={room} state={state} />}
+      {state?.phase === "GAME_FINISHED" && (
+        <GameFinishedPhase room={room} state={state} />
+      )}
 
       {stateError && <small className={styles.dealError}>{stateError}</small>}
     </section>
@@ -121,12 +133,18 @@ function RoleRevealPhase({
 }) {
   return (
     <div className={styles.voteWaiting}>
-      <strong>{state.ready_players}/{state.eligible_players} người đã hiểu vai trò</strong>
-      <p>{state.current_user_ready
-        ? "Đang chờ những người còn lại."
-        : "Mở thẻ bí mật và bấm “Đã hiểu” để sẵn sàng."}</p>
+      <strong>
+        {state.ready_players}/{state.eligible_players} người đã hiểu vai trò
+      </strong>
+      <p>
+        {state.current_user_ready
+          ? "Đang chờ những người còn lại."
+          : "Mở thẻ bí mật và bấm “Đã hiểu” để sẵn sàng."}
+      </p>
       {!state.current_user_ready && currentCardAvailable && (
-        <button onClick={onRevealCard} type="button">Xem thẻ của tôi</button>
+        <button onClick={onRevealCard} type="button">
+          Xem thẻ của tôi
+        </button>
       )}
     </div>
   );
@@ -148,11 +166,14 @@ function DescribingPhase({
   return (
     <div className={styles.voteWaiting}>
       <strong>
-        Lượt {state.turn_number}/{state.total_turns}: {currentTurnPlayer?.name ?? "Đang chuyển lượt"}
+        Lượt {state.turn_number}/{state.total_turns}:{" "}
+        {currentTurnPlayer?.name ?? "Đang chuyển lượt"}
       </strong>
-      <p>{isCurrentTurn
-        ? "Hãy mô tả từ của bạn nhưng không nói thẳng từ khóa."
-        : `Đang nghe ${currentTurnPlayer?.name ?? "người chơi"} mô tả.`}</p>
+      <p>
+        {isCurrentTurn
+          ? "Hãy mô tả từ của bạn nhưng không nói thẳng từ khóa."
+          : `Đang nghe ${currentTurnPlayer?.name ?? "người chơi"} mô tả.`}
+      </p>
       {isCurrentTurn && (
         <button disabled={turnPending} onClick={onFinishTurn} type="button">
           {turnPending ? "Đang chuyển lượt…" : "Kết thúc lượt sớm"}
@@ -188,7 +209,10 @@ function VotingPhase({
     <>
       {state.current_user_vote_id === null && !currentPlayer?.eliminated && (
         <form className={styles.voteForm} onSubmit={submit}>
-          <p>Chọn người đáng nghi. Nếu không chọn, lượt vote sẽ được bỏ qua khi hết giờ.</p>
+          <p>
+            Chọn người đáng nghi. Nếu không chọn, lượt vote sẽ được bỏ qua khi
+            hết giờ.
+          </p>
           <div className={styles.voteChoices}>
             {targets.map((player) => (
               <label key={player.id}>
@@ -199,7 +223,10 @@ function VotingPhase({
                   type="radio"
                   value={player.id}
                 />
-                <span className={`${styles.voteAvatar} ${styles[player.color]}`} aria-hidden="true">
+                <span
+                  className={`${styles.voteAvatar} ${styles[player.color]}`}
+                  aria-hidden="true"
+                >
                   {player.name.charAt(0).toUpperCase()}
                 </span>
                 <strong>{player.name}</strong>
@@ -215,7 +242,9 @@ function VotingPhase({
       {currentPlayer?.eliminated && (
         <div className={styles.voteWaiting}>
           <strong>Spectator mode</strong>
-          <p>You can follow the vote, but eliminated players cannot vote or chat.</p>
+          <p>
+            You can follow the vote, but eliminated players cannot vote or chat.
+          </p>
         </div>
       )}
 
@@ -227,28 +256,48 @@ function VotingPhase({
       )}
 
       <div className={styles.voteProgress}>
-        <span>{state.votes_cast}/{state.eligible_voters} votes</span>
+        <span>
+          {state.votes_cast}/{state.eligible_voters} votes
+        </span>
         <div aria-hidden="true">
-          <span style={{ width: `${Math.min(100, state.votes_cast / Math.max(1, state.eligible_voters) * 100)}%` }} />
+          <span
+            style={{
+              width: `${Math.min(100, (state.votes_cast / Math.max(1, state.eligible_voters)) * 100)}%`,
+            }}
+          />
         </div>
       </div>
     </>
   );
 }
 
-function RevealingResultPhase({ room, state }: { room: GameRoom; state: RoundStateResponse }) {
+function RevealingResultPhase({
+  room,
+  state,
+}: {
+  room: GameRoom;
+  state: RoundStateResponse;
+}) {
   const eliminatedPlayer = state.eliminated_player_id
-    ? room.players.find((player) => player.id === String(state.eliminated_player_id))
+    ? room.players.find(
+        (player) => player.id === String(state.eliminated_player_id),
+      )
     : undefined;
 
   return (
-    <div className={`${styles.voteResult} ${state.eliminated_role === "undercover" ? styles.voteCaught : ""}`}>
-      <small>{state.eliminated_role
-        ? `ĐÃ LỘ VAI TRÒ: ${roleLabel(state.eliminated_role)}`
-        : "HÒA PHIẾU"}</small>
-      <strong>{eliminatedPlayer
-        ? `${eliminatedPlayer.name} đã bị loại.`
-        : "Không ai bị loại ở vòng này."}</strong>
+    <div
+      className={`${styles.voteResult} ${state.eliminated_role === "undercover" ? styles.voteCaught : ""}`}
+    >
+      <small>
+        {state.eliminated_role
+          ? `ĐÃ LỘ VAI TRÒ: ${roleLabel(state.eliminated_role)}`
+          : "HÒA PHIẾU"}
+      </small>
+      <strong>
+        {eliminatedPlayer
+          ? `${eliminatedPlayer.name} đã bị loại.`
+          : "Không ai bị loại ở vòng này."}
+      </strong>
       <p>Kết quả được công bố trước khi hệ thống kiểm tra điều kiện thắng.</p>
     </div>
   );
@@ -299,12 +348,22 @@ function MrWhiteGuessingPhase({
   );
 }
 
-function GameFinishedPhase({ room, state }: { room: GameRoom; state: RoundStateResponse }) {
+function GameFinishedPhase({
+  room,
+  state,
+}: {
+  room: GameRoom;
+  state: RoundStateResponse;
+}) {
   const undercoverPlayer = state.undercover_player_id
-    ? room.players.find((player) => player.id === String(state.undercover_player_id))
+    ? room.players.find(
+        (player) => player.id === String(state.undercover_player_id),
+      )
     : undefined;
   const mrWhitePlayer = state.mr_white_player_id
-    ? room.players.find((player) => player.id === String(state.mr_white_player_id))
+    ? room.players.find(
+        (player) => player.id === String(state.mr_white_player_id),
+      )
     : undefined;
 
   return (
@@ -313,7 +372,12 @@ function GameFinishedPhase({ room, state }: { room: GameRoom; state: RoundStateR
       <strong>{winnerLabel(state.winner)} chiến thắng</strong>
       <p>
         Undercover: <b>{undercoverPlayer?.name ?? "—"}</b>
-        {room.mrWhiteEnabled && <> · Mr. White: <b>{mrWhitePlayer?.name ?? "—"}</b></>}
+        {room.mrWhiteEnabled && (
+          <>
+            {" "}
+            · Mr. White: <b>{mrWhitePlayer?.name ?? "—"}</b>
+          </>
+        )}
       </p>
     </div>
   );
@@ -327,13 +391,20 @@ function formatCountdown(totalSeconds: number) {
 
 function phaseTitle(phase?: RoundStateResponse["phase"]) {
   switch (phase) {
-    case "REVEALING_ROLE": return "Xem vai trò bí mật";
-    case "DESCRIBING": return "Lượt mô tả";
-    case "VOTING": return "Ai đáng nghi nhất?";
-    case "REVEALING_RESULT": return "Công bố người bị loại";
-    case "MR_WHITE_GUESSING": return "Mr. White đoán từ";
-    case "GAME_FINISHED": return "Kết quả ván";
-    default: return "Đang tải ván chơi";
+    case "REVEALING_ROLE":
+      return "Xem vai trò bí mật";
+    case "DESCRIBING":
+      return "Lượt mô tả";
+    case "VOTING":
+      return "Ai đáng nghi nhất?";
+    case "REVEALING_RESULT":
+      return "Công bố người bị loại";
+    case "MR_WHITE_GUESSING":
+      return "Mr. White đoán từ";
+    case "GAME_FINISHED":
+      return "Kết quả ván";
+    default:
+      return "Đang tải ván chơi";
   }
 }
 

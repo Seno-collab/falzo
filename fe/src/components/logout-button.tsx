@@ -19,7 +19,11 @@ export function LogoutButton() {
   }
 
   return (
-    <button className="button button-secondary" onClick={handleLogout} type="button">
+    <button
+      className="button button-secondary"
+      onClick={handleLogout}
+      type="button"
+    >
       Sign out
     </button>
   );

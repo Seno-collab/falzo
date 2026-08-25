@@ -47,12 +47,18 @@ export function ErrorScreen({
 
         <div className={styles.actions}>
           {onRetryAction && (
-            <button className={styles.primaryAction} onClick={onRetryAction} type="button">
+            <button
+              className={styles.primaryAction}
+              onClick={onRetryAction}
+              type="button"
+            >
               Try again
             </button>
           )}
           <Link
-            className={onRetryAction ? styles.secondaryAction : styles.primaryAction}
+            className={
+              onRetryAction ? styles.secondaryAction : styles.primaryAction
+            }
             href={primaryHref}
           >
             {primaryLabel}

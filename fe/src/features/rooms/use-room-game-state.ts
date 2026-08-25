@@ -34,8 +34,9 @@ export function useRoomGameState({
     if (!playing || !realtimeState) return;
     setState((current) => {
       if (!current || current.round !== realtimeState.round) return current;
-      const enteringVoting = realtimeState.phase === "VOTING"
-        && (current.phase !== "VOTING" || current.cycle !== realtimeState.cycle);
+      const enteringVoting =
+        realtimeState.phase === "VOTING" &&
+        (current.phase !== "VOTING" || current.cycle !== realtimeState.cycle);
       return {
         ...current,
         cycle: realtimeState.cycle,
@@ -45,12 +46,14 @@ export function useRoomGameState({
         turn_number: realtimeState.turn_number,
         total_turns: realtimeState.total_turns,
         turn_ends_at: realtimeState.turn_ends_at,
-        ...(enteringVoting ? {
-          votes_cast: 0,
-          current_user_vote_id: null,
-          eliminated_player_id: null,
-          eliminated_role: null,
-        } : {}),
+        ...(enteringVoting
+          ? {
+              votes_cast: 0,
+              current_user_vote_id: null,
+              eliminated_player_id: null,
+              eliminated_role: null,
+            }
+          : {}),
       };
     });
   }, [playing, realtimeState]);
@@ -69,22 +72,42 @@ export function useRoomGameState({
           router.replace("/login");
           return;
         }
-        const response = await getCurrentRoundState(session.access_token, activeRoomId, {
-          trackActivity: false,
-        });
+        const response = await getCurrentRoundState(
+          session.access_token,
+          activeRoomId,
+          {
+            trackActivity: false,
+          },
+        );
         if (!active) return;
         setState(response);
         setError("");
       } catch (loadError) {
-        if (!active || (loadError instanceof ApiError && loadError.status === 404)) return;
-        setError(loadError instanceof Error ? loadError.message : "Could not load game state");
+        if (
+          !active ||
+          (loadError instanceof ApiError && loadError.status === 404)
+        )
+          return;
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Could not load game state",
+        );
       }
     }
     void load();
     return () => {
       active = false;
     };
-  }, [playing, realtimeRevision, roomId, roomRound, roundStarted, router, votesCast]);
+  }, [
+    playing,
+    realtimeRevision,
+    roomId,
+    roomRound,
+    roundStarted,
+    router,
+    votesCast,
+  ]);
 
   return { state, setState, error, setError };
 }

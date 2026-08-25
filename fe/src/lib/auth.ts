@@ -14,8 +14,9 @@ function isBrowser() {
 export function saveSession(username: string, tokens: AuthTokens) {
   if (!isBrowser()) return;
 
-  const expiresAt = readAccessTokenExpiration(tokens.access_token)
-    ?? Date.now() + tokens.expires_in * 1000;
+  const expiresAt =
+    readAccessTokenExpiration(tokens.access_token) ??
+    Date.now() + tokens.expires_in * 1000;
   const session: AuthSession = { username, ...tokens, expires_at: expiresAt };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
@@ -34,8 +35,8 @@ export function getStoredSession(): AuthSession | null {
     }
 
     const session = parsed;
-    const expiresAt = session.expires_at
-      ?? readAccessTokenExpiration(session.access_token);
+    const expiresAt =
+      session.expires_at ?? readAccessTokenExpiration(session.access_token);
 
     if (expiresAt && !session.expires_at) {
       session.expires_at = expiresAt;
@@ -82,7 +83,9 @@ export function clearSession() {
   if (isBrowser()) localStorage.removeItem(SESSION_KEY);
 }
 
-async function refreshExpiredSession(session: AuthSession): Promise<AuthSession | null> {
+async function refreshExpiredSession(
+  session: AuthSession,
+): Promise<AuthSession | null> {
   try {
     const tokens = await refresh(session.refresh_token);
     const currentSession = getStoredSession();
@@ -99,8 +102,8 @@ async function refreshExpiredSession(session: AuthSession): Promise<AuthSession 
 }
 
 function isAccessTokenValid(session: AuthSession) {
-  const expiresAt = session.expires_at
-    ?? readAccessTokenExpiration(session.access_token);
+  const expiresAt =
+    session.expires_at ?? readAccessTokenExpiration(session.access_token);
   return Boolean(expiresAt && expiresAt > Date.now());
 }
 
@@ -108,12 +111,14 @@ function isAuthSession(value: unknown): value is AuthSession {
   if (!value || typeof value !== "object") return false;
 
   const session = value as Partial<AuthSession>;
-  return typeof session.username === "string"
-    && typeof session.access_token === "string"
-    && typeof session.refresh_token === "string"
-    && typeof session.token_type === "string"
-    && typeof session.expires_in === "number"
-    && (session.expires_at === undefined || typeof session.expires_at === "number");
+  return (
+    typeof session.username === "string" &&
+    typeof session.access_token === "string" &&
+    typeof session.refresh_token === "string" &&
+    typeof session.token_type === "string" &&
+    typeof session.expires_in === "number" &&
+    (session.expires_at === undefined || typeof session.expires_at === "number")
+  );
 }
 
 function readAccessTokenExpiration(accessToken: string): number | null {

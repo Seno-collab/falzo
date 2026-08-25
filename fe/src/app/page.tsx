@@ -14,12 +14,14 @@ const gameSteps = [
   {
     number: "02",
     title: "Read your word",
-    description: "Most players share one word. The Undercover gets a similar one.",
+    description:
+      "Most players share one word. The Undercover gets a similar one.",
   },
   {
     number: "03",
     title: "Talk and vote",
-    description: "Give a clue, listen carefully, then vote out the suspicious player.",
+    description:
+      "Give a clue, listen carefully, then vote out the suspicious player.",
   },
 ] as const;
 
@@ -47,11 +49,15 @@ export default function HomePage() {
           {sessionReady ? (
             username ? (
               <Link className={styles.accountLink} href="/dashboard">
-                <span className={styles.avatar} aria-hidden="true">{initial}</span>
+                <span className={styles.avatar} aria-hidden="true">
+                  {initial}
+                </span>
                 <span className={styles.accountName}>{username}</span>
               </Link>
             ) : (
-              <Link className={styles.signInLink} href="/login">Sign in</Link>
+              <Link className={styles.signInLink} href="/login">
+                Sign in
+              </Link>
             )
           ) : (
             <span className={styles.sessionPlaceholder} aria-hidden="true" />
@@ -75,23 +81,36 @@ export default function HomePage() {
               {username ? "View rooms" : "Start playing"}
               <span aria-hidden="true">→</span>
             </Link>
-            <a className={styles.secondaryAction} href="#how-to-play">How to play</a>
+            <a className={styles.secondaryAction} href="#how-to-play">
+              How to play
+            </a>
           </div>
 
           <div className={styles.gameFacts} aria-label="Game details">
-            <span><strong>4–12</strong> players</span>
-            <span><strong>10–20</strong> minutes</span>
-            <span><strong>Free</strong> in browser</span>
+            <span>
+              <strong>4–12</strong> players
+            </span>
+            <span>
+              <strong>10–20</strong> minutes
+            </span>
+            <span>
+              <strong>Free</strong> in browser
+            </span>
           </div>
         </div>
 
-        <div className={styles.gamePreview} aria-label="Undercover game preview">
+        <div
+          className={styles.gamePreview}
+          aria-label="Undercover game preview"
+        >
           <div className={styles.previewHeader}>
             <div>
               <span className={styles.previewLabel}>GAME 01</span>
               <h2>Undercover</h2>
             </div>
-            <span className={styles.status}><i aria-hidden="true" /> IN DEVELOPMENT</span>
+            <span className={styles.status}>
+              <i aria-hidden="true" /> IN DEVELOPMENT
+            </span>
           </div>
 
           <div className={styles.secretWord}>
@@ -112,10 +131,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className={styles.howToPlay} id="how-to-play" aria-labelledby="how-title">
+      <section
+        className={styles.howToPlay}
+        id="how-to-play"
+        aria-labelledby="how-title"
+      >
         <div className={styles.sectionHeading}>
           <p>HOW TO PLAY</p>
-          <h2 id="how-title">Easy to learn.<br />Hard to fake.</h2>
+          <h2 id="how-title">
+            Easy to learn.
+            <br />
+            Hard to fake.
+          </h2>
         </div>
 
         <ol className={styles.steps}>

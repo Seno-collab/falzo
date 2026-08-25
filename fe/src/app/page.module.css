@@ -30,7 +30,7 @@
   color: inherit;
   font-size: 20px;
   font-weight: 850;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
   text-decoration: none;
 }
 
@@ -60,7 +60,9 @@
   font-size: 11px;
   font-weight: 800;
   text-decoration: none;
-  transition: border-color .18s ease, background-color .18s ease;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .signInLink:hover {
@@ -124,7 +126,7 @@
   color: #d9f275;
   font-size: 9px;
   font-weight: 850;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
 }
 
 .eyebrow > span {
@@ -138,8 +140,8 @@
   margin: 0;
   font-size: clamp(52px, 6.4vw, 82px);
   font-weight: 760;
-  letter-spacing: -.065em;
-  line-height: .95;
+  letter-spacing: -0.065em;
+  line-height: 0.95;
 }
 
 .description {
@@ -172,7 +174,9 @@
   font-size: 11px;
   font-weight: 850;
   text-decoration: none;
-  transition: background-color .18s ease, transform .18s ease;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .primaryAction:hover,
@@ -231,13 +235,13 @@
   color: #839087;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
 }
 
 .previewHeader h2 {
   margin: 5px 0 0;
   font-size: 28px;
-  letter-spacing: -.045em;
+  letter-spacing: -0.045em;
 }
 
 .status {
@@ -247,7 +251,7 @@
   color: #9ca79f;
   font-size: 7px;
   font-weight: 850;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   white-space: nowrap;
 }
 
@@ -276,13 +280,13 @@
 .secretWord small {
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
 }
 
 .secretWord strong {
   margin: 23px 0;
   font-size: 36px;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .secretWord small {
@@ -310,9 +314,16 @@
   font-weight: 850;
 }
 
-.players span:nth-child(2) { background: #a9bceb; }
-.players span:nth-child(3) { background: #ef8c78; }
-.players span:last-child { background: #334038; color: #d9f275; }
+.players span:nth-child(2) {
+  background: #a9bceb;
+}
+.players span:nth-child(3) {
+  background: #ef8c78;
+}
+.players span:last-child {
+  background: #334038;
+  color: #d9f275;
+}
 
 .previewFooter p {
   margin: 0;
@@ -322,7 +333,7 @@
 
 .howToPlay {
   display: grid;
-  grid-template-columns: minmax(260px, .7fr) minmax(0, 1.3fr);
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
   gap: clamp(60px, 10vw, 130px);
   padding: 105px 0;
   border-top: 1px solid #303832;
@@ -334,13 +345,13 @@
   color: #d9f275;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .15em;
+  letter-spacing: 0.15em;
 }
 
 .sectionHeading h2 {
   margin: 0;
   font-size: clamp(38px, 5vw, 58px);
-  letter-spacing: -.055em;
+  letter-spacing: -0.055em;
   line-height: 1;
 }
 
@@ -371,7 +382,7 @@
 .steps h3 {
   margin: -4px 0 7px;
   font-size: 18px;
-  letter-spacing: -.025em;
+  letter-spacing: -0.025em;
 }
 
 .steps p {
@@ -397,7 +408,7 @@
   max-width: 590px;
   margin: 0;
   font-size: clamp(28px, 4vw, 44px);
-  letter-spacing: -.05em;
+  letter-spacing: -0.05em;
   line-height: 1.05;
 }
 
@@ -421,7 +432,7 @@
   justify-self: end;
   color: #626d65;
   font-size: 8px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 @media (max-width: 900px) {

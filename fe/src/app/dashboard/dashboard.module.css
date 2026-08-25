@@ -24,7 +24,7 @@
   color: #f7f4e9;
   font-size: 21px;
   font-weight: 850;
-  letter-spacing: -.045em;
+  letter-spacing: -0.045em;
   text-decoration: none;
 }
 
@@ -48,7 +48,7 @@
   color: #aab3ac;
   font-size: 11px;
   font-weight: 750;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -138,7 +138,7 @@
   color: #7f8b82;
   font-size: 8px;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .accountName span {
@@ -191,7 +191,7 @@
   color: #778279;
   font-size: 9px;
   font-weight: 850;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 
 .gameTab {
@@ -424,15 +424,15 @@
   color: #d9f275;
   font-size: 9px;
   font-weight: 850;
-  letter-spacing: .17em;
+  letter-spacing: 0.17em;
 }
 
 .pageHeading h1 {
   margin: 0;
   font-size: clamp(42px, 5.3vw, 70px);
   font-weight: 760;
-  letter-spacing: -.065em;
-  line-height: .96;
+  letter-spacing: -0.065em;
+  line-height: 0.96;
 }
 
 .roomSummary {
@@ -444,14 +444,14 @@
 .roomSummary strong {
   color: #d9f275;
   font-size: 34px;
-  letter-spacing: -.06em;
+  letter-spacing: -0.06em;
 }
 
 .roomSummary span {
   color: #7f8a82;
   font-size: 9px;
   font-weight: 750;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -511,13 +511,13 @@
   color: #d9f275;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 
 .peopleHeading h2 {
   color: #f3f2e9;
   font-size: 21px;
-  letter-spacing: -.035em;
+  letter-spacing: -0.035em;
 }
 
 .peopleHeading span {
@@ -543,7 +543,7 @@
 .peopleStats strong {
   color: #f5f3e9;
   font-size: 21px;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .peopleStats > div:first-child strong {
@@ -554,7 +554,7 @@
   color: #7c887f;
   font-size: 8px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -600,7 +600,7 @@
   background: #18211b;
   color: #e7e9e2;
   text-decoration: none;
-  transition: background-color .18s ease;
+  transition: background-color 0.18s ease;
 }
 
 .peopleCard:hover {
@@ -656,7 +656,7 @@
   color: #748078;
   font-size: 7px;
   font-weight: 850;
-  letter-spacing: .07em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
@@ -782,13 +782,13 @@
   color: #d9f275;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
 }
 
 .actionPanelHeading h2 {
   margin: 0;
   font-size: 20px;
-  letter-spacing: -.035em;
+  letter-spacing: -0.035em;
 }
 
 .closeActionPanel {
@@ -805,7 +805,9 @@
 
 .roomForm {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(115px, .3fr) minmax(130px, .38fr) auto;
+  grid-template-columns:
+    minmax(180px, 1fr) minmax(115px, 0.3fr) minmax(130px, 0.38fr)
+    auto;
   align-items: end;
   gap: 12px;
   margin-top: 20px;
@@ -820,7 +822,7 @@
   color: #8d9990;
   font-size: 8px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -850,7 +852,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 14px;
   font-weight: 850;
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
 
@@ -868,7 +870,7 @@
 
 .roomForm > button:disabled {
   cursor: wait;
-  opacity: .65;
+  opacity: 0.65;
 }
 
 .formError {
@@ -1027,7 +1029,9 @@
   border: 1px solid #354139;
   border-radius: 22px 22px 22px 7px;
   background: #1a231d;
-  transition: border-color .18s ease, transform .18s ease;
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .roomCard:hover {
@@ -1052,7 +1056,7 @@
   border-radius: 999px;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -1101,7 +1105,7 @@
   color: #cdb0ff;
   font-size: 7px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .roomLabel {
@@ -1113,7 +1117,7 @@
   margin: 0;
   color: #f4f2e8;
   font-size: 28px;
-  letter-spacing: -.045em;
+  letter-spacing: -0.045em;
 }
 
 .players > span {
@@ -1155,12 +1159,24 @@
   color: #c4cbc5;
 }
 
-.lime { background: #d9f275; }
-.coral { background: #ef8c78; }
-.blue { background: #a9bceb; }
-.sand { background: #e8d6ac; }
-.violet { background: #c4ace8; }
-.mint { background: #a9dbc1; }
+.lime {
+  background: #d9f275;
+}
+.coral {
+  background: #ef8c78;
+}
+.blue {
+  background: #a9bceb;
+}
+.sand {
+  background: #e8d6ac;
+}
+.violet {
+  background: #c4ace8;
+}
+.mint {
+  background: #a9dbc1;
+}
 
 .roomFooter {
   padding-top: 17px;
@@ -1191,7 +1207,10 @@
   font-size: 10px;
   font-weight: 850;
   text-decoration: none;
-  transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .viewRoomButton:hover {
@@ -1202,7 +1221,7 @@
 
 .viewRoomButton:disabled {
   cursor: wait;
-  opacity: .58;
+  opacity: 0.58;
   transform: none;
 }
 
@@ -1433,7 +1452,6 @@
   .roomCard {
     min-height: 265px;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -50,8 +50,11 @@ export default function DashboardPage() {
   const safeFriends = Array.isArray(friends) ? friends : [];
   const onlineFriends = safeFriends.filter((friend) => friend.online);
   const featuredFriends = [...safeFriends]
-    .sort((left, right) => Number(right.online) - Number(left.online)
-      || left.username.localeCompare(right.username))
+    .sort(
+      (left, right) =>
+        Number(right.online) - Number(left.online) ||
+        left.username.localeCompare(right.username),
+    )
     .slice(0, 6);
 
   useEffect(() => {
@@ -64,7 +67,9 @@ export default function DashboardPage() {
           router.replace("/login");
           return;
         }
-        const response = await listRooms(activeSession.access_token, { trackActivity });
+        const response = await listRooms(activeSession.access_token, {
+          trackActivity,
+        });
         if (!active) return;
         setRooms(response.map(mapRoomResponse));
         setRoomsError("");
@@ -95,14 +100,20 @@ export default function DashboardPage() {
         if (!activeSession) return;
         const [friendData, friendRequestData, unreadData] = await Promise.all([
           listFriends(activeSession.access_token, { trackActivity: false }),
-          listFriendRequests(activeSession.access_token, { trackActivity: false }),
-          countUnreadNotifications(activeSession.access_token, { trackActivity: false }),
+          listFriendRequests(activeSession.access_token, {
+            trackActivity: false,
+          }),
+          countUnreadNotifications(activeSession.access_token, {
+            trackActivity: false,
+          }),
         ]);
         if (!active) return;
         setFriends(Array.isArray(friendData) ? friendData : []);
-        setIncomingRequests(friendRequestData.filter(
-          (request) => request.receiver_name === activeSession.username,
-        ).length);
+        setIncomingRequests(
+          friendRequestData.filter(
+            (request) => request.receiver_name === activeSession.username,
+          ).length,
+        );
         setUnreadNotifications(unreadData.count);
         setFriendsLoaded(true);
       } catch {
@@ -214,14 +225,29 @@ export default function DashboardPage() {
         </Link>
 
         <div className={styles.lobbyLabel}>
-          <span className={socialRealtime.connected ? styles.realtimeOnline : styles.realtimeOffline} aria-hidden="true" />
+          <span
+            className={
+              socialRealtime.connected
+                ? styles.realtimeOnline
+                : styles.realtimeOffline
+            }
+            aria-hidden="true"
+          />
           {socialRealtime.connected ? "Players online" : "Reconnecting"}
         </div>
 
         <div className={styles.account}>
-          <Link className={styles.notificationLink} href="/friends#notifications" aria-label={`${unreadNotifications} unread friend notifications`}>
+          <Link
+            className={styles.notificationLink}
+            href="/friends#notifications"
+            aria-label={`${unreadNotifications} unread friend notifications`}
+          >
             <span aria-hidden="true">!</span>
-            {unreadNotifications > 0 && <strong>{unreadNotifications > 99 ? "99+" : unreadNotifications}</strong>}
+            {unreadNotifications > 0 && (
+              <strong>
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </strong>
+            )}
           </Link>
           <span className={styles.avatar} aria-hidden="true">
             {initial}
@@ -240,7 +266,9 @@ export default function DashboardPage() {
             <div>
               <p className={styles.sidebarTitle}>YOUR GAMES</p>
               <div className={styles.gameTab}>
-                <span className={styles.tabMark} aria-hidden="true">?</span>
+                <span className={styles.tabMark} aria-hidden="true">
+                  ?
+                </span>
                 <span>
                   <strong>Undercover</strong>
                   <small>Social deduction</small>
@@ -262,7 +290,9 @@ export default function DashboardPage() {
                     href="/friends"
                     key={friend.id}
                   >
-                    <span className={`${styles.friendAvatar} ${styles[friendColor(index)]}`}>
+                    <span
+                      className={`${styles.friendAvatar} ${styles[friendColor(index)]}`}
+                    >
                       {friend.username.charAt(0).toUpperCase()}
                       <span
                         className={`${styles.friendPresence} ${friend.online ? styles.isOnline : styles.isOffline}`}
@@ -273,11 +303,15 @@ export default function DashboardPage() {
                       <strong>{friend.username}</strong>
                       <small>{friend.online ? "Online now" : "Offline"}</small>
                     </span>
-                    <span className={styles.chatIcon} aria-hidden="true">→</span>
+                    <span className={styles.chatIcon} aria-hidden="true">
+                      →
+                    </span>
                   </Link>
                 ))}
                 {friendsLoaded && safeFriends.length === 0 && (
-                  <Link className={styles.emptyFriendList} href="/friends">+ Find your first friend</Link>
+                  <Link className={styles.emptyFriendList} href="/friends">
+                    + Find your first friend
+                  </Link>
                 )}
               </div>
             </section>
@@ -296,7 +330,11 @@ export default function DashboardPage() {
           <div className={styles.pageHeading}>
             <div>
               <p>WELCOME BACK, {username.toUpperCase()}</p>
-              <h1>Your people.<br />Then the game.</h1>
+              <h1>
+                Your people.
+                <br />
+                Then the game.
+              </h1>
             </div>
             <div className={styles.roomSummary}>
               <strong>{openRooms}</strong>
@@ -304,10 +342,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <section className={styles.peoplePanel} aria-labelledby="people-online-title">
+          <section
+            className={styles.peoplePanel}
+            aria-labelledby="people-online-title"
+          >
             <div className={styles.peopleOverview}>
               <div className={styles.peopleHeading}>
-                <span className={styles.peopleMark} aria-hidden="true">◎</span>
+                <span className={styles.peopleMark} aria-hidden="true">
+                  ◎
+                </span>
                 <div>
                   <p>PLAYER HUB</p>
                   <h2 id="people-online-title">People online</h2>
@@ -342,8 +385,14 @@ export default function DashboardPage() {
             {featuredFriends.length > 0 ? (
               <div className={styles.peopleGrid}>
                 {featuredFriends.map((friend, index) => (
-                  <Link className={styles.peopleCard} href="/friends" key={friend.id}>
-                    <span className={`${styles.peopleAvatar} ${styles[friendColor(index)]}`}>
+                  <Link
+                    className={styles.peopleCard}
+                    href="/friends"
+                    key={friend.id}
+                  >
+                    <span
+                      className={`${styles.peopleAvatar} ${styles[friendColor(index)]}`}
+                    >
                       {playerInitials(friend.username)}
                       <span
                         className={`${styles.peoplePresence} ${friend.online ? styles.isOnline : styles.isOffline}`}
@@ -352,9 +401,13 @@ export default function DashboardPage() {
                     </span>
                     <span className={styles.peopleIdentity}>
                       <strong>{friend.username}</strong>
-                      <small>{friend.online ? "Ready to play" : "Currently offline"}</small>
+                      <small>
+                        {friend.online ? "Ready to play" : "Currently offline"}
+                      </small>
                     </span>
-                    <span className={`${styles.presenceBadge} ${friend.online ? styles.onlineBadge : ""}`}>
+                    <span
+                      className={`${styles.presenceBadge} ${friend.online ? styles.onlineBadge : ""}`}
+                    >
                       {friend.online ? "Online" : "Offline"}
                     </span>
                   </Link>
@@ -364,7 +417,10 @@ export default function DashboardPage() {
               <div className={styles.peopleEmpty}>
                 <div>
                   <strong>Build your player circle</strong>
-                  <span>Find people by username, manage requests, and see who is ready to play.</span>
+                  <span>
+                    Find people by username, manage requests, and see who is
+                    ready to play.
+                  </span>
                 </div>
                 <Link href="/friends">Find players</Link>
               </div>
@@ -376,25 +432,36 @@ export default function DashboardPage() {
           <div className={styles.roomToolbar}>
             <div className={styles.roomCount}>
               <span className={styles.liveDot} aria-hidden="true" />
-              <p><strong>{rooms.length} rooms</strong> available now</p>
+              <p>
+                <strong>{rooms.length} rooms</strong> available now
+              </p>
             </div>
             <div className={styles.roomActions}>
               <button onClick={() => openRoomAction("join")} type="button">
                 Join with code
               </button>
-              <button className={styles.createRoomButton} onClick={() => openRoomAction("create")} type="button">
+              <button
+                className={styles.createRoomButton}
+                onClick={() => openRoomAction("create")}
+                type="button"
+              >
                 <span aria-hidden="true">+</span> Create room
               </button>
             </div>
           </div>
 
           {roomAction && (
-            <section className={styles.roomActionPanel} aria-labelledby="room-action-title">
+            <section
+              className={styles.roomActionPanel}
+              aria-labelledby="room-action-title"
+            >
               <div className={styles.actionPanelHeading}>
                 <div>
                   <p>{roomAction === "create" ? "NEW ROOM" : "ROOM INVITE"}</p>
                   <h2 id="room-action-title">
-                    {roomAction === "create" ? "Create an Undercover room" : "Join your friends"}
+                    {roomAction === "create"
+                      ? "Create an Undercover room"
+                      : "Join your friends"}
                   </h2>
                 </div>
                 <button
@@ -422,18 +489,24 @@ export default function DashboardPage() {
                   <label>
                     <span>Players</span>
                     <select
-                      onChange={(event) => setMaxPlayers(Number(event.target.value))}
+                      onChange={(event) =>
+                        setMaxPlayers(Number(event.target.value))
+                      }
                       value={maxPlayers}
                     >
                       {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
-                        <option key={count} value={count}>{count} players</option>
+                        <option key={count} value={count}>
+                          {count} players
+                        </option>
                       ))}
                     </select>
                   </label>
                   <label>
                     <span>Card language</span>
                     <select
-                      onChange={(event) => setRoomLanguage(event.target.value as RoomLanguage)}
+                      onChange={(event) =>
+                        setRoomLanguage(event.target.value as RoomLanguage)
+                      }
                       value={roomLanguage}
                     >
                       <option value="vi">Tiếng Việt</option>
@@ -443,7 +516,9 @@ export default function DashboardPage() {
                   <label>
                     <span>Mr. White</span>
                     <select
-                      onChange={(event) => setMrWhiteEnabled(event.target.value === "yes")}
+                      onChange={(event) =>
+                        setMrWhiteEnabled(event.target.value === "yes")
+                      }
                       value={mrWhiteEnabled ? "yes" : "no"}
                     >
                       <option value="yes">Có Mr. White</option>
@@ -451,7 +526,8 @@ export default function DashboardPage() {
                     </select>
                   </label>
                   <button disabled={submitting} type="submit">
-                    {submitting ? "Creating…" : "Create room"} <span aria-hidden="true">→</span>
+                    {submitting ? "Creating…" : "Create room"}{" "}
+                    <span aria-hidden="true">→</span>
                   </button>
                 </form>
               ) : (
@@ -461,13 +537,16 @@ export default function DashboardPage() {
                     <input
                       autoFocus
                       maxLength={8}
-                      onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                      onChange={(event) =>
+                        setInviteCode(event.target.value.toUpperCase())
+                      }
                       placeholder="OWL824"
                       value={inviteCode}
                     />
                   </label>
                   <button disabled={submitting} type="submit">
-                    {submitting ? "Joining…" : "Join room"} <span aria-hidden="true">→</span>
+                    {submitting ? "Joining…" : "Join room"}{" "}
+                    <span aria-hidden="true">→</span>
                   </button>
                 </form>
               )}
@@ -483,7 +562,9 @@ export default function DashboardPage() {
 
           {roomsError && (
             <div className={styles.roomsError} role="alert">
-              <span className={styles.errorMark} aria-hidden="true">!</span>
+              <span className={styles.errorMark} aria-hidden="true">
+                !
+              </span>
               <div>
                 <strong>Room server unavailable</strong>
                 <p>{roomsError}</p>
@@ -503,87 +584,118 @@ export default function DashboardPage() {
             <div className={styles.quickJoinError} role="alert">
               <span aria-hidden="true">!</span>
               <p>{quickJoinError}</p>
-              <button onClick={() => setQuickJoinError("")} type="button" aria-label="Dismiss join error">×</button>
+              <button
+                onClick={() => setQuickJoinError("")}
+                type="button"
+                aria-label="Dismiss join error"
+              >
+                ×
+              </button>
             </div>
           )}
 
-          {rooms.length > 0 ? <div className={styles.roomGrid}>
-            {rooms.map((room) => {
-              const isFull = room.players.length >= room.maxPlayers;
-              const isCurrentMember = room.players.some((player) => player.current);
-              const isJoining = joiningRoomId === room.id;
-              return (
-                <article className={styles.roomCard} key={room.id}>
-                  <div className={styles.roomTopline}>
-                    <span className={`${styles.status} ${styles[room.status]}`}>
-                      {room.status === "waiting" ? "Waiting" : `Round ${room.round}`}
-                    </span>
-                    <span className={styles.roomMeta}>
-                      <span className={styles.languageBadge}>
-                        {room.language === "vi" ? "VI" : "EN"}
+          {rooms.length > 0 ? (
+            <div className={styles.roomGrid}>
+              {rooms.map((room) => {
+                const isFull = room.players.length >= room.maxPlayers;
+                const isCurrentMember = room.players.some(
+                  (player) => player.current,
+                );
+                const isJoining = joiningRoomId === room.id;
+                return (
+                  <article className={styles.roomCard} key={room.id}>
+                    <div className={styles.roomTopline}>
+                      <span
+                        className={`${styles.status} ${styles[room.status]}`}
+                      >
+                        {room.status === "waiting"
+                          ? "Waiting"
+                          : `Round ${room.round}`}
                       </span>
-                      <span className={styles.roomCode}>#{room.code}</span>
-                    </span>
-                  </div>
-
-                  <div>
-                    <p className={styles.roomLabel}>UNDERCOVER ROOM</p>
-                    <h2>{room.name}</h2>
-                  </div>
-
-                  <div className={styles.players}>
-                    <div className={styles.playerStack} aria-label={`${room.players.length} players`}>
-                      {room.players.slice(0, 5).map((player) => (
-                        <span
-                          className={`${styles.miniAvatar} ${styles[player.color]}`}
-                          key={player.id}
-                          title={player.name}
-                        >
-                          {player.name.charAt(0).toUpperCase()}
+                      <span className={styles.roomMeta}>
+                        <span className={styles.languageBadge}>
+                          {room.language === "vi" ? "VI" : "EN"}
                         </span>
-                      ))}
-                      {room.players.length > 5 && (
-                        <span className={styles.morePlayers}>+{room.players.length - 5}</span>
+                        <span className={styles.roomCode}>#{room.code}</span>
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className={styles.roomLabel}>UNDERCOVER ROOM</p>
+                      <h2>{room.name}</h2>
+                    </div>
+
+                    <div className={styles.players}>
+                      <div
+                        className={styles.playerStack}
+                        aria-label={`${room.players.length} players`}
+                      >
+                        {room.players.slice(0, 5).map((player) => (
+                          <span
+                            className={`${styles.miniAvatar} ${styles[player.color]}`}
+                            key={player.id}
+                            title={player.name}
+                          >
+                            {player.name.charAt(0).toUpperCase()}
+                          </span>
+                        ))}
+                        {room.players.length > 5 && (
+                          <span className={styles.morePlayers}>
+                            +{room.players.length - 5}
+                          </span>
+                        )}
+                      </div>
+                      <span className={styles.seatedCount}>
+                        {room.players.length}/{room.maxPlayers} seated
+                      </span>
+                    </div>
+
+                    <div className={styles.roomFooter}>
+                      <span className={!isFull ? styles.openSeats : undefined}>
+                        {isFull
+                          ? "Room full"
+                          : `${room.maxPlayers - room.players.length} seats open`}
+                      </span>
+                      {!isCurrentMember ? (
+                        <button
+                          className={styles.viewRoomButton}
+                          disabled={joiningRoomId !== null}
+                          onClick={() => void handleQuickJoin(room)}
+                          type="button"
+                        >
+                          {isJoining ? "Joining…" : "Join room"}{" "}
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      ) : (
+                        <Link
+                          className={styles.viewRoomButton}
+                          href={`/rooms/${room.id}`}
+                        >
+                          Enter room <span aria-hidden="true">→</span>
+                        </Link>
                       )}
                     </div>
-                    <span className={styles.seatedCount}>
-                      {room.players.length}/{room.maxPlayers} seated
-                    </span>
-                  </div>
-
-                  <div className={styles.roomFooter}>
-                    <span className={!isFull ? styles.openSeats : undefined}>
-                      {isFull ? "Room full" : `${room.maxPlayers - room.players.length} seats open`}
-                    </span>
-                    {!isCurrentMember ? (
-                      <button
-                        className={styles.viewRoomButton}
-                        disabled={joiningRoomId !== null}
-                        onClick={() => void handleQuickJoin(room)}
-                        type="button"
-                      >
-                        {isJoining ? "Joining…" : "Join room"} <span aria-hidden="true">→</span>
-                      </button>
-                    ) : (
-                      <Link className={styles.viewRoomButton} href={`/rooms/${room.id}`}>
-                        Enter room <span aria-hidden="true">→</span>
-                      </Link>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div> : roomsLoaded && !roomsError && (
-            <div className={styles.emptyRooms}>
-              <span aria-hidden="true">?</span>
-              <h2>No rooms are open yet.</h2>
-              <p>Create the first room and invite your friends to take a seat.</p>
-              <button onClick={() => openRoomAction("create")} type="button">Create room</button>
+                  </article>
+                );
+              })}
             </div>
+          ) : (
+            roomsLoaded &&
+            !roomsError && (
+              <div className={styles.emptyRooms}>
+                <span aria-hidden="true">?</span>
+                <h2>No rooms are open yet.</h2>
+                <p>
+                  Create the first room and invite your friends to take a seat.
+                </p>
+                <button onClick={() => openRoomAction("create")} type="button">
+                  Create room
+                </button>
+              </div>
+            )
           )}
         </section>
       </div>
-
     </main>
   );
 }
@@ -616,5 +728,11 @@ function friendColor(index: number) {
 
 function playerInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts.slice(0, 2).map((part) => part.charAt(0)).join("").toUpperCase() || "?";
+  return (
+    parts
+      .slice(0, 2)
+      .map((part) => part.charAt(0))
+      .join("")
+      .toUpperCase() || "?"
+  );
 }

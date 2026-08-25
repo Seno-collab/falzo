@@ -14,7 +14,7 @@
   position: fixed;
   z-index: -1;
   inset: 0;
-  opacity: .24;
+  opacity: 0.24;
   background-image:
     linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px);
@@ -47,7 +47,7 @@
   color: #f7f4e9;
   font-size: 21px;
   font-weight: 850;
-  letter-spacing: -.045em;
+  letter-spacing: -0.045em;
   text-decoration: none;
 }
 
@@ -71,7 +71,7 @@
   color: #aab3ac;
   font-size: 10px;
   font-weight: 750;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-decoration: none;
   text-transform: uppercase;
 }
@@ -140,8 +140,7 @@
   border: 1px solid #3e4d42;
   border-radius: 28px 28px 28px 8px;
   background:
-    linear-gradient(115deg, rgb(217 242 117 / 8%), transparent 42%),
-    #18211b;
+    linear-gradient(115deg, rgb(217 242 117 / 8%), transparent 42%), #18211b;
   box-shadow:
     0 24px 60px rgb(0 0 0 / 18%),
     inset 0 1px 0 rgb(255 255 255 / 3%);
@@ -175,7 +174,7 @@
   color: #d9f275;
   font-size: 9px;
   font-weight: 850;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 
 .statusDot {
@@ -197,8 +196,8 @@
 .roomHeading h1 {
   margin: 0;
   font-size: clamp(40px, 5vw, 66px);
-  letter-spacing: -.065em;
-  line-height: .95;
+  letter-spacing: -0.065em;
+  line-height: 0.95;
 }
 
 .roomSummary {
@@ -230,7 +229,7 @@
   color: #7f8e84;
   font-size: 7px;
   font-weight: 900;
-  letter-spacing: .15em;
+  letter-spacing: 0.15em;
 }
 
 .roomSummary strong {
@@ -238,7 +237,7 @@
   color: #f5f5ec;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 20px;
-  letter-spacing: -.05em;
+  letter-spacing: -0.05em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -292,10 +291,14 @@
   color: #172019;
   font-size: 10px;
   font-weight: 850;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   cursor: pointer;
   text-transform: uppercase;
-  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .gameGuideButton > span {
@@ -334,7 +337,7 @@
   justify-items: end;
   padding: 24px;
   pointer-events: none;
-  animation: card-reveal-overlay-in .18s ease-out both;
+  animation: card-reveal-overlay-in 0.18s ease-out both;
 }
 
 .gameGuideDialog {
@@ -368,14 +371,14 @@
   color: #d9f275;
   font-size: 8px;
   font-weight: 900;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 
 .gameGuideHeader h2 {
   margin: 7px 0 0;
   color: #f7f4e9;
   font-size: 26px;
-  letter-spacing: -.045em;
+  letter-spacing: -0.045em;
   line-height: 1;
 }
 
@@ -564,7 +567,7 @@
   padding-top: 4px;
   font-size: 7px;
   font-weight: 900;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
   line-height: 1.45;
 }
 
@@ -573,21 +576,27 @@
   color: #172019;
 }
 
-.civilianGuide > small { color: #d9f275; }
+.civilianGuide > small {
+  color: #d9f275;
+}
 
 .undercoverGuide > div > span {
   background: #ef765f;
   color: #261713;
 }
 
-.undercoverGuide > small { color: #ef8c78; }
+.undercoverGuide > small {
+  color: #ef8c78;
+}
 
 .mrWhiteGuide > div > span {
   background: #eee9dd;
   color: #252822;
 }
 
-.mrWhiteGuide > small { color: #ddd9cf; }
+.mrWhiteGuide > small {
+  color: #ddd9cf;
+}
 
 .guideTips {
   display: flex;
@@ -666,7 +675,7 @@
   color: #d9f275;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -698,7 +707,7 @@
 }
 
 .discussionSetting button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -847,8 +856,7 @@
   border: 1px solid #506157;
   border-radius: 18px 18px 18px 5px;
   background:
-    linear-gradient(145deg, rgb(217 242 117 / 5%), transparent 45%),
-    #1b231e;
+    linear-gradient(145deg, rgb(217 242 117 / 5%), transparent 45%), #1b231e;
   box-shadow: 0 18px 38px rgb(0 0 0 / 15%);
 }
 
@@ -864,7 +872,7 @@
   color: #d9f275;
   font-size: 8px;
   font-weight: 900;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
 }
 
 .votePanelHeading h2 {
@@ -969,7 +977,7 @@
 }
 
 .voteForm > button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -1004,7 +1012,7 @@
 
 .voteWaiting button:disabled,
 .confirmRoleButton:disabled {
-  opacity: .5;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -1028,7 +1036,7 @@
   height: 100%;
   border-radius: inherit;
   background: #d9f275;
-  transition: width .2s ease;
+  transition: width 0.2s ease;
 }
 
 .voteCaught {
@@ -1100,13 +1108,13 @@
 .myIdentity small {
   font-size: 6px;
   font-weight: 900;
-  letter-spacing: .15em;
+  letter-spacing: 0.15em;
 }
 
 .myIdentity strong {
   overflow: hidden;
   font-size: 15px;
-  letter-spacing: -.025em;
+  letter-spacing: -0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1146,7 +1154,7 @@
 .myCard span {
   font-size: 6px;
   font-weight: 900;
-  letter-spacing: .11em;
+  letter-spacing: 0.11em;
   text-align: center;
   text-transform: uppercase;
 }
@@ -1155,13 +1163,13 @@
   max-width: 100%;
   overflow: hidden;
   font-size: 25px;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
   text-overflow: ellipsis;
   text-transform: uppercase;
 }
 
 .myCardReady {
-  animation: deal-card .48s cubic-bezier(.2, .85, .35, 1.2) both;
+  animation: deal-card 0.48s cubic-bezier(0.2, 0.85, 0.35, 1.2) both;
 }
 
 .board {
@@ -1180,7 +1188,11 @@
     linear-gradient(rgb(255 255 255 / 1.6%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 1.6%) 1px, transparent 1px),
     #172019;
-  background-size: auto, 32px 32px, 32px 32px, auto;
+  background-size:
+    auto,
+    32px 32px,
+    32px 32px,
+    auto;
   box-shadow:
     0 26px 65px rgb(0 0 0 / 20%),
     inset 0 1px 0 rgb(255 255 255 / 3%);
@@ -1217,10 +1229,12 @@
   border: 1px solid #3c4a41;
   border-radius: 16px 16px 16px 5px;
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 3%), transparent 48%),
-    #202a23;
+    linear-gradient(145deg, rgb(255 255 255 / 3%), transparent 48%), #202a23;
   box-shadow: 0 10px 24px rgb(0 0 0 / 13%);
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
 .seat:hover {
@@ -1232,8 +1246,7 @@
 .currentSeat {
   border-color: #b9d65e;
   background:
-    linear-gradient(145deg, rgb(217 242 117 / 9%), transparent 52%),
-    #202a23;
+    linear-gradient(145deg, rgb(217 242 117 / 9%), transparent 52%), #202a23;
   box-shadow:
     0 0 0 3px rgb(217 242 117 / 6%),
     0 14px 28px rgb(0 0 0 / 18%);
@@ -1306,14 +1319,16 @@
   color: #172019;
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: -.02em;
+  letter-spacing: -0.02em;
   text-shadow: 0 1px 0 rgb(255 255 255 / 22%);
-  transition: filter .2s ease, opacity .2s ease;
+  transition:
+    filter 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .offlineAvatar {
-  filter: grayscale(.72) saturate(.55);
-  opacity: .68;
+  filter: grayscale(0.72) saturate(0.55);
+  opacity: 0.68;
 }
 
 .avatarPresence {
@@ -1352,11 +1367,11 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   font-weight: 900;
-  letter-spacing: -.06em;
+  letter-spacing: -0.06em;
   box-shadow:
     0 7px 15px rgb(0 0 0 / 34%),
     inset 0 1px 0 rgb(255 255 255 / 70%);
-  animation: rank-change-in .38s cubic-bezier(.2, .9, .3, 1.25) both;
+  animation: rank-change-in 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
 }
 
 .topAvatarRank {
@@ -1391,7 +1406,7 @@
   overflow: hidden;
   color: #f1f4f0;
   font-size: 11px;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1402,12 +1417,24 @@
   font-size: 8px;
 }
 
-.lime { background: linear-gradient(145deg, #efffb1, #bad956); }
-.coral { background: linear-gradient(145deg, #ffb3a4, #e86f5d); }
-.blue { background: linear-gradient(145deg, #cbd8fa, #89a4df); }
-.sand { background: linear-gradient(145deg, #fff0c9, #d8bc7f); }
-.violet { background: linear-gradient(145deg, #decdf7, #aa88d9); }
-.mint { background: linear-gradient(145deg, #c9f0dc, #7fc6a4); }
+.lime {
+  background: linear-gradient(145deg, #efffb1, #bad956);
+}
+.coral {
+  background: linear-gradient(145deg, #ffb3a4, #e86f5d);
+}
+.blue {
+  background: linear-gradient(145deg, #cbd8fa, #89a4df);
+}
+.sand {
+  background: linear-gradient(145deg, #fff0c9, #d8bc7f);
+}
+.violet {
+  background: linear-gradient(145deg, #decdf7, #aa88d9);
+}
+.mint {
+  background: linear-gradient(145deg, #c9f0dc, #7fc6a4);
+}
 
 .playerCard,
 .emptyCard {
@@ -1433,13 +1460,13 @@ button.playerCard {
 .playerCard span {
   font-size: 5px;
   font-weight: 850;
-  letter-spacing: .09em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
 .playerCard strong {
   font-size: 21px;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .undealtCard {
@@ -1454,11 +1481,11 @@ button.playerCard {
   border-color: #4a514c;
   background: #252b27;
   color: #7f8982;
-  filter: saturate(.3);
+  filter: saturate(0.3);
 }
 
 .dealtCard {
-  animation: deal-card .48s cubic-bezier(.2, .85, .35, 1.2) both;
+  animation: deal-card 0.48s cubic-bezier(0.2, 0.85, 0.35, 1.2) both;
 }
 
 .emptySeat {
@@ -1466,7 +1493,7 @@ button.playerCard {
   background: rgb(13 20 15 / 26%);
   color: #778279;
   box-shadow: none;
-  opacity: .74;
+  opacity: 0.74;
 }
 
 .emptySeat:hover {
@@ -1553,7 +1580,7 @@ button.playerCard {
 }
 
 .dealingTable .tableMark {
-  animation: dealing-mark .7s ease-in-out infinite alternate;
+  animation: dealing-mark 0.7s ease-in-out infinite alternate;
 }
 
 .dealOverlay {
@@ -1568,7 +1595,7 @@ button.playerCard {
     radial-gradient(circle at 50% 46%, rgb(217 242 117 / 15%), transparent 28%),
     rgb(7 13 9 / 88%);
   backdrop-filter: blur(9px);
-  animation: deal-overlay-in .24s ease-out both;
+  animation: deal-overlay-in 0.24s ease-out both;
 }
 
 .cardRevealOverlay {
@@ -1585,7 +1612,7 @@ button.playerCard {
     rgb(7 13 9 / 91%);
   backdrop-filter: blur(10px);
   cursor: default;
-  animation: card-reveal-overlay-in .2s ease-out both;
+  animation: card-reveal-overlay-in 0.2s ease-out both;
 }
 
 .cardPromptOverlay {
@@ -1612,14 +1639,14 @@ button.playerCard {
   color: #172019;
   box-shadow: 0 42px 90px rgb(0 0 0 / 50%);
   cursor: default;
-  animation: revealed-secret-card-in .38s cubic-bezier(.2, .85, .3, 1.12) both;
+  animation: revealed-secret-card-in 0.38s cubic-bezier(0.2, 0.85, 0.3, 1.12)
+    both;
 }
 
 .facedownSecretCard {
   border-color: rgb(217 242 117 / 72%);
   background:
-    linear-gradient(145deg, rgb(217 242 117 / 9%), transparent 46%),
-    #17271d;
+    linear-gradient(145deg, rgb(217 242 117 / 9%), transparent 46%), #17271d;
   color: #d9f275;
 }
 
@@ -1649,7 +1676,7 @@ button.playerCard {
 .facedownSecretCard small {
   font-size: 8px;
   font-weight: 900;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -1697,7 +1724,7 @@ button.playerCard {
 .revealedSecretCard small {
   font-size: 8px;
   font-weight: 900;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -1705,7 +1732,7 @@ button.playerCard {
   max-width: 100%;
   overflow-wrap: anywhere;
   font-size: clamp(30px, 8vw, 43px);
-  letter-spacing: -.055em;
+  letter-spacing: -0.055em;
   line-height: 1;
   text-align: center;
   text-transform: uppercase;
@@ -1724,7 +1751,7 @@ button.playerCard {
   color: #aeb8b0;
   font-size: 9px;
   font-weight: 750;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
 }
 
 .confirmRoleButton {
@@ -1772,7 +1799,7 @@ button.playerCard {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  animation: deal-copy-in .32s ease-out both;
+  animation: deal-copy-in 0.32s ease-out both;
 }
 
 .dealAvatar {
@@ -1797,7 +1824,7 @@ button.playerCard {
   color: #8e9a91;
   font-size: 7px;
   font-weight: 900;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
 }
 
 .dealRecipient strong {
@@ -1805,7 +1832,7 @@ button.playerCard {
   overflow: hidden;
   color: #f7f4e9;
   font-size: 18px;
-  letter-spacing: -.025em;
+  letter-spacing: -0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1823,13 +1850,19 @@ button.playerCard {
   border: 1px solid #607666;
   border-radius: 26px 26px 26px 8px;
   background:
-    linear-gradient(135deg, transparent 48%, rgb(217 242 117 / 4%) 49%, rgb(217 242 117 / 4%) 51%, transparent 52%),
+    linear-gradient(
+      135deg,
+      transparent 48%,
+      rgb(217 242 117 / 4%) 49%,
+      rgb(217 242 117 / 4%) 51%,
+      transparent 52%
+    ),
     #17271d;
   color: #d9f275;
   box-shadow:
     0 38px 75px rgb(0 0 0 / 48%),
     inset 0 0 0 8px rgb(217 242 117 / 3%);
-  animation: large-card-deal .62s cubic-bezier(.18, .86, .25, 1.12) both;
+  animation: large-card-deal 0.62s cubic-bezier(0.18, 0.86, 0.25, 1.12) both;
   transform-origin: 50% 115%;
 }
 
@@ -1854,7 +1887,7 @@ button.playerCard {
   z-index: 1;
   font-size: 8px;
   font-weight: 900;
-  letter-spacing: .19em;
+  letter-spacing: 0.19em;
 }
 
 .largeDealCard > strong {
@@ -1875,14 +1908,14 @@ button.playerCard {
   display: grid;
   justify-items: center;
   gap: 10px;
-  animation: deal-copy-in .36s .12s ease-out both;
+  animation: deal-copy-in 0.36s 0.12s ease-out both;
 }
 
 .dealCounter > span {
   color: #cbd4cd;
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: .11em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
 }
 
@@ -1897,7 +1930,7 @@ button.playerCard {
   overflow: hidden;
   border-radius: 999px;
   background: #354139;
-  transition: background .2s ease;
+  transition: background 0.2s ease;
 }
 
 .dealCounter .progressDone {
@@ -1909,13 +1942,13 @@ button.playerCard {
   color: #d9f275;
   font-size: 8px;
   font-weight: 850;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
 }
 
 .table h2 {
   margin: 0;
   font-size: clamp(29px, 4vw, 45px);
-  letter-spacing: -.055em;
+  letter-spacing: -0.055em;
 }
 
 .table > span {
@@ -1939,7 +1972,7 @@ button.playerCard {
   color: #d7e0da;
   font-size: 7px;
   font-weight: 750;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -1949,8 +1982,7 @@ button.playerCard {
   border: 1px solid #3d4b42;
   border-radius: 20px 20px 20px 6px;
   background:
-    linear-gradient(120deg, rgb(217 242 117 / 4%), transparent 30%),
-    #19221c;
+    linear-gradient(120deg, rgb(217 242 117 / 4%), transparent 30%), #19221c;
   box-shadow: 0 22px 52px rgb(0 0 0 / 16%);
 }
 
@@ -1967,20 +1999,20 @@ button.playerCard {
   color: #d9f275;
   font-size: 7px;
   font-weight: 900;
-  letter-spacing: .17em;
+  letter-spacing: 0.17em;
 }
 
 .leaderboardHeading h2 {
   margin: 0;
   font-size: 24px;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .leaderboardHeading > span {
   color: #7f8b82;
   font-size: 8px;
   font-weight: 750;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -1998,7 +2030,7 @@ button.playerCard {
   color: #6f7a72;
   font-size: 7px;
   font-weight: 850;
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
   text-align: left;
   text-transform: uppercase;
 }
@@ -2023,7 +2055,7 @@ button.playerCard {
 }
 
 .leaderboard tbody tr {
-  transition: background .15s ease;
+  transition: background 0.15s ease;
 }
 
 .leaderboard tbody tr:hover,
@@ -2042,7 +2074,7 @@ button.playerCard {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 8px;
   font-weight: 850;
-  animation: rank-change-in .38s cubic-bezier(.2, .9, .3, 1.25) both;
+  animation: rank-change-in 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
 }
 
 .topRank {
@@ -2090,7 +2122,7 @@ button.playerCard {
   color: #172019;
   font-size: 6px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .playerStatus {
@@ -2103,7 +2135,7 @@ button.playerCard {
   border-radius: 999px;
   font-size: 7px;
   font-weight: 850;
-  letter-spacing: .05em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
@@ -2168,7 +2200,7 @@ button.playerCard {
 
 .kickButton:disabled {
   cursor: wait;
-  opacity: .55;
+  opacity: 0.55;
 }
 
 .kickError {
@@ -2202,7 +2234,7 @@ button.playerCard {
   color: #a986df;
   font-size: 6px;
   font-weight: 850;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
 }
 
 .roomNote {
@@ -2247,14 +2279,14 @@ button.playerCard {
   color: #647067;
   font-size: 7px;
   font-weight: 850;
-  letter-spacing: .15em;
+  letter-spacing: 0.15em;
   white-space: nowrap;
 }
 
 @keyframes deal-card {
   from {
     opacity: 0;
-    transform: translateY(28px) rotate(9deg) scale(.7);
+    transform: translateY(28px) rotate(9deg) scale(0.7);
   }
 
   to {
@@ -2266,7 +2298,7 @@ button.playerCard {
 @keyframes rank-change-in {
   from {
     opacity: 0;
-    transform: translateY(-7px) scale(.72);
+    transform: translateY(-7px) scale(0.72);
   }
 
   to {
@@ -2276,12 +2308,14 @@ button.playerCard {
 }
 
 @keyframes rank-ring-spin {
-  to { transform: rotate(1turn); }
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 @keyframes dealing-mark {
   from {
-    transform: rotate(-8deg) scale(.94);
+    transform: rotate(-8deg) scale(0.94);
   }
 
   to {
@@ -2290,24 +2324,38 @@ button.playerCard {
 }
 
 @keyframes deal-overlay-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes card-reveal-overlay-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes revealed-secret-card-in {
-  from { opacity: 0; transform: translateY(24px) scale(.94) rotate(-2deg); }
-  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94) rotate(-2deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+  }
 }
 
 @keyframes large-card-deal {
   0% {
     opacity: 0;
-    transform: translateY(52vh) rotate(18deg) scale(.55);
+    transform: translateY(52vh) rotate(18deg) scale(0.55);
   }
 
   72% {
@@ -2334,7 +2382,9 @@ button.playerCard {
 }
 
 @keyframes deal-orbit {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading,
@@ -2370,7 +2420,7 @@ button.playerCard {
   margin: 20px 0 0;
   color: #f7f4e9;
   font-size: 38px;
-  letter-spacing: -.05em;
+  letter-spacing: -0.05em;
 }
 
 .notFound p {
@@ -2532,7 +2582,7 @@ button.playerCard {
   .mobileRoomNav small {
     color: currentColor;
     font-size: 6px;
-    opacity: .68;
+    opacity: 0.68;
   }
 
   .content[data-mobile-view="table"] .leaderboard,

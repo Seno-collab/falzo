@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, login, register } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
@@ -33,8 +34,14 @@ export function PasswordAuthForm() {
     event.preventDefault();
     const normalizedUsername = username.trim().toLowerCase();
 
-    if (normalizedUsername.length < 3 || normalizedUsername.length > 30 || !usernamePattern.test(normalizedUsername)) {
-      setError("Username must be 3-30 characters using letters, numbers, _ or -.");
+    if (
+      normalizedUsername.length < 3 ||
+      normalizedUsername.length > 30 ||
+      !usernamePattern.test(normalizedUsername)
+    ) {
+      setError(
+        "Username must be 3-30 characters using letters, numbers, _ or -.",
+      );
       return;
     }
     if (password.length < 8 || password.length > 72) {
@@ -49,15 +56,22 @@ export function PasswordAuthForm() {
     setError("");
     setIsSubmitting(true);
     try {
-      const result = mode === "register"
-        ? await register(normalizedUsername, password)
-        : await login(normalizedUsername, password);
+      const result =
+        mode === "register"
+          ? await register(normalizedUsername, password)
+          : await login(normalizedUsername, password);
       saveSession(result.username, result);
       router.replace("/dashboard");
     } catch (requestError) {
-      if (requestError instanceof ApiError && requestError.code === "USERNAME_ALREADY_EXISTS") {
+      if (
+        requestError instanceof ApiError &&
+        requestError.code === "USERNAME_ALREADY_EXISTS"
+      ) {
         setError("That username is already taken.");
-      } else if (requestError instanceof ApiError && requestError.code === "INVALID_CREDENTIALS") {
+      } else if (
+        requestError instanceof ApiError &&
+        requestError.code === "INVALID_CREDENTIALS"
+      ) {
         setError("Incorrect username or password.");
       } else if (requestError instanceof ApiError) {
         setError(requestError.message);
@@ -112,7 +126,9 @@ export function PasswordAuthForm() {
           <span>Password</span>
           <div className="auth-input-wrap">
             <input
-              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              autoComplete={
+                mode === "register" ? "new-password" : "current-password"
+              }
               maxLength={72}
               minLength={8}
               name="password"
@@ -152,7 +168,11 @@ export function PasswordAuthForm() {
               <button
                 className="password-visibility"
                 type="button"
-                aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                aria-label={
+                  showConfirmPassword
+                    ? "Hide password confirmation"
+                    : "Show password confirmation"
+                }
                 aria-pressed={showConfirmPassword}
                 onClick={() => setShowConfirmPassword((visible) => !visible)}
               >
@@ -163,14 +183,26 @@ export function PasswordAuthForm() {
         ) : null}
 
         {mode === "register" ? (
-          <p className="password-hint">Your username will be saved in lowercase.</p>
+          <p className="password-hint">
+            Your username will be saved in lowercase.
+          </p>
         ) : null}
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
 
-        <button className="password-auth-submit" disabled={isSubmitting} type="submit">
+        <button
+          className="password-auth-submit"
+          disabled={isSubmitting}
+          type="submit"
+        >
           {isSubmitting
             ? "Please wait..."
-            : mode === "register" ? "Create account" : "Sign in"}
+            : mode === "register"
+              ? "Create account"
+              : "Sign in"}
         </button>
       </form>
     </div>

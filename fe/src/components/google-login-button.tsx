@@ -57,7 +57,10 @@ export function GoogleLoginButton() {
     }
     if (!window.google || !buttonRef.current) return;
 
-    const buttonWidth = Math.min(400, Math.floor(buttonRef.current.clientWidth));
+    const buttonWidth = Math.min(
+      400,
+      Math.floor(buttonRef.current.clientWidth),
+    );
     buttonRef.current.replaceChildren();
     window.google.accounts.id.initialize({
       client_id: googleClientID,
@@ -120,9 +123,14 @@ export function GoogleLoginButton() {
         ) : null}
       </div>
       <p className="google-login-note">
-        <span aria-hidden="true">◆</span> Secure sign-in. We never see your Google password.
+        <span aria-hidden="true">◆</span> Secure sign-in. We never see your
+        Google password.
       </p>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

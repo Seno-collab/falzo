@@ -45,7 +45,9 @@ export function ChatPanel({
   onCloseAction,
 }: ChatPanelProps) {
   const inputId = useId();
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>(() => [...initialMessages]);
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>(() => [
+    ...initialMessages,
+  ]);
   const [draftMessage, setDraftMessage] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
   const visibleMessages = messages ?? localMessages;
@@ -64,21 +66,33 @@ export function ChatPanel({
       return;
     }
 
-    setLocalMessages((current) => [...current, {
-      id: `local-${Date.now()}`,
-      sender: currentUsername,
-      text,
-      time: new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(new Date()),
-      own: true,
-    }]);
+    setLocalMessages((current) => [
+      ...current,
+      {
+        id: `local-${Date.now()}`,
+        sender: currentUsername,
+        text,
+        time: new Intl.DateTimeFormat("en", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date()),
+        own: true,
+      },
+    ]);
     setDraftMessage("");
   }
 
   return (
-    <section className={`${styles.panel} ${className ?? ""}`} aria-label={`Chat with ${title}`}>
+    <section
+      className={`${styles.panel} ${className ?? ""}`}
+      aria-label={`Chat with ${title}`}
+    >
       <header className={styles.header}>
         <div className={styles.identity}>
-          <span className={`${styles.presenceDot} ${styles[presence]}`} aria-hidden="true" />
+          <span
+            className={`${styles.presenceDot} ${styles[presence]}`}
+            aria-hidden="true"
+          />
           <div>
             <strong>{title}</strong>
             <small>{subtitle}</small>
@@ -88,7 +102,11 @@ export function ChatPanel({
         <div className={styles.headerActions}>
           {contextLabel && <span>{contextLabel}</span>}
           {onCloseAction && (
-            <button aria-label={`Close chat with ${title}`} onClick={onCloseAction} type="button">
+            <button
+              aria-label={`Close chat with ${title}`}
+              onClick={onCloseAction}
+              type="button"
+            >
               ×
             </button>
           )}
@@ -102,7 +120,7 @@ export function ChatPanel({
             <p>No messages yet. Say hello to the room.</p>
           </div>
         )}
-        {visibleMessages.map((message) => (
+        {visibleMessages.map((message) =>
           message.system ? (
             <div className={styles.systemMessage} key={message.id}>
               <span aria-hidden="true">i</span>
@@ -119,8 +137,8 @@ export function ChatPanel({
               </div>
               <p>{message.text}</p>
             </article>
-          )
-        ))}
+          ),
+        )}
         <div ref={chatEndRef} />
       </div>
 

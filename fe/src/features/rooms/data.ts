@@ -1,7 +1,17 @@
-import type { RoomLanguage, RoomResponse, RoundCardResponse } from "@/types/room";
+import type {
+  RoomLanguage,
+  RoomResponse,
+  RoundCardResponse,
+} from "@/types/room";
 
 export type RoomStatus = "waiting" | "playing";
-export type PlayerColor = "lime" | "coral" | "blue" | "sand" | "violet" | "mint";
+export type PlayerColor =
+  | "lime"
+  | "coral"
+  | "blue"
+  | "sand"
+  | "violet"
+  | "mint";
 
 export type RoomPlayer = {
   id: string;
@@ -73,9 +83,12 @@ export function mapRoomResponse(room: RoomResponse): GameRoom {
 export function mapRoundCardResponse(card: RoundCardResponse): PlayerCard {
   return {
     playerId: String(card.player_id),
-    role: card.role === "undercover"
-      ? "Undercover"
-      : card.role === "mr_white" ? "Mr. White" : "Civilian",
+    role:
+      card.role === "undercover"
+        ? "Undercover"
+        : card.role === "mr_white"
+          ? "Mr. White"
+          : "Civilian",
     word: card.word,
   };
 }

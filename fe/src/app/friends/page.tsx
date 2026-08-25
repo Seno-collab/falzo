@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type SubmitEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type SubmitEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/session-guard";
 import {
@@ -60,32 +66,46 @@ export default function FriendsPage() {
   const safeResults = asArray(results);
 
   const incomingRequests = useMemo(
-    () => safeRequests.filter((request) => request.receiver_name === session.username),
+    () =>
+      safeRequests.filter(
+        (request) => request.receiver_name === session.username,
+      ),
     [safeRequests, session.username],
   );
   const outgoingRequests = useMemo(
-    () => safeRequests.filter((request) => request.sender_name === session.username),
+    () =>
+      safeRequests.filter(
+        (request) => request.sender_name === session.username,
+      ),
     [safeRequests, session.username],
   );
 
-  const loadSocialData = useCallback(async (trackActivity: boolean) => {
-    const activeSession = await restoreSession();
-    if (!activeSession) {
-      router.replace("/login");
-      return false;
-    }
-    const [friendData, requestData, notificationData, unreadData] = await Promise.all([
-      listFriends(activeSession.access_token, { trackActivity }),
-      listFriendRequests(activeSession.access_token, { trackActivity }),
-      listNotifications(activeSession.access_token, {}, { trackActivity }),
-      countUnreadNotifications(activeSession.access_token, { trackActivity }),
-    ]);
-    setFriends(asArray(friendData));
-    setRequests(asArray(requestData));
-    setNotifications(asArray(notificationData));
-    setUnreadCount(typeof unreadData?.count === "number" ? unreadData.count : 0);
-    return true;
-  }, [router]);
+  const loadSocialData = useCallback(
+    async (trackActivity: boolean) => {
+      const activeSession = await restoreSession();
+      if (!activeSession) {
+        router.replace("/login");
+        return false;
+      }
+      const [friendData, requestData, notificationData, unreadData] =
+        await Promise.all([
+          listFriends(activeSession.access_token, { trackActivity }),
+          listFriendRequests(activeSession.access_token, { trackActivity }),
+          listNotifications(activeSession.access_token, {}, { trackActivity }),
+          countUnreadNotifications(activeSession.access_token, {
+            trackActivity,
+          }),
+        ]);
+      setFriends(asArray(friendData));
+      setRequests(asArray(requestData));
+      setNotifications(asArray(notificationData));
+      setUnreadCount(
+        typeof unreadData?.count === "number" ? unreadData.count : 0,
+      );
+      return true;
+    },
+    [router],
+  );
 
   useEffect(() => {
     let active = true;
@@ -114,7 +134,11 @@ export default function FriendsPage() {
     return activeSession.access_token;
   }
 
-  async function runAction(key: string, action: (accessToken: string) => Promise<unknown>, success: string) {
+  async function runAction(
+    key: string,
+    action: (accessToken: string) => Promise<unknown>,
+    success: string,
+  ) {
     setPendingAction(key);
     setError("");
     setNotice("");
@@ -161,12 +185,14 @@ export default function FriendsPage() {
       `Friend request sent to ${user.username}.`,
     );
     if (sent) {
-      setResults((current) => asArray(current).map((item) => {
-        if (item.id === user.id) {
-          return { ...item, relationship: "OUTGOING_REQUEST" };
-        }
-        return item;
-      }));
+      setResults((current) =>
+        asArray(current).map((item) => {
+          if (item.id === user.id) {
+            return { ...item, relationship: "OUTGOING_REQUEST" };
+          }
+          return item;
+        }),
+      );
     }
   }
 
@@ -187,12 +213,14 @@ export default function FriendsPage() {
         const accessToken = await activeAccessToken();
         await markNotificationRead(accessToken, notification.id);
         const readAt = new Date().toISOString();
-        setNotifications((current) => asArray(current).map((item) => {
-          if (item.id === notification.id) {
-            return { ...item, read: true, read_at: readAt };
-          }
-          return item;
-        }));
+        setNotifications((current) =>
+          asArray(current).map((item) => {
+            if (item.id === notification.id) {
+              return { ...item, read: true, read_at: readAt };
+            }
+            return item;
+          }),
+        );
         setUnreadCount((current) => Math.max(0, current - 1));
       } catch (notificationError) {
         setError(socialErrorMessage(notificationError));
@@ -201,7 +229,9 @@ export default function FriendsPage() {
         setPendingAction("");
       }
     }
-    setPanel(notification.type === "FRIEND_REQUEST_RECEIVED" ? "requests" : "friends");
+    setPanel(
+      notification.type === "FRIEND_REQUEST_RECEIVED" ? "requests" : "friends",
+    );
   }
 
   async function handleMarkAllRead() {
@@ -222,7 +252,12 @@ export default function FriendsPage() {
     />
   );
   if (loading) {
-    panelContent = <EmptyState title="Loading friends…" text="Syncing your social list with the server." />;
+    panelContent = (
+      <EmptyState
+        title="Loading friends…"
+        text="Syncing your social list with the server."
+      />
+    );
   } else if (panel === "friends") {
     panelContent = (
       <FriendsPanel
@@ -264,7 +299,9 @@ export default function FriendsPage() {
           <span aria-hidden="true">F</span>
           falzo
         </Link>
-        <Link className={styles.backLink} href="/dashboard">← Back to rooms</Link>
+        <Link className={styles.backLink} href="/dashboard">
+          ← Back to rooms
+        </Link>
       </header>
 
       <div className={styles.shell}>
@@ -275,21 +312,35 @@ export default function FriendsPage() {
             <span>Find players and bring your group into the next room.</span>
           </div>
           <div className={styles.summary}>
-            <span><strong>{safeFriends.length}</strong> friends</span>
-            <span><strong>{incomingRequests.length}</strong> requests</span>
-            <span><strong>{unreadCount}</strong> unread</span>
+            <span>
+              <strong>{safeFriends.length}</strong> friends
+            </span>
+            <span>
+              <strong>{incomingRequests.length}</strong> requests
+            </span>
+            <span>
+              <strong>{unreadCount}</strong> unread
+            </span>
           </div>
         </section>
 
         <nav className={styles.tabs} aria-label="Friend sections">
-          <Tab active={panel === "friends"} label="Friends" onClick={() => setPanel("friends")} />
+          <Tab
+            active={panel === "friends"}
+            label="Friends"
+            onClick={() => setPanel("friends")}
+          />
           <Tab
             active={panel === "requests"}
             count={incomingRequests.length}
             label="Requests"
             onClick={() => setPanel("requests")}
           />
-          <Tab active={panel === "find"} label="Find players" onClick={() => setPanel("find")} />
+          <Tab
+            active={panel === "find"}
+            label="Find players"
+            onClick={() => setPanel("find")}
+          />
           <Tab
             active={panel === "notifications"}
             count={unreadCount}
@@ -298,8 +349,16 @@ export default function FriendsPage() {
           />
         </nav>
 
-        {error && <p className={styles.error} role="alert">{error}</p>}
-        {notice && <p className={styles.notice} role="status">{notice}</p>}
+        {error && (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p className={styles.notice} role="status">
+            {notice}
+          </p>
+        )}
 
         <section className={styles.panel} aria-live="polite">
           {panelContent}
@@ -309,28 +368,49 @@ export default function FriendsPage() {
   );
 }
 
-function Tab({ active, count = 0, label, onClick }: Readonly<{
+function Tab({
+  active,
+  count = 0,
+  label,
+  onClick,
+}: Readonly<{
   active: boolean;
   count?: number;
   label: string;
   onClick: () => void;
 }>) {
   return (
-    <button className={active ? styles.activeTab : ""} onClick={onClick} type="button">
+    <button
+      className={active ? styles.activeTab : ""}
+      onClick={onClick}
+      type="button"
+    >
       {label}
       {count > 0 && <span>{count > 99 ? "99+" : count}</span>}
     </button>
   );
 }
 
-function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: Readonly<{
+function FriendsPanel({
+  friends,
+  onUnfriend,
+  pendingAction,
+  showFind,
+}: Readonly<{
   friends: Friend[];
   onUnfriend: (friend: Friend) => void;
   pendingAction: string;
   showFind: () => void;
 }>) {
   if (friends.length === 0) {
-    return <EmptyState action="Find players" onAction={showFind} title="No friends yet" text="Search by username and send your first request." />;
+    return (
+      <EmptyState
+        action="Find players"
+        onAction={showFind}
+        title="No friends yet"
+        text="Search by username and send your first request."
+      />
+    );
   }
   return (
     <div className={styles.list}>
@@ -339,7 +419,11 @@ function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: Readonly
           <Avatar name={friend.username} online={friend.online} />
           <div className={styles.person}>
             <strong>{friend.username}</strong>
-            <span>{friend.online ? "Online now" : `Friends since ${formatDate(friend.friends_at)}`}</span>
+            <span>
+              {friend.online
+                ? "Online now"
+                : `Friends since ${formatDate(friend.friends_at)}`}
+            </span>
           </div>
           <button
             className={styles.dangerButton}
@@ -347,7 +431,9 @@ function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: Readonly
             onClick={() => onUnfriend(friend)}
             type="button"
           >
-            {pendingAction === `unfriend-${friend.id}` ? "Removing…" : "Unfriend"}
+            {pendingAction === `unfriend-${friend.id}`
+              ? "Removing…"
+              : "Unfriend"}
           </button>
         </article>
       ))}
@@ -355,20 +441,36 @@ function FriendsPanel({ friends, onUnfriend, pendingAction, showFind }: Readonly
   );
 }
 
-function RequestsPanel({ incoming, outgoing, pendingAction, runAction }: Readonly<{
+function RequestsPanel({
+  incoming,
+  outgoing,
+  pendingAction,
+  runAction,
+}: Readonly<{
   incoming: FriendRequest[];
   outgoing: FriendRequest[];
   pendingAction: string;
-  runAction: (key: string, action: (accessToken: string) => Promise<unknown>, success: string) => Promise<boolean>;
+  runAction: (
+    key: string,
+    action: (accessToken: string) => Promise<unknown>,
+    success: string,
+  ) => Promise<boolean>;
 }>) {
   if (incoming.length === 0 && outgoing.length === 0) {
-    return <EmptyState title="No pending requests" text="New friend requests will appear here." />;
+    return (
+      <EmptyState
+        title="No pending requests"
+        text="New friend requests will appear here."
+      />
+    );
   }
   return (
     <div className={styles.requestGroups}>
       <div>
         <h2>Received</h2>
-        {incoming.length === 0 ? <p className={styles.muted}>No incoming requests.</p> : (
+        {incoming.length === 0 ? (
+          <p className={styles.muted}>No incoming requests.</p>
+        ) : (
           <div className={styles.list}>
             {incoming.map((request) => (
               <article className={styles.row} key={request.id}>
@@ -380,23 +482,29 @@ function RequestsPanel({ incoming, outgoing, pendingAction, runAction }: Readonl
                 <div className={styles.actions}>
                   <button
                     disabled={Boolean(pendingAction)}
-                    onClick={() => void runAction(
-                      `accept-${request.id}`,
-                      (token) => acceptFriendRequest(token, request.id),
-                      `You and ${request.sender_name} are now friends.`,
-                    )}
+                    onClick={() =>
+                      void runAction(
+                        `accept-${request.id}`,
+                        (token) => acceptFriendRequest(token, request.id),
+                        `You and ${request.sender_name} are now friends.`,
+                      )
+                    }
                     type="button"
                   >
-                    {pendingAction === `accept-${request.id}` ? "Accepting…" : "Accept"}
+                    {pendingAction === `accept-${request.id}`
+                      ? "Accepting…"
+                      : "Accept"}
                   </button>
                   <button
                     className={styles.secondaryButton}
                     disabled={Boolean(pendingAction)}
-                    onClick={() => void runAction(
-                      `reject-${request.id}`,
-                      (token) => rejectFriendRequest(token, request.id),
-                      `Request from ${request.sender_name} declined.`,
-                    )}
+                    onClick={() =>
+                      void runAction(
+                        `reject-${request.id}`,
+                        (token) => rejectFriendRequest(token, request.id),
+                        `Request from ${request.sender_name} declined.`,
+                      )
+                    }
                     type="button"
                   >
                     Decline
@@ -409,7 +517,9 @@ function RequestsPanel({ incoming, outgoing, pendingAction, runAction }: Readonl
       </div>
       <div>
         <h2>Sent</h2>
-        {outgoing.length === 0 ? <p className={styles.muted}>No outgoing requests.</p> : (
+        {outgoing.length === 0 ? (
+          <p className={styles.muted}>No outgoing requests.</p>
+        ) : (
           <div className={styles.list}>
             {outgoing.map((request) => (
               <article className={styles.row} key={request.id}>
@@ -421,14 +531,18 @@ function RequestsPanel({ incoming, outgoing, pendingAction, runAction }: Readonl
                 <button
                   className={styles.secondaryButton}
                   disabled={Boolean(pendingAction)}
-                  onClick={() => void runAction(
-                    `cancel-${request.id}`,
-                    (token) => cancelFriendRequest(token, request.id),
-                    `Request to ${request.receiver_name} canceled.`,
-                  )}
+                  onClick={() =>
+                    void runAction(
+                      `cancel-${request.id}`,
+                      (token) => cancelFriendRequest(token, request.id),
+                      `Request to ${request.receiver_name} canceled.`,
+                    )
+                  }
                   type="button"
                 >
-                  {pendingAction === `cancel-${request.id}` ? "Canceling…" : "Cancel request"}
+                  {pendingAction === `cancel-${request.id}`
+                    ? "Canceling…"
+                    : "Cancel request"}
                 </button>
               </article>
             ))}
@@ -474,12 +588,20 @@ function FindPanel({
     }
     if (user.relationship === "INCOMING_REQUEST") {
       return (
-        <button className={styles.secondaryButton} onClick={() => setPanel("requests")} type="button">
+        <button
+          className={styles.secondaryButton}
+          onClick={() => setPanel("requests")}
+          type="button"
+        >
           View request
         </button>
       );
     }
-    return <span className={styles.relationshipTag}>{relationshipLabel(user.relationship)}</span>;
+    return (
+      <span className={styles.relationshipTag}>
+        {relationshipLabel(user.relationship)}
+      </span>
+    );
   }
 
   return (
@@ -493,10 +615,15 @@ function FindPanel({
           placeholder="Search username…"
           value={query}
         />
-        <button disabled={searching} type="submit">{searching ? "Searching…" : "Find player"}</button>
+        <button disabled={searching} type="submit">
+          {searching ? "Searching…" : "Find player"}
+        </button>
       </form>
       {searched && results.length === 0 ? (
-        <EmptyState title="No players found" text="Try the beginning of another username." />
+        <EmptyState
+          title="No players found"
+          text="Try the beginning of another username."
+        />
       ) : (
         <div className={styles.list}>
           {results.map((user) => (
@@ -504,7 +631,11 @@ function FindPanel({
               <Avatar name={user.username} online={user.online} />
               <div className={styles.person}>
                 <strong>{user.username}</strong>
-                <span>{user.online ? `Online · ${relationshipLabel(user.relationship)}` : relationshipLabel(user.relationship)}</span>
+                <span>
+                  {user.online
+                    ? `Online · ${relationshipLabel(user.relationship)}`
+                    : relationshipLabel(user.relationship)}
+                </span>
               </div>
               {renderRelationshipAction(user)}
             </article>
@@ -515,7 +646,13 @@ function FindPanel({
   );
 }
 
-function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, unreadCount }: Readonly<{
+function NotificationsPanel({
+  notifications,
+  onMarkAll,
+  onOpen,
+  pendingAction,
+  unreadCount,
+}: Readonly<{
   notifications: FriendNotification[];
   onMarkAll: () => void;
   onOpen: (notification: FriendNotification) => void;
@@ -523,15 +660,26 @@ function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, u
   unreadCount: number;
 }>) {
   if (notifications.length === 0) {
-    return <EmptyState title="No notifications" text="Friend activity will appear here." />;
+    return (
+      <EmptyState
+        title="No notifications"
+        text="Friend activity will appear here."
+      />
+    );
   }
   return (
     <div>
       <div className={styles.notificationTools}>
         <span>{unreadCount} unread</span>
         {unreadCount > 0 && (
-          <button disabled={Boolean(pendingAction)} onClick={() => void onMarkAll()} type="button">
-            {pendingAction === "notifications-read-all" ? "Marking…" : "Mark all read"}
+          <button
+            disabled={Boolean(pendingAction)}
+            onClick={() => void onMarkAll()}
+            type="button"
+          >
+            {pendingAction === "notifications-read-all"
+              ? "Marking…"
+              : "Mark all read"}
           </button>
         )}
       </div>
@@ -551,7 +699,9 @@ function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, u
               <strong>{notificationText(notification)}</strong>
               <small>{formatDate(notification.created_at)}</small>
             </span>
-            {!notification.read && <span className={styles.unreadDot} aria-label="Unread" />}
+            {!notification.read && (
+              <span className={styles.unreadDot} aria-label="Unread" />
+            )}
           </button>
         ))}
       </div>
@@ -559,18 +709,28 @@ function NotificationsPanel({ notifications, onMarkAll, onOpen, pendingAction, u
   );
 }
 
-function Avatar({ name, online }: Readonly<{ name: string; online?: boolean }>) {
+function Avatar({
+  name,
+  online,
+}: Readonly<{ name: string; online?: boolean }>) {
   return (
     <span className={styles.avatar} aria-hidden="true">
       {name.trim().charAt(0).toUpperCase() || "?"}
       {online !== undefined && (
-        <span className={`${styles.avatarPresence} ${online ? styles.online : styles.offline}`} />
+        <span
+          className={`${styles.avatarPresence} ${online ? styles.online : styles.offline}`}
+        />
       )}
     </span>
   );
 }
 
-function EmptyState({ action, onAction, text, title }: Readonly<{
+function EmptyState({
+  action,
+  onAction,
+  text,
+  title,
+}: Readonly<{
   action?: string;
   onAction?: () => void;
   text: string;
@@ -581,17 +741,25 @@ function EmptyState({ action, onAction, text, title }: Readonly<{
       <span aria-hidden="true">+</span>
       <h2>{title}</h2>
       <p>{text}</p>
-      {action && onAction && <button onClick={onAction} type="button">{action}</button>}
+      {action && onAction && (
+        <button onClick={onAction} type="button">
+          {action}
+        </button>
+      )}
     </div>
   );
 }
 
 function relationshipLabel(status: SocialUser["relationship"]) {
   switch (status) {
-    case "FRIENDS": return "Already friends";
-    case "INCOMING_REQUEST": return "Sent you a request";
-    case "OUTGOING_REQUEST": return "Request sent";
-    default: return "Player";
+    case "FRIENDS":
+      return "Already friends";
+    case "INCOMING_REQUEST":
+      return "Sent you a request";
+    case "OUTGOING_REQUEST":
+      return "Request sent";
+    default:
+      return "Player";
   }
 }
 
@@ -614,6 +782,7 @@ function formatDate(value: string) {
 
 function socialErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
-  if (error instanceof Error && error.message === "Session expired") return "Your session expired. Please sign in again.";
+  if (error instanceof Error && error.message === "Session expired")
+    return "Your session expired. Please sign in again.";
   return "Could not reach the friend service. Please try again.";
 }

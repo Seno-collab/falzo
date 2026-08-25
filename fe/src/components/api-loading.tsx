@@ -49,20 +49,30 @@ export function ApiLoading({
 
   if (variant === "page") {
     return (
-      <main className="api-loading api-loading-page" aria-live="polite" aria-busy="true">
+      <main
+        className="api-loading api-loading-page"
+        aria-live="polite"
+        aria-busy="true"
+      >
         {content}
       </main>
     );
   }
 
   return (
-    <div className="api-loading api-loading-overlay" role="status" aria-live="polite">
+    <div
+      className="api-loading api-loading-overlay"
+      role="status"
+      aria-live="polite"
+    >
       {content}
     </div>
   );
 }
 
-export function ApiLoadingProvider({ children }: Readonly<{ children: ReactNode }>) {
+export function ApiLoadingProvider({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   const activeRequestCount = useSyncExternalStore(
     subscribeToApiActivity,
     getActiveApiRequestCount,

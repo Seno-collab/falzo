@@ -13,7 +13,11 @@ const maxRememberedEventIds = 512;
 const connectionReplacedCode = 4009;
 const roomMemberRemovedCode = 4003;
 
-export type RealtimeStatus = "connecting" | "connected" | "reconnecting" | "offline";
+export type RealtimeStatus =
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "offline";
 
 export type RealtimePlayer = {
   id: number;
@@ -69,10 +73,13 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
   const [status, setStatus] = useState<RealtimeStatus>("connecting");
   const [players, setPlayers] = useState<RealtimePlayer[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [roundStarted, setRoundStarted] = useState<RoundStartedEvent | null>(null);
+  const [roundStarted, setRoundStarted] = useState<RoundStartedEvent | null>(
+    null,
+  );
   const [roomRevision, setRoomRevision] = useState(0);
   const [gameStateRevision, setGameStateRevision] = useState(0);
-  const [gameStateUpdated, setGameStateUpdated] = useState<GameStateUpdatedEvent | null>(null);
+  const [gameStateUpdated, setGameStateUpdated] =
+    useState<GameStateUpdatedEvent | null>(null);
   const [voteUpdated, setVoteUpdated] = useState<VoteUpdatedEvent | null>(null);
   const [error, setError] = useState("");
   const [removed, setRemoved] = useState(false);
@@ -97,10 +104,10 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
         return;
       }
 
-      const socket = new WebSocket(
-        roomWebSocketURL(roomId),
-        ["falzo.v1", `bearer.${session.access_token}`],
-      );
+      const socket = new WebSocket(roomWebSocketURL(roomId), [
+        "falzo.v1",
+        `bearer.${session.access_token}`,
+      ]);
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -109,19 +116,27 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
         attempt = 0;
         setError("");
         setStatus("connected");
-        socket.send(JSON.stringify({
-          type: "state.sync",
-          request_id: createRequestId(),
-          payload: { connection_mode: connectionMode },
-        }));
-        void listRoomMessages(session.access_token, roomId, { trackActivity: false })
+        socket.send(
+          JSON.stringify({
+            type: "state.sync",
+            request_id: createRequestId(),
+            payload: { connection_mode: connectionMode },
+          }),
+        );
+        void listRoomMessages(session.access_token, roomId, {
+          trackActivity: false,
+        })
           .then((history) => {
             if (!active || socketRef.current !== socket) return;
             const restoredMessages = Array.isArray(history) ? history : [];
-            setMessages((current) => mergeMessages(
-              current,
-              restoredMessages.map((message) => mapChatMessage(message, currentUsername)),
-            ));
+            setMessages((current) =>
+              mergeMessages(
+                current,
+                restoredMessages.map((message) =>
+                  mapChatMessage(message, currentUsername),
+                ),
+              ),
+            );
           })
           .catch(() => {
             if (active && socketRef.current === socket) {
@@ -131,14 +146,19 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
       };
 
       socket.onmessage = ({ data }) => {
-        if (!active || socketRef.current !== socket || typeof data !== "string") return;
+        if (!active || socketRef.current !== socket || typeof data !== "string")
+          return;
         const event = parseServerEvent(data);
         if (!event) return;
-        if (event.event_id && isDuplicateServerEvent(
-          event.event_id,
-          seenEventIdsRef.current,
-          eventOrderRef.current,
-        )) return;
+        if (
+          event.event_id &&
+          isDuplicateServerEvent(
+            event.event_id,
+            seenEventIdsRef.current,
+            eventOrderRef.current,
+          )
+        )
+          return;
 
         switch (event.type) {
           case "presence.snapshot": {
@@ -182,7 +202,8 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
       };
 
       socket.onerror = () => {
-        if (active && socketRef.current === socket) setError("Realtime connection interrupted");
+        if (active && socketRef.current === socket)
+          setError("Realtime connection interrupted");
       };
 
       socket.onclose = ({ code }) => {
@@ -200,8 +221,9 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
           return;
         }
         setStatus("reconnecting");
-        const delay = Math.min(reconnectBaseDelay * 2 ** attempt, reconnectMaxDelay)
-          + Math.floor(Math.random() * 250);
+        const delay =
+          Math.min(reconnectBaseDelay * 2 ** attempt, reconnectMaxDelay) +
+          Math.floor(Math.random() * 250);
         attempt += 1;
         reconnectTimer = window.setTimeout(() => void connect(), delay);
       };
@@ -225,11 +247,13 @@ export function useRoomRealtime(roomId: string, currentUsername: string) {
   const sendChat = useCallback((text: string) => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-    socket.send(JSON.stringify({
-      type: "chat.send",
-      request_id: createRequestId(),
-      payload: { text },
-    }));
+    socket.send(
+      JSON.stringify({
+        type: "chat.send",
+        request_id: createRequestId(),
+        payload: { text },
+      }),
+    );
     return true;
   }, []);
 
@@ -258,16 +282,18 @@ const roundPhases = new Set<RoundPhase>([
   "GAME_FINISHED",
 ]);
 
-function parseGameStateUpdatedEvent(payload: unknown): GameStateUpdatedEvent | null {
+function parseGameStateUpdatedEvent(
+  payload: unknown,
+): GameStateUpdatedEvent | null {
   if (!payload || typeof payload !== "object") return null;
   const value = payload as Record<string, unknown>;
   if (
-    typeof value.round !== "number"
-    || typeof value.cycle !== "number"
-    || typeof value.phase !== "string"
-    || !roundPhases.has(value.phase as RoundPhase)
-    || typeof value.turn_number !== "number"
-    || typeof value.total_turns !== "number"
+    typeof value.round !== "number" ||
+    typeof value.cycle !== "number" ||
+    typeof value.phase !== "string" ||
+    !roundPhases.has(value.phase as RoundPhase) ||
+    typeof value.turn_number !== "number" ||
+    typeof value.total_turns !== "number"
   ) {
     return null;
   }
@@ -275,26 +301,31 @@ function parseGameStateUpdatedEvent(payload: unknown): GameStateUpdatedEvent | n
     round: value.round,
     cycle: value.cycle,
     phase: value.phase as RoundPhase,
-    current_turn_player_id: typeof value.current_turn_player_id === "number"
-      ? value.current_turn_player_id
-      : null,
+    current_turn_player_id:
+      typeof value.current_turn_player_id === "number"
+        ? value.current_turn_player_id
+        : null,
     turn_number: value.turn_number,
     total_turns: value.total_turns,
-    turn_ends_at: typeof value.turn_ends_at === "string"
-      ? value.turn_ends_at
-      : null,
-    phase_deadline_at: typeof value.phase_deadline_at === "string"
-      ? value.phase_deadline_at
-      : null,
+    turn_ends_at:
+      typeof value.turn_ends_at === "string" ? value.turn_ends_at : null,
+    phase_deadline_at:
+      typeof value.phase_deadline_at === "string"
+        ? value.phase_deadline_at
+        : null,
   };
 }
 
 function roomWebSocketURL(roomId: string) {
-  const configuredURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.replace(/\/$/, "");
+  const configuredURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.replace(
+    /\/$/,
+    "",
+  );
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const defaultHost = process.env.NODE_ENV === "development"
-    ? `${window.location.hostname}:8080`
-    : window.location.host;
+  const defaultHost =
+    process.env.NODE_ENV === "development"
+      ? `${window.location.hostname}:8080`
+      : window.location.host;
   const baseURL = configuredURL ?? `${protocol}//${defaultHost}`;
   return `${baseURL}/api/v1/rooms/${encodeURIComponent(roomId)}/ws`;
 }
@@ -302,13 +333,20 @@ function roomWebSocketURL(roomId: string) {
 function parseServerEvent(raw: string): ServerEvent | null {
   try {
     const event = JSON.parse(raw) as Partial<ServerEvent>;
-    return typeof event.type === "string" ? {
-      event_id: typeof event.event_id === "string" ? event.event_id : undefined,
-      type: event.type,
-      request_id: typeof event.request_id === "string" ? event.request_id : undefined,
-      occurred_at: typeof event.occurred_at === "string" ? event.occurred_at : undefined,
-      payload: event.payload,
-    } : null;
+    return typeof event.type === "string"
+      ? {
+          event_id:
+            typeof event.event_id === "string" ? event.event_id : undefined,
+          type: event.type,
+          request_id:
+            typeof event.request_id === "string" ? event.request_id : undefined,
+          occurred_at:
+            typeof event.occurred_at === "string"
+              ? event.occurred_at
+              : undefined,
+          payload: event.payload,
+        }
+      : null;
   } catch {
     return null;
   }
@@ -319,7 +357,11 @@ function createRequestId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function isDuplicateServerEvent(eventId: string, seen: Set<string>, order: string[]) {
+function isDuplicateServerEvent(
+  eventId: string,
+  seen: Set<string>,
+  order: string[],
+) {
   if (seen.has(eventId)) return true;
   seen.add(eventId);
   order.push(eventId);
@@ -333,10 +375,16 @@ function isDuplicateServerEvent(eventId: string, seen: Set<string>, order: strin
 function formatMessageTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Now";
-  return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
-function mapChatMessage(payload: ChatPayload, currentUsername: string): ChatMessage {
+function mapChatMessage(
+  payload: ChatPayload,
+  currentUsername: string,
+): ChatMessage {
   return {
     id: payload.id,
     sender: payload.username,
@@ -351,6 +399,8 @@ function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]) {
   const messages = new Map(current.map((message) => [message.id, message]));
   for (const message of incoming) messages.set(message.id, message);
   return [...messages.values()]
-    .sort((left, right) => (left.sentAt ?? "").localeCompare(right.sentAt ?? ""))
+    .sort((left, right) =>
+      (left.sentAt ?? "").localeCompare(right.sentAt ?? ""),
+    )
     .slice(-maxVisibleMessages);
 }

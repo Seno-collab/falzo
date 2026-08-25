@@ -555,7 +555,10 @@ func mapRoomError(err error) error {
 	case errors.Is(err, domainroom.ErrPlayerEliminated):
 		return apperror.Forbidden("Eliminated players can only spectate")
 	case errors.Is(err, domainroom.ErrNotCurrentTurn):
-		return apperror.Forbidden("Only the current player can finish this turn")
+		// This normally means the client rendered an older realtime snapshot and
+		// the turn moved before the request acquired the round lock. Treat it as
+		// a state conflict so clients can refresh the authoritative round state.
+		return apperror.Conflict("The turn has already moved to another player")
 	case errors.Is(err, domainroom.ErrMrWhiteGuessNotAllowed):
 		return apperror.Forbidden("Only the eliminated Mr. White can guess during this phase")
 	case errors.Is(err, domainroom.ErrMrWhiteAlreadyGuessed):

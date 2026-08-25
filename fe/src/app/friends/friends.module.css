@@ -20,7 +20,7 @@
   color: #f7f4e9;
   font-size: 21px;
   font-weight: 850;
-  letter-spacing: -.045em;
+  letter-spacing: -0.045em;
   text-decoration: none;
 }
 
@@ -63,14 +63,14 @@
   color: #d9f275;
   font-size: 9px;
   font-weight: 850;
-  letter-spacing: .17em;
+  letter-spacing: 0.17em;
 }
 
 .intro h1 {
   margin: 0;
   font-size: clamp(42px, 7vw, 70px);
-  letter-spacing: -.065em;
-  line-height: .95;
+  letter-spacing: -0.065em;
+  line-height: 0.95;
 }
 
 .intro > div > span {
@@ -257,7 +257,7 @@
 .search button:disabled,
 .notificationTools button:disabled {
   cursor: wait;
-  opacity: .55;
+  opacity: 0.55;
 }
 
 .row .secondaryButton,
@@ -286,7 +286,7 @@
   margin: 0 0 12px;
   color: #909b93;
   font-size: 9px;
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
 
