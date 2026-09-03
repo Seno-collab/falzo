@@ -187,12 +187,6 @@ export function PasswordAuthForm() {
             Your username will be saved in lowercase.
           </p>
         ) : null}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-
         <button
           className="password-auth-submit"
           disabled={isSubmitting}
@@ -204,6 +198,22 @@ export function PasswordAuthForm() {
               ? "Create account"
               : "Sign in"}
         </button>
+
+        {error ? (
+          <div className="auth-notification" role="alert">
+            <span className="auth-notification-icon" aria-hidden="true">
+              !
+            </span>
+            <span className="auth-notification-content">
+              <strong>
+                {mode === "register"
+                  ? "Could not create your account"
+                  : "Sign-in failed"}
+              </strong>
+              <span>{error}</span>
+            </span>
+          </div>
+        ) : null}
       </form>
     </div>
   );

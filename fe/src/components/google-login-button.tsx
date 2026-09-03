@@ -127,9 +127,15 @@ export function GoogleLoginButton() {
         Google password.
       </p>
       {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <div className="auth-notification" role="alert">
+          <span className="auth-notification-icon" aria-hidden="true">
+            !
+          </span>
+          <span className="auth-notification-content">
+            <strong>Google sign-in failed</strong>
+            <span>{error}</span>
+          </span>
+        </div>
       ) : null}
     </div>
   );

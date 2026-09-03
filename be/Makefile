@@ -24,4 +24,4 @@ migrate-reset:
 	@migrate -path migrations -database "$(DB_URL)" drop -f
 	@migrate -path migrations -database "$(DB_URL)" up
 run:
-	go run cmd/api/main.go
+	go run cmd/api

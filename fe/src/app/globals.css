@@ -927,12 +927,6 @@ input {
   color: #7f8a82;
   font-size: 10px;
 }
-.password-auth-form .form-error {
-  margin: -2px 0 0;
-  color: #ff9380;
-  line-height: 1.45;
-  text-align: left;
-}
 .password-auth-submit {
   min-height: 47px;
   border: 0;
@@ -1061,9 +1055,42 @@ input {
   color: #d9f275;
   font-size: 8px;
 }
-.google-login > .form-error {
-  color: #ff9380;
-  text-align: center;
+.auth-notification {
+  display: flex;
+  width: min(100%, 400px);
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 13px;
+  border: 1px solid rgb(255 147 128 / 42%);
+  border-radius: 12px;
+  background: rgb(100 33 25 / 32%);
+  color: #ffd8d1;
+  line-height: 1.45;
+  text-align: left;
+}
+.auth-notification-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ff9380;
+  color: #291611;
+  font-size: 13px;
+  font-weight: 900;
+}
+.auth-notification-content {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+}
+.auth-notification-content strong {
+  color: #fff5f2;
+  font-size: 13px;
+}
+.auth-notification-content > span {
+  color: #ffc2b7;
 }
 .form-error {
   margin: 8px 0 0;
