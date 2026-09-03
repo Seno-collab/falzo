@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: falzo-tls
+  namespace: falzo
+  labels:
+    app.kubernetes.io/name: falzo
+    app.kubernetes.io/part-of: falzo
+spec:
+  secretName: falzo-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - falzo.life
+    - www.falzo.life
+  privateKey:
+    algorithm: ECDSA
+    size: 256

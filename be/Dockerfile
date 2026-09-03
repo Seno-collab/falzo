@@ -1,14 +1,34 @@
+# syntax=docker/dockerfile:1
+
 FROM golang:1.26.2-alpine AS builder
-WORKDIR /app
+WORKDIR /src
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o falzo-api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/falzo-api \
+    ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/falzo-telegram-bot \
+    ./cmd/telegram-bot
 
-FROM alpine:latest
+FROM alpine:3.22 AS runtime
+RUN apk add --no-cache ca-certificates \
+    && addgroup -S -g 10001 falzo \
+    && adduser -S -D -H -u 10001 -G falzo falzo \
+    && mkdir -p /app/logs \
+    && chown -R falzo:falzo /app
+
 WORKDIR /app
-COPY --from=builder /app/falzo-api ./falzo-api
-COPY --from=chrislusf/seaweedfs:latest /usr/bin/weed /usr/local/bin/weed
-EXPOSE 8000
-CMD [ "./falzo-api" ]
+COPY --from=builder --chown=falzo:falzo /out/falzo-api ./falzo-api
+COPY --from=builder --chown=falzo:falzo /out/falzo-telegram-bot ./falzo-telegram-bot
+
+USER falzo
+EXPOSE 8080 8081
+ENTRYPOINT ["/app/falzo-api"]

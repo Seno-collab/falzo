@@ -1,57 +1,20 @@
-# Binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+.env
+.env.*
+!.env.example
+!fe/.env.example
 
-# Test binary
-*.test
+bin/
+dist/
+tmp/
 
-# Output of go build
-*.out
+*.log
 
-# Go workspace file
-go.work
-go.work.sum
-
-# Dependency directories (optional)
-vendor/
-
-# Go build cache
-/bin/
-# /pkg/
-
-# IDE (VS Code, JetBrains)
 .vscode/
 .idea/
 
-# Frontend workspace settings required for Tailwind CSS v4 editor support.
-!fe/.vscode/
-!fe/.vscode/settings.json
-!fe/.vscode/tailwind-v4.css-data.json
+coverage.out
+*.test
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Environment variables
-.env
-
-# Logs
-logs/
-
-docs/
-scripts/
-be/.gocache/
-be/.vscode/
-be/.gopath/
-be/secrets/seaweedfs_s3.json
-*.secret
-be/nginx/default.conf
-
-# Certbot runtime files. Keep directory placeholders only.
-certbot/conf/*
-certbot/www/*
-!certbot/conf/.gitkeep
-!certbot/www/.gitkeep
+/be/configs/config.local.yml
+/be/.env
+/be/.gocache/

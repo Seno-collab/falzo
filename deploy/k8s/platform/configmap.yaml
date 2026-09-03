@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falzo-config
+data:
+  SERVER_ENV: production
+  SERVER_PORT: "8080"
+  WEBSOCKET_ORIGIN_PATTERNS: falzo.life,www.falzo.life
+  GOOGLE_CLIENT_ID: replace-me.apps.googleusercontent.com
+  DATABASE_HOST: falzo-postgres
+  DATABASE_PORT: "5432"
+  DATABASE_USER_NAME: falzo_user
+  DATABASE_NAME: falzo_game_db
+  DATABASE_SSL_MODE: disable
+  REDIS_HOST: falzo-redis
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_KEY_PREFIX: falzo:production
+  REDIS_POOL_SIZE: "20"
+  REDIS_MIN_IDLE_CONNS: "5"
+  REDIS_DIAL_TIMEOUT_SECONDS: "5"
+  REDIS_READ_TIMEOUT_SECONDS: "3"
+  REDIS_WRITE_TIMEOUT_SECONDS: "3"
+  NATS_ENABLED: "true"
+  NATS_URL: nats://falzo-nats:4222
+  NATS_ALERT_STREAM: FALZO_ALERTS
+  NATS_ALERT_SUBJECT: falzo.alerts.error
+  NATS_ALERT_DURABLE: falzo-telegram-error-bot
+  JWT_EXPIRED_MINUTES: "15"
+  JWT_REFRESH_EXPIRED_HOURS: "168"
+  JWT_RESET_EXPIRED_MINUTES: "15"
+  AUTH_MAX_LOGIN_ATTEMPTS: "5"
+  AUTH_LOCK_MINUTES: "15"
+  GAME_MAX_PLAYERS_PER_ROOM: "12"
+  GAME_ROOM_TIMEOUT_SECONDS: "3600"

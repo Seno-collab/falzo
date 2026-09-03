@@ -1,30 +1,20 @@
 import type { Metadata } from "next";
-import { AppProviders } from "@/app/providers";
-import "@/styles.css";
+import { ApiLoadingProvider } from "@/components/api-loading";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Visual Places",
+  title: "Falzo — Games for real friends",
   description:
-    "Discover real places through community photos, explore them on the map, and save where you want to go next.",
-  icons: {
-    icon: [
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-  },
+    "Simple social games for dinners, road trips, and nights with friends.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body suppressHydrationWarning>
-        <AppProviders>{children}</AppProviders>
+        <ApiLoadingProvider>{children}</ApiLoadingProvider>
       </body>
     </html>
   );

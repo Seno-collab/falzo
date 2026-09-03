@@ -1,26 +1,20 @@
 import type { NextConfig } from "next";
-import path from "node:path";
+
+const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
 
 const nextConfig: NextConfig = {
+  // Next standalone tracing creates POSIX-style symlinks. Keep it for the
+  // Linux container build while allowing local Windows verification to run.
+  output: process.platform === "win32" ? undefined : "standalone",
+  outputFileTracingRoot: process.cwd(),
   reactStrictMode: true,
-  output: "export",
-  outputFileTracingRoot: path.resolve(),
-  images: {
-    unoptimized: true,
-    remotePatterns: [
+  async rewrites() {
+    return [
       {
-        protocol: "https",
-        hostname: "images.unsplash.com",
+        source: "/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
-      {
-        protocol: "https",
-        hostname: "picsum.photos",
-      },
-      {
-        protocol: "https",
-        hostname: "*.googleusercontent.com",
-      },
-    ],
+    ];
   },
 };
 

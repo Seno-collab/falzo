@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: falzo-monitor-tls
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: falzo-grafana
+    app.kubernetes.io/part-of: falzo
+spec:
+  secretName: falzo-monitor-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - monitor.falzo.life
+  privateKey:
+    algorithm: ECDSA
+    size: 256

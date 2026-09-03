@@ -1,0 +1,430 @@
+name: Legacy manual Docker Compose deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY_DOCKER to stop K3s and deploy the legacy Docker stack
+        required: true
+        type: string
+
+concurrency:
+  group: falzo-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  prepare:
+    name: Prepare image names
+    if: ${{ inputs.confirmation == 'DEPLOY_DOCKER' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      registry_namespace: ${{ steps.names.outputs.registry_namespace }}
+    steps:
+      - name: Normalize GHCR namespace
+        id: names
+        shell: bash
+        run: echo "registry_namespace=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }} image
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./be
+            dockerfile: be/Dockerfile
+            image: falzo-backend
+            build_args: ""
+          - name: migration
+            context: ./be
+            dockerfile: be/Dockerfile.migrate
+            image: falzo-migrate
+            build_args: ""
+          - name: frontend
+            context: ./fe
+            dockerfile: fe/Dockerfile
+            image: falzo-frontend
+            build_args: |
+              BACKEND_URL=http://backend:8080
+              NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.registry_namespace }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    name: Deploy production VPS
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+    env:
+      REGISTRY_NAMESPACE: ${{ needs.prepare.outputs.registry_namespace }}
+      GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+      GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          require_secret() {
+            secret_name="$1"
+            secret_value="$2"
+            if [ -z "$secret_value" ]; then
+              echo "::error title=Missing production secret::$secret_name is not configured."
+              exit 1
+            fi
+          }
+
+          require_secret "VPS_HOST" "$VPS_HOST"
+          require_secret "VPS_USER" "$VPS_USER"
+          require_secret "VPS_SSH_KEY" "$VPS_SSH_KEY"
+          require_secret "VPS_APP_DIR" "$VPS_APP_DIR"
+          [[ "$VPS_APP_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]
+
+          VPS_PORT="${VPS_PORT:-22}"
+          echo "VPS_PORT=$VPS_PORT" >> "$GITHUB_ENV"
+
+          install -m 700 -d ~/.ssh
+          key_path="$HOME/.ssh/falzo-deploy"
+          key_content="$VPS_SSH_KEY"
+
+          if [[ "$key_content" != *$'\n'* && "$key_content" == *'\n'* ]]; then
+            key_content="${key_content//\\n/$'\n'}"
+          fi
+
+          printf '%s\n' "$key_content" | tr -d '\r' > "$key_path"
+
+          if ! grep -Eq '^-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----$' "$key_path"; then
+            decoded_key="$RUNNER_TEMP/falzo-deploy.decoded"
+            if printf '%s' "$VPS_SSH_KEY" | tr -d '\r\n ' | base64 --decode > "$decoded_key" 2>/dev/null \
+              && grep -Eq '^-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----$' "$decoded_key"; then
+              mv "$decoded_key" "$key_path"
+            fi
+          fi
+
+          chmod 600 "$key_path"
+
+          if ! ssh-keygen -y -P '' -f "$key_path" > /dev/null 2>&1; then
+            echo "::error title=Invalid VPS SSH key::VPS_SSH_KEY is not a usable unencrypted private key."
+            exit 1
+          fi
+
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+          ssh \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -i "$key_path" \
+            -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "printf 'SSH access verified\\n'"
+
+      - name: Prepare deployment bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          require_value() {
+            value_name="$1"
+            value="$2"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing deployment configuration::$value_name is not configured for the production deployment."
+              exit 1
+            fi
+          }
+
+          require_value "Repository variable NEXT_PUBLIC_GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
+          require_value "Environment secret GHCR_PULL_USERNAME" "$GHCR_PULL_USERNAME"
+          require_value "Environment secret GHCR_PULL_TOKEN" "$GHCR_PULL_TOKEN"
+          [[ "$GOOGLE_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]
+          [[ "$GHCR_PULL_USERNAME" =~ ^[A-Za-z0-9._-]+$ ]]
+
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning title=Telegram alerts disabled::TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are optional, but both are required to start the notification worker."
+          fi
+
+          bundle_dir="$RUNNER_TEMP/falzo-docker"
+          install -m 700 -d "$bundle_dir"
+          install -m 644 deploy/docker/compose.yaml "$bundle_dir/compose.yaml"
+          install -m 644 deploy/docker/Caddyfile "$bundle_dir/Caddyfile"
+
+          backend_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-backend:$IMAGE_TAG"
+          migration_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-migrate:$IMAGE_TAG"
+          frontend_image="$REGISTRY/$REGISTRY_NAMESPACE/falzo-frontend:$IMAGE_TAG"
+
+          umask 077
+          {
+            printf 'BACKEND_IMAGE=%s\n' "$backend_image"
+            printf 'MIGRATION_IMAGE=%s\n' "$migration_image"
+            printf 'FRONTEND_IMAGE=%s\n' "$frontend_image"
+            printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
+            printf 'GHCR_PULL_USERNAME=%s\n' "$GHCR_PULL_USERNAME"
+            printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
+            printf 'TELEGRAM_CHAT_ID=%s\n' "$TELEGRAM_CHAT_ID"
+          } > "$bundle_dir/release.env"
+          printf '%s' "$GHCR_PULL_TOKEN" > "$bundle_dir/ghcr-token"
+
+          echo "BUNDLE_DIR=$bundle_dir" >> "$GITHUB_ENV"
+
+      - name: Upload Docker deployment files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_dir="$VPS_APP_DIR/upload/$IMAGE_TAG"
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$remote_dir'"
+          scp -i ~/.ssh/falzo-deploy -P "$VPS_PORT" \
+            "$BUNDLE_DIR/compose.yaml" \
+            "$BUNDLE_DIR/Caddyfile" \
+            "$BUNDLE_DIR/release.env" \
+            "$BUNDLE_DIR/ghcr-token" \
+            "$VPS_USER@$VPS_HOST:$remote_dir/"
+          echo "REMOTE_DIR=$remote_dir" >> "$GITHUB_ENV"
+
+      - name: Deploy with Docker Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/falzo-deploy -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "REMOTE_DIR='$REMOTE_DIR' VPS_APP_DIR='$VPS_APP_DIR' bash -s" <<'EOF'
+          set -euo pipefail
+
+          test -n "$VPS_APP_DIR"
+          case "$REMOTE_DIR" in
+            "$VPS_APP_DIR"/upload/*) ;;
+            *)
+              echo "Refusing unexpected upload path: $REMOTE_DIR"
+              exit 1
+              ;;
+          esac
+
+          deploy_dir="$VPS_APP_DIR/docker"
+          shared_dir="$VPS_APP_DIR/shared"
+          secrets_file="$shared_dir/secrets.env"
+          logged_in=false
+
+          cleanup() {
+            exit_code=$?
+            trap - EXIT
+            rm -rf -- "$REMOTE_DIR"
+            if [ "$logged_in" = true ]; then
+              docker_run logout ghcr.io >/dev/null 2>&1 || true
+            fi
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          if [ "$(id -u)" -eq 0 ]; then
+            has_root=true
+            run_root() { "$@"; }
+          elif sudo -n true; then
+            has_root=true
+            run_root() { sudo -n "$@"; }
+          else
+            has_root=false
+          fi
+
+          case "$(uname -m)" in
+            x86_64|amd64) ;;
+            *)
+              echo "The application images target linux/amd64, but this VPS is $(uname -m)."
+              exit 1
+              ;;
+          esac
+
+          if command -v docker >/dev/null 2>&1 \
+            && ! docker info >/dev/null 2>&1 \
+            && [ "$has_root" = true ] \
+            && command -v systemctl >/dev/null 2>&1; then
+            run_root systemctl enable --now docker || true
+          fi
+
+          if docker info >/dev/null 2>&1; then
+            docker_run() { docker "$@"; }
+          elif [ "$has_root" = true ] && run_root docker info >/dev/null 2>&1; then
+            docker_run() { run_root docker "$@"; }
+          else
+            echo "Docker is not installed or the VPS user cannot access the Docker daemon."
+            exit 1
+          fi
+
+          docker_run compose version
+          if ! docker_run compose up --help | grep -q -- '--wait'; then
+            echo "Docker Compose is too old; install a current Compose v2 plugin with --wait support."
+            exit 1
+          fi
+          command -v openssl >/dev/null 2>&1
+
+          if command -v systemctl >/dev/null 2>&1 \
+            && systemctl list-unit-files k3s.service --no-legend 2>/dev/null \
+              | grep -q '^k3s.service'; then
+            if systemctl is-active --quiet k3s \
+              || systemctl is-enabled --quiet k3s; then
+              if [ "$has_root" != true ]; then
+                echo "K3s may reclaim production ports, and the VPS user cannot disable it without sudo."
+                exit 1
+              fi
+              echo "Disabling K3s so Docker Caddy owns ports 80 and 443."
+              run_root systemctl disable --now k3s
+            fi
+          fi
+
+          install -d "$deploy_dir" "$shared_dir"
+          install -m 644 "$REMOTE_DIR/compose.yaml" "$deploy_dir/compose.yaml"
+          install -m 644 "$REMOTE_DIR/Caddyfile" "$deploy_dir/Caddyfile"
+          install -m 600 "$REMOTE_DIR/release.env" "$deploy_dir/release.env"
+          chmod 600 "$REMOTE_DIR/ghcr-token"
+
+          if [ ! -f "$secrets_file" ]; then
+            secrets_tmp="$shared_dir/secrets.env.tmp.$$"
+            umask 077
+            database_password="$(openssl rand -hex 32)"
+            redis_password="$(openssl rand -hex 32)"
+            jwt_secret="$(openssl rand -hex 48)"
+            {
+              printf 'DATABASE_PASSWORD=%s\n' "$database_password"
+              printf 'REDIS_PASSWORD=%s\n' "$redis_password"
+              printf 'JWT_SECRET=%s\n' "$jwt_secret"
+              printf 'DATABASE_URL=postgres://falzo_user:%s@postgres:5432/falzo_game_db?sslmode=disable\n' "$database_password"
+            } > "$secrets_tmp"
+            chmod 600 "$secrets_tmp"
+            mv "$secrets_tmp" "$secrets_file"
+            unset database_password redis_password jwt_secret
+          fi
+          chmod 600 "$secrets_file"
+
+          registry_username="$(sed -n 's/^GHCR_PULL_USERNAME=//p' "$deploy_dir/release.env")"
+          test -n "$registry_username"
+          docker_run login ghcr.io \
+            --username "$registry_username" \
+            --password-stdin \
+            < "$REMOTE_DIR/ghcr-token"
+          logged_in=true
+
+          compose() {
+            docker_run compose \
+              --project-name falzo \
+              --env-file "$secrets_file" \
+              --env-file "$deploy_dir/release.env" \
+              --file "$deploy_dir/compose.yaml" \
+              "$@"
+          }
+
+          show_compose_diagnostics() {
+            compose ps -a || true
+            compose logs --no-color --tail 200 || true
+          }
+
+          compose config --quiet
+          compose --profile tools pull postgres redis migration backend frontend caddy
+          if ! compose up -d --wait --wait-timeout 180 postgres redis; then
+            show_compose_diagnostics
+            exit 1
+          fi
+          if ! compose --profile tools run --rm migration; then
+            show_compose_diagnostics
+            exit 1
+          fi
+          if ! compose up -d --remove-orphans --wait --wait-timeout 180 backend frontend caddy; then
+            show_compose_diagnostics
+            exit 1
+          fi
+
+          if ! compose pull nats; then
+            echo "::warning title=NATS image unavailable::The optional notification transport image could not be pulled."
+          fi
+          if ! compose up -d --wait --wait-timeout 60 nats; then
+            echo "::warning title=NATS alerts unavailable::The optional notification transport did not become ready; the main application is already available."
+            compose logs --no-color --tail 100 nats || true
+          fi
+
+          telegram_alerts_configured=false
+          if grep -qE '^TELEGRAM_BOT_TOKEN=.+$' "$deploy_dir/release.env" \
+            && grep -qE '^TELEGRAM_CHAT_ID=.+$' "$deploy_dir/release.env"; then
+            telegram_alerts_configured=true
+          fi
+          if [ "$telegram_alerts_configured" != true ]; then
+            echo "Skipping the optional Telegram worker readiness check."
+            compose stop telegram-bot || true
+          elif ! compose up -d --wait --wait-timeout 60 telegram-bot; then
+            echo "::warning title=Telegram alerts unavailable::The application is healthy, but the optional Telegram notification worker did not become ready."
+            compose logs --no-color --tail 100 telegram-bot || true
+          fi
+          compose ps
+          EOF
+
+      - name: Verify public API health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --max-time 10 \
+              https://falzo.life/health/ready \
+              && curl --fail --silent --show-error --location --max-time 10 \
+                http://falzo.life/health/ready \
+              && curl --fail --silent --show-error --location --max-time 10 \
+                https://www.falzo.life/health/ready; then
+              echo
+              echo "Falzo public API is ready on HTTP, HTTPS and www."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "::error title=Public routes unavailable::Check apex/www DNS, VPS ports 80/443, TLS, and Caddy logs."
+          exit 1

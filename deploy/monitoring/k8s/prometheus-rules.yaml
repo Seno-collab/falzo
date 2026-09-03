@@ -1,0 +1,72 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: falzo-alerts
+  namespace: falzo
+  labels:
+    app.kubernetes.io/name: falzo-alerts
+    app.kubernetes.io/part-of: falzo
+spec:
+  groups:
+    - name: falzo-realtime
+      rules:
+        - alert: FalzoSocketQueueDroppingEvents
+          expr: increase(falzo_realtime_queue_dropped_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Falzo WebSocket clients are losing ordered events
+        - alert: FalzoRedisRealtimeFailures
+          expr: increase(falzo_realtime_redis_operations_total{result="error"}[5m]) > 3
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Falzo realtime Redis operations are failing
+        - alert: FalzoAbnormalSocketDisconnects
+          expr: increase(falzo_realtime_disconnects_total{reason!="normal"}[5m]) > 20
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Falzo WebSocket abnormal disconnect rate is elevated
+        - alert: FalzoReconnectSurge
+          expr: increase(falzo_realtime_reconnects_total[5m]) > 20
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Falzo clients are reconnecting unusually often
+    - name: falzo-game
+      rules:
+        - alert: FalzoGamePhaseTransitionFailed
+          expr: increase(falzo_game_phase_transitions_total{result="error"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Falzo failed to advance a game phase
+        - alert: FalzoGameRoundStuck
+          expr: falzo_game_overdue_rounds > 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: A Falzo round is stuck past its phase deadline
+    - name: falzo-alert-delivery
+      rules:
+        - alert: FalzoErrorNotificationQueueFull
+          expr: increase(falzo_alerts_notifications_total{stage="enqueue",result="dropped"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Falzo dropped error notifications before publishing to NATS
+        - alert: FalzoNATSAlertPublishFailed
+          expr: increase(falzo_alerts_notifications_total{stage="publish",result="error"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: Falzo could not publish error notifications to NATS JetStream

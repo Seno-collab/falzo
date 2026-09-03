@@ -1,106 +1,61 @@
 services:
   postgres:
-    image: postgis/postgis:18-3.6-alpine
-    container_name: falzo-postgresql
+    image: postgres:18-alpine
+    container_name: falzo-postgres-dev
     restart: unless-stopped
-    networks:
-      - falzo
-    env_file: ./be/.env
-    volumes:
-      - postgres_data:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-falzo_game_db}
+      POSTGRES_USER: ${DATABASE_USER_NAME:-falzo_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
     ports:
       - "5432:5432"
-  mongodb:
-    image: mongo:latest
-    restart: unless-stopped
-    networks:
-      - falzo
-    env_file: ./be/.env
-    ports:
-      - "27017:27017"
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   redis:
-    image: redis:latest
-    container_name: falzo-redis
+    image: redis:8-alpine
+    container_name: falzo-redis-dev
     restart: unless-stopped
-    networks:
-      - falzo
-    env_file: ./be/.env
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     ports:
       - "6379:6379"
-  seaweedfs:
-    image: chrislusf/seaweedfs:latest
-    container_name: falzo-seaweedfs
-    networks:
-      - falzo
-    command: server -dir=/data -filer
-    env_file: ./be/.env
-    ports:
-      - "8888:8888"
-    expose:
-      - "9333"
     volumes:
-      - seaweedfs_data:/data
-  api:
-    build:
-      context: ./be
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    networks:
-      - falzo
-    env_file: ./be/.env
-    environment:
-      SEAWEEDFS_BASE_URL: http://seaweedfs:8888
-      SEAWEEDFS_PUBLIC_URL: https://image.falzo.life
-    expose:
-      - "8000"
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8000/"]
-      interval: 10s
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
       timeout: 3s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      - postgres
-      - redis
-      - mongodb
-      - seaweedfs
-  nginx:
-    container_name: falzo-nginx
-    build:
-      context: ./fe
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE_URL: /api
+      retries: 30
+
+  nats:
+    image: nats:2.11-alpine
+    container_name: falzo-nats-dev
     restart: unless-stopped
-    networks:
-      - falzo
-    env_file: ./be/.env
-    environment:
-      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
-      - "80:80"
-      - "443:443"
+      - "4222:4222"
+      - "8222:8222"
     volumes:
-      - ./be/nginx/default.conf.template:/etc/nginx/templates/nginx.conf.template:ro
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-    depends_on:
-      - api
-      - seaweedfs
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-networks:
-  falzo:
-    driver: bridge
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
 volumes:
   postgres_data:
-  redis:
-  mongo_data:
-  seaweedfs_data:
+  redis_data:
+  nats_data:

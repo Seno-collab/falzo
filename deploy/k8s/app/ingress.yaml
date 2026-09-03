@@ -1,0 +1,131 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: falzo
+  labels:
+    app.kubernetes.io/name: falzo
+    app.kubernetes.io/part-of: falzo
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - falzo.life
+        - www.falzo.life
+      secretName: falzo-tls
+  rules:
+    - host: falzo.life
+      http:
+        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-frontend
+                port:
+                  number: 3000
+    - host: www.falzo.life
+      http:
+        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-frontend
+                port:
+                  number: 3000
+---
+# Keep HTTP on its own non-TLS router. A TLS-enabled Traefik router attached to
+# the `web` entrypoint rejects plain HTTP and falls through to a 404; this
+# router catches it and sends the browser to HTTPS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: falzo-http
+  labels:
+    app.kubernetes.io/name: falzo
+    app.kubernetes.io/part-of: falzo
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: falzo-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: falzo.life
+      http:
+        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-frontend
+                port:
+                  number: 3000
+    - host: www.falzo.life
+      http:
+        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: falzo-frontend
+                port:
+                  number: 3000
