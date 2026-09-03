@@ -1,9 +1,15 @@
-# Telegram error notifications
+# Telegram notifications
 
-Falzo API error logs are converted to versioned events and published to the
-`falzo.alerts.error` subject in the `FALZO_ALERTS` JetStream stream. The
-`falzo-telegram-error-bot` durable consumer sends each event to Telegram and
-acknowledges it only after Telegram accepts the message.
+Falzo API error logs and account-lock security events are converted to
+versioned events and published to the `falzo.alerts.error` subject in the
+`FALZO_ALERTS` JetStream stream. The `falzo-telegram-error-bot` durable consumer
+sends each event to Telegram and acknowledges it only after Telegram accepts
+the message.
+
+An account-lock notification is emitted once when failed password attempts
+change the account status to `LOCKED`. Further login attempts during the lock
+window do not emit duplicate notifications. The message includes the user ID,
+username, failed-attempt count, and lock expiry; credentials are never included.
 
 Configure these secret values without committing them:
 

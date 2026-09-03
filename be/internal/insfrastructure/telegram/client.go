@@ -83,7 +83,11 @@ func (c *Client) redact(value string) string {
 
 func FormatAlert(event alerting.Event) string {
 	var builder strings.Builder
-	builder.WriteString("🚨 Falzo error\n")
+	if event.Fields["event_type"] == "account_locked" {
+		builder.WriteString("🔒 Falzo account locked\n")
+	} else {
+		builder.WriteString("🚨 Falzo error\n")
+	}
 	writeLine(&builder, "Service", event.Service)
 	writeLine(&builder, "Environment", event.Environment)
 	writeLine(&builder, "Time", event.OccurredAt.UTC().Format(time.RFC3339))
@@ -101,6 +105,9 @@ func FormatAlert(event alerting.Event) string {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
+		if key == "event_type" {
+			continue
+		}
 		writeLine(&builder, key, fmt.Sprint(event.Fields[key]))
 	}
 

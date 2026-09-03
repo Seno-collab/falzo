@@ -176,6 +176,18 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) writeAuthError(w http.ResponseWriter, r *http.Request, operation string, err error) {
 	mappedErr := mapAuthError(err)
 	appErr := apperror.FromError(mappedErr)
+	var accountLockedErr *authapp.AccountLockedError
+	if errors.As(err, &accountLockedErr) {
+		h.logger.ErrorContext(r.Context(), "account locked after failed login attempts",
+			slog.String("event_type", "account_locked"),
+			slog.Int64("user_id", accountLockedErr.UserID),
+			slog.String("username", accountLockedErr.UserName),
+			slog.Int("failed_attempts", accountLockedErr.FailedAttempts),
+			slog.Time("locked_until", accountLockedErr.LockedUntil),
+		)
+		response.Error(w, mappedErr)
+		return
+	}
 	level := slog.LevelWarn
 	if appErr.Code == apperror.CodeInternalServerError {
 		level = slog.LevelError

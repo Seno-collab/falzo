@@ -5,9 +5,25 @@ import (
 	domainuser "be/internal/domain/user"
 	"be/internal/shared/clock"
 	"context"
+	"fmt"
 	"strings"
 	"time"
 )
+
+type AccountLockedError struct {
+	UserID         int64
+	UserName       string
+	FailedAttempts int
+	LockedUntil    time.Time
+}
+
+func (e *AccountLockedError) Error() string {
+	return fmt.Sprintf("account %q is locked until %s", e.UserName, e.LockedUntil.UTC().Format(time.RFC3339))
+}
+
+func (e *AccountLockedError) Unwrap() error {
+	return domainuser.ErrUserLocked
+}
 
 type LoginUseCase struct {
 	passwordHasher authports.PasswordHasher
@@ -46,6 +62,14 @@ func (uc *LoginUseCase) Execute(ctx context.Context, input LoginInput) (*LoginOu
 		u.RecordFailedLogin(now, uc.maxAttempts, uc.lockDuration)
 		if err := uc.users.UpdateLoginState(ctx, u); err != nil {
 			return nil, err
+		}
+		if u.Status == domainuser.UserStatusLocked && u.LockUntil != nil {
+			return nil, &AccountLockedError{
+				UserID:         u.ID,
+				UserName:       u.UserName,
+				FailedAttempts: u.FailedAttempts,
+				LockedUntil:    *u.LockUntil,
+			}
 		}
 		return nil, domainuser.ErrInvalidUsernameOrPassword
 	}
